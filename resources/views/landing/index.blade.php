@@ -1,0 +1,13 @@
+@extends('layouts.app')
+
+@section('content')
+    @include('landing.sections.hero')
+    @include('landing.sections.stats')
+    @include('landing.sections.problem-solution')
+    @include('landing.sections.features')
+    @include('landing.sections.remote-vpn')
+    @include('landing.sections.preview')
+    @include('landing.sections.pricing')
+    @include('landing.sections.faq')
+    @include('landing.sections.cta')
+@endsection

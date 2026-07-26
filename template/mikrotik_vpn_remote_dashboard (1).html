@@ -1,0 +1,1177 @@
+<!DOCTYPE html>
+<html lang="id" class="h-full bg-slate-50">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MikPay Tunnel - Remote Dashboard</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Alpine.js CDN -->
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <!-- Google Fonts: Plus Jakarta Sans & JetBrains Mono -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Plus Jakarta Sans', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace'],
+                    },
+                    colors: {
+                        brand: {
+                            50: '#eef2ff',
+                            100: '#e0e7ff',
+                            500: '#6366f1',
+                            600: '#4f46e5',
+                            700: '#4338ca',
+                            900: '#312e81',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        [x-cloak] { display: none !important; }
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f5f9;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 9999px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+    </style>
+</head>
+<body class="h-full font-sans antialiased text-slate-800 bg-slate-50/50" x-data="dashboardApp()">
+
+    <!-- Toast Notification -->
+    <div x-show="toast.show" 
+         x-transition:enter="transition ease-out duration-300 transform"
+         x-transition:enter-start="opacity-0 translate-y-2"
+         x-transition:enter-end="opacity-100 translate-y-0"
+         x-transition:leave="transition ease-in duration-200 transform"
+         x-transition:leave-start="opacity-100 translate-y-0"
+         x-transition:leave-end="opacity-0 translate-y-2"
+         x-cloak
+         class="fixed bottom-5 right-5 z-50 flex items-center gap-3 px-4 py-3 bg-slate-900 text-white rounded-xl shadow-2xl border border-slate-700/50 text-sm font-medium">
+        <i class="fa-solid fa-circle-check text-emerald-400 text-lg"></i>
+        <span x-text="toast.message"></span>
+    </div>
+
+    <div class="min-h-full flex flex-col lg:flex-row">
+
+        <!-- Mobile Header Bar -->
+        <div class="lg:hidden bg-slate-900 text-white p-4 flex items-center justify-between border-b border-slate-800">
+            <div class="flex items-center gap-3">
+                <div class="w-9 h-9 rounded-xl bg-gradient-to-tr from-indigo-600 to-indigo-400 flex items-center justify-center font-black text-white text-xl shadow-lg shadow-indigo-500/30">
+                    <i class="fa-solid fa-bolt text-sm"></i>
+                </div>
+                <span class="font-extrabold text-lg tracking-tight bg-gradient-to-r from-white via-slate-200 to-indigo-200 bg-clip-text text-transparent">MikPay</span>
+            </div>
+            <button @click="mobileMenuOpen = !mobileMenuOpen" class="p-2 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 focus:outline-none">
+                <i class="fa-solid" :class="mobileMenuOpen ? 'fa-xmark text-xl' : 'fa-bars text-xl'"></i>
+            </button>
+        </div>
+
+        <!-- Sidebar Navigation -->
+        <aside class="w-full lg:w-72 bg-slate-900 text-slate-300 flex-shrink-0 flex flex-col justify-between border-r border-slate-800/80 min-h-screen"
+               :class="{'hidden lg:flex': !mobileMenuOpen, 'flex': mobileMenuOpen}">
+            <div>
+                <!-- Brand Logo Area -->
+                <div class="hidden lg:flex items-center justify-between p-6 border-b border-slate-800/80">
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-brand-600 to-indigo-400 flex items-center justify-center text-white shadow-lg shadow-brand-500/25">
+                            <i class="fa-solid fa-bolt text-lg"></i>
+                        </div>
+                        <div>
+                            <span class="font-extrabold text-xl tracking-tight text-white block leading-none">MikPay</span>
+                            <span class="text-[11px] font-semibold text-brand-400 tracking-wider uppercase">Tunnel Engine</span>
+                        </div>
+                    </div>
+                    <span class="px-2 py-0.5 text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-full">v2.4</span>
+                </div>
+
+                <!-- Navigation Links -->
+                <div class="p-4 space-y-6">
+                    <div>
+                        <div class="px-3 text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-2">Utama</div>
+                        <nav class="space-y-1">
+                            <!-- VPN Remote -->
+                            <a href="#" @click.prevent="activeTab = 'list'; mobileMenuOpen = false" 
+                               :class="activeTab === 'list' || activeTab === 'detail' ? 'bg-brand-600/10 text-brand-400 font-semibold border-l-4 border-brand-500' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'" 
+                               class="flex items-center gap-3 px-3.5 py-2.5 rounded-lg text-sm transition-all">
+                                <i class="fa-solid fa-server w-5 text-center"></i>
+                                <span>VPN Remote</span>
+                                <span class="ml-auto bg-slate-800 text-slate-300 text-xs px-2 py-0.5 rounded-full font-mono" x-text="vpnList.length"></span>
+                            </a>
+
+                            <!-- HTTP Reverse Proxy -->
+                            <a href="#" @click.prevent="activeTab = 'reverse_proxy'; mobileMenuOpen = false" 
+                               :class="activeTab === 'reverse_proxy' ? 'bg-brand-600/10 text-brand-400 font-semibold border-l-4 border-brand-500' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'" 
+                               class="flex items-center gap-3 px-3.5 py-2.5 rounded-lg text-sm transition-all">
+                                <i class="fa-solid fa-cloud-bolt w-5 text-center"></i>
+                                <span>HTTP Reverse Proxy</span>
+                                <span class="ml-auto bg-slate-800 text-slate-300 text-xs px-2 py-0.5 rounded-full font-mono" x-text="proxyList.length"></span>
+                            </a>
+
+                            <!-- DDNS Manager -->
+                            <a href="#" @click.prevent="activeTab = 'ddns'; mobileMenuOpen = false" 
+                               :class="activeTab === 'ddns' ? 'bg-brand-600/10 text-brand-400 font-semibold border-l-4 border-brand-500' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'" 
+                               class="flex items-center gap-3 px-3.5 py-2.5 rounded-lg text-sm transition-all">
+                                <i class="fa-solid fa-globe w-5 text-center"></i>
+                                <span>DDNS Manager</span>
+                                <span class="ml-auto bg-slate-800 text-slate-300 text-xs px-2 py-0.5 rounded-full font-mono" x-text="ddnsList.length"></span>
+                            </a>
+                        </nav>
+                    </div>
+
+                    <div>
+                        <div class="px-3 text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-2">Keuangan & Bantuan</div>
+                        <nav class="space-y-1">
+                            <!-- Top Up Saldo -->
+                            <a href="#" @click.prevent="activeTab = 'topup'; mobileMenuOpen = false" 
+                               :class="activeTab === 'topup' ? 'bg-brand-600/10 text-brand-400 font-semibold border-l-4 border-brand-500' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'" 
+                               class="flex items-center gap-3 px-3.5 py-2.5 rounded-lg text-sm transition-all">
+                                <i class="fa-solid fa-wallet w-5 text-center"></i>
+                                <span>Top Up Saldo</span>
+                            </a>
+
+                            <!-- Panduan Mikrotik -->
+                            <a href="#" @click.prevent="activeTab = 'guide'; mobileMenuOpen = false" 
+                               :class="activeTab === 'guide' ? 'bg-brand-600/10 text-brand-400 font-semibold border-l-4 border-brand-500' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'" 
+                               class="flex items-center gap-3 px-3.5 py-2.5 rounded-lg text-sm transition-all">
+                                <i class="fa-solid fa-book-open w-5 text-center"></i>
+                                <span>Panduan Mikrotik</span>
+                            </a>
+
+                            <!-- Tiket Bantuan -->
+                            <a href="#" @click.prevent="activeTab = 'tickets'; mobileMenuOpen = false" 
+                               :class="activeTab === 'tickets' ? 'bg-brand-600/10 text-brand-400 font-semibold border-l-4 border-brand-500' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'" 
+                               class="flex items-center gap-3 px-3.5 py-2.5 rounded-lg text-sm transition-all">
+                                <i class="fa-solid fa-headset w-5 text-center"></i>
+                                <span>Tiket Bantuan</span>
+                                <span class="ml-auto w-2 h-2 rounded-full bg-emerald-500"></span>
+                            </a>
+                        </nav>
+                    </div>
+                </div>
+            </div>
+
+            <!-- User Balance & Profile Widget -->
+            <div class="p-4 border-t border-slate-800/80 bg-slate-950/40">
+                <div class="p-3.5 rounded-xl bg-slate-800/60 border border-slate-700/50 mb-3">
+                    <div class="text-xs text-slate-400 font-medium mb-1 flex items-center justify-between">
+                        <span>Saldo Deposit</span>
+                        <a href="#" @click.prevent="activeTab = 'topup'" class="text-brand-400 hover:underline text-[11px] font-semibold">+ Top Up</a>
+                    </div>
+                    <div class="text-lg font-bold text-white font-mono" x-text="formatRupiah(userBalance)">Rp 150.000</div>
+                </div>
+
+                <div class="flex items-center justify-between pt-1">
+                    <div class="flex items-center gap-3">
+                        <img class="w-9 h-9 rounded-full ring-2 ring-brand-500/30 object-cover" src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80" alt="Avatar">
+                        <div>
+                            <div class="text-xs font-bold text-white leading-tight">Muhammad Andi</div>
+                            <div class="text-[11px] text-slate-400 truncate max-w-[110px]">andi@mikpay.link</div>
+                        </div>
+                    </div>
+                    <button class="text-slate-400 hover:text-rose-400 p-1.5 rounded-lg hover:bg-slate-800 transition-colors" title="Keluar">
+                        <i class="fa-solid fa-arrow-right-from-bracket"></i>
+                    </button>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Content Area -->
+        <main class="flex-1 flex flex-col min-w-0 overflow-y-auto">
+
+            <!-- Top Header Navbar -->
+            <header class="bg-white border-b border-slate-200/80 px-6 py-4 sticky top-0 z-30 flex items-center justify-between shadow-xs">
+                <!-- Breadcrumbs & Dynamic Title -->
+                <div>
+                    <nav class="flex items-center gap-2 text-xs font-medium text-slate-500 mb-0.5">
+                        <a href="#" @click.prevent="activeTab = 'list'" class="hover:text-brand-600">Dashboard</a>
+                        <i class="fa-solid fa-chevron-right text-[9px] text-slate-300"></i>
+                        <span class="text-slate-800 font-semibold" x-text="getTabTitle()">VPN Remote</span>
+                    </nav>
+                    <h1 class="text-xl font-bold text-slate-900 tracking-tight" x-text="getTabHeader()">Daftar VPN Remote</h1>
+                </div>
+
+                <!-- Action Controls -->
+                <div class="flex items-center gap-3">
+                    <!-- Search Input (Visible in List / Proxy / DDNS) -->
+                    <div x-show="['list', 'reverse_proxy', 'ddns'].includes(activeTab)" class="relative hidden sm:block">
+                        <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-3 text-slate-400 text-xs"></i>
+                        <input type="text" x-model="searchQuery" placeholder="Cari data..." class="pl-9 pr-4 py-2 bg-slate-100/70 focus:bg-white border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 w-60 transition-all">
+                    </div>
+
+                    <!-- Dynamic Action Buttons -->
+                    <template x-if="activeTab === 'list' || activeTab === 'detail'">
+                        <button @click="openModalOrder()" class="inline-flex items-center gap-2 px-4 py-2 bg-brand-600 hover:bg-brand-700 active:bg-brand-800 text-white text-xs font-semibold rounded-xl shadow-md shadow-brand-500/20 transition-all transform active:scale-95">
+                            <i class="fa-solid fa-plus"></i>
+                            <span>Order VPN Baru</span>
+                        </button>
+                    </template>
+
+                    <template x-if="activeTab === 'reverse_proxy'">
+                        <button @click="modalProxyOpen = true" class="inline-flex items-center gap-2 px-4 py-2 bg-brand-600 hover:bg-brand-700 text-white text-xs font-semibold rounded-xl shadow-md shadow-brand-500/20 transition-all">
+                            <i class="fa-solid fa-plus"></i>
+                            <span>Tambah Proxy Domain</span>
+                        </button>
+                    </template>
+
+                    <template x-if="activeTab === 'ddns'">
+                        <button @click="modalDdnsOpen = true" class="inline-flex items-center gap-2 px-4 py-2 bg-brand-600 hover:bg-brand-700 text-white text-xs font-semibold rounded-xl shadow-md shadow-brand-500/20 transition-all">
+                            <i class="fa-solid fa-plus"></i>
+                            <span>Tambah Hostname DDNS</span>
+                        </button>
+                    </template>
+
+                    <template x-if="activeTab === 'topup'">
+                        <button @click="openTopupModal()" class="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold rounded-xl shadow-md shadow-emerald-500/20 transition-all">
+                            <i class="fa-solid fa-wallet"></i>
+                            <span>Top Up Instan</span>
+                        </button>
+                    </template>
+
+                    <template x-if="activeTab === 'tickets'">
+                        <button @click="modalTicketOpen = true" class="inline-flex items-center gap-2 px-4 py-2 bg-brand-600 hover:bg-brand-700 text-white text-xs font-semibold rounded-xl shadow-md shadow-brand-500/20 transition-all">
+                            <i class="fa-solid fa-pen-to-square"></i>
+                            <span>Buat Tiket Baru</span>
+                        </button>
+                    </template>
+                </div>
+            </header>
+
+            <!-- Main Page View Content -->
+            <div class="p-6 max-w-7xl w-full mx-auto space-y-6">
+
+                <!-- VIEW 1: LIST VPN TAB -->
+                <div x-show="activeTab === 'list'" x-cloak class="space-y-6">
+                    <!-- Info Alert Box -->
+                    <div class="bg-indigo-50/70 border border-indigo-100 rounded-2xl p-4 flex items-start gap-3.5 text-xs text-indigo-950 shadow-xs">
+                        <div class="p-2 bg-indigo-600 text-white rounded-xl shadow-xs shrink-0">
+                            <i class="fa-solid fa-circle-info text-sm"></i>
+                        </div>
+                        <div class="space-y-1">
+                            <p class="font-bold">Informasi Akses Winbox & Webfig:</p>
+                            <p class="text-indigo-900/80 leading-relaxed">
+                                Gunakan tombol <span class="font-semibold bg-indigo-100 px-1.5 py-0.5 rounded text-indigo-900">Manage</span> untuk memilih versi RouterOS & mendapatkan perintah otomatis terminal MikroTik. Saldo akan otomatis dipotong sesuai siklus perpanjangan aktif.
+                            </p>
+                        </div>
+                    </div>
+
+                    <!-- Metrics Overview Cards -->
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                        <div class="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs flex items-center justify-between">
+                            <div>
+                                <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Total Remote</p>
+                                <h3 class="text-2xl font-black text-slate-900 mt-1 font-mono" x-text="vpnList.length">2</h3>
+                            </div>
+                            <div class="w-11 h-11 bg-brand-50 text-brand-600 rounded-2xl flex items-center justify-center text-lg">
+                                <i class="fa-solid fa-network-wired"></i>
+                            </div>
+                        </div>
+
+                        <div class="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs flex items-center justify-between">
+                            <div>
+                                <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Status Aktif</p>
+                                <h3 class="text-2xl font-black text-emerald-600 mt-1 font-mono" x-text="vpnList.filter(i => i.status === 'Active').length">2</h3>
+                            </div>
+                            <div class="w-11 h-11 bg-emerald-50 text-emerald-600 rounded-2xl flex items-center justify-center text-lg">
+                                <i class="fa-solid fa-signal"></i>
+                            </div>
+                        </div>
+
+                        <div class="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs flex items-center justify-between">
+                            <div>
+                                <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Server Utama</p>
+                                <h3 class="text-2xl font-black text-slate-900 mt-1 font-mono">id-1.mikpay.link</h3>
+                            </div>
+                            <div class="w-11 h-11 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center text-lg">
+                                <i class="fa-solid fa-server"></i>
+                            </div>
+                        </div>
+
+                        <div class="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs flex items-center justify-between">
+                            <div>
+                                <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Auto-Renew</p>
+                                <h3 class="text-2xl font-black text-indigo-600 mt-1 font-mono">AKTIF</h3>
+                            </div>
+                            <div class="w-11 h-11 bg-purple-50 text-purple-600 rounded-2xl flex items-center justify-center text-lg">
+                                <i class="fa-solid fa-arrows-rotate"></i>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Data Table Card -->
+                    <div class="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left text-xs border-collapse">
+                                <thead>
+                                    <tr class="bg-slate-50/80 text-slate-400 font-bold uppercase tracking-wider border-b border-slate-100 text-[11px]">
+                                        <th class="px-6 py-4">Username VPN</th>
+                                        <th class="px-6 py-4">Password</th>
+                                        <th class="px-6 py-4">URL Remote (Winbox / Web)</th>
+                                        <th class="px-6 py-4">Protokol</th>
+                                        <th class="px-6 py-4">Status</th>
+                                        <th class="px-6 py-4 text-center">Aksi / Kelola</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-slate-100 text-slate-700">
+                                    <template x-for="item in filteredVpnList" :key="item.id">
+                                        <tr class="hover:bg-slate-50/80 transition-colors group">
+                                            <td class="px-6 py-4 font-semibold text-slate-900">
+                                                <div class="flex items-center gap-2.5">
+                                                    <div class="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center text-slate-500 group-hover:bg-brand-50 group-hover:text-brand-600 transition-colors">
+                                                        <i class="fa-solid fa-router"></i>
+                                                    </div>
+                                                    <div>
+                                                        <div class="font-bold text-slate-900 text-sm" x-text="item.username"></div>
+                                                        <div class="text-[11px] text-slate-400 font-mono" x-text="'IP VPN: ' + item.ipVpn"></div>
+                                                    </div>
+                                                </div>
+                                            </td>
+                                            <td class="px-6 py-4 font-mono font-medium">
+                                                <div class="flex items-center gap-2">
+                                                    <span x-text="item.showPass ? item.password : '••••••••'" class="text-slate-800"></span>
+                                                    <button @click="item.showPass = !item.showPass" class="text-slate-400 hover:text-slate-600 focus:outline-none">
+                                                        <i class="fa-solid" :class="item.showPass ? 'fa-eye-slash' : 'fa-eye'"></i>
+                                                    </button>
+                                                </div>
+                                            </td>
+                                            <td class="px-6 py-4">
+                                                <div class="inline-flex items-center gap-2 px-3 py-1.5 bg-slate-100 rounded-xl font-mono text-xs border border-slate-200/60 shadow-2xs">
+                                                    <span class="text-slate-800 font-semibold" x-text="item.serverHost + ':' + item.portRemote"></span>
+                                                    <i class="fa-solid fa-right-left text-[10px] text-brand-500"></i>
+                                                    <span class="text-emerald-600 font-bold" x-text="item.portTarget"></span>
+                                                </div>
+                                            </td>
+                                            <td class="px-6 py-4">
+                                                <span class="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-slate-100 text-slate-700 border border-slate-200" x-text="item.protocol"></span>
+                                            </td>
+                                            <td class="px-6 py-4">
+                                                <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-600 border border-emerald-200/60">
+                                                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                                                    <span x-text="item.status"></span>
+                                                </span>
+                                            </td>
+                                            <td class="px-6 py-4 text-center">
+                                                <button @click="selectVpn(item); activeTab = 'detail'" class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-brand-50 hover:bg-brand-100 text-brand-600 font-semibold rounded-xl transition-all">
+                                                    <i class="fa-solid fa-sliders text-xs"></i>
+                                                    <span>Manage</span>
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    </template>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- VIEW 2: DETAIL VPN TAB -->
+                <div x-show="activeTab === 'detail' && selectedVpn" x-cloak class="space-y-6">
+                    <div class="flex items-center justify-between">
+                        <button @click="activeTab = 'list'" class="inline-flex items-center gap-2 text-xs font-bold text-slate-600 hover:text-brand-600 bg-white px-3.5 py-2 rounded-xl border border-slate-200/80 shadow-2xs transition-colors">
+                            <i class="fa-solid fa-arrow-left"></i>
+                            <span>Kembali ke List VPN</span>
+                        </button>
+
+                        <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-600 border border-emerald-200">
+                            <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                            Connected & Active
+                        </span>
+                    </div>
+
+                    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                        <div class="lg:col-span-7 space-y-6">
+                            <div class="bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 rounded-2xl p-6 text-white shadow-xl relative overflow-hidden border border-slate-800">
+                                <div class="relative z-10 flex items-start justify-between">
+                                    <div>
+                                        <span class="inline-block px-2.5 py-1 bg-brand-500/20 text-brand-300 text-[11px] font-bold rounded-lg border border-brand-500/30 mb-2 uppercase tracking-wider">
+                                            VPN Remote Access
+                                        </span>
+                                        <h2 class="text-2xl font-black text-white font-mono" x-text="selectedVpn?.username"></h2>
+                                        <p class="text-slate-400 text-xs mt-1">Gunakan script terminal di bawah untuk auto-connect MikroTik kamu.</p>
+                                    </div>
+                                    <div class="w-12 h-12 rounded-2xl bg-white/10 border border-white/10 flex items-center justify-center text-brand-400 text-2xl backdrop-blur-md">
+                                        <i class="fa-solid fa-network-wired"></i>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-6 space-y-4">
+                                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
+                                    <div>
+                                        <h3 class="font-bold text-slate-900 text-sm">MikroTik Auto Terminal Script</h3>
+                                        <p class="text-xs text-slate-500">Salin dan tempel perintah ini langsung di Winbox Terminal.</p>
+                                    </div>
+                                    <div class="flex items-center gap-1 bg-slate-100 p-1 rounded-xl">
+                                        <button @click="rosVersion = 'v7'" :class="rosVersion === 'v7' ? 'bg-white text-brand-600 font-bold shadow-xs' : 'text-slate-500 font-medium'" class="px-3 py-1 rounded-lg text-xs transition-all">RouterOS v7</button>
+                                        <button @click="rosVersion = 'v6'" :class="rosVersion === 'v6' ? 'bg-white text-brand-600 font-bold shadow-xs' : 'text-slate-500 font-medium'" class="px-3 py-1 rounded-lg text-xs transition-all">RouterOS v6</button>
+                                    </div>
+                                </div>
+
+                                <div class="relative group">
+                                    <pre class="bg-slate-900 text-slate-200 font-mono text-xs p-4 rounded-xl overflow-x-auto border border-slate-800 leading-relaxed"><code x-text="generateMikrotikScript()"></code></pre>
+                                    <button @click="copyScript()" class="absolute top-3 right-3 px-3 py-1.5 bg-brand-600 hover:bg-brand-700 text-white font-semibold rounded-lg text-xs shadow-md flex items-center gap-1.5 transition-all active:scale-95">
+                                        <i class="fa-regular fa-copy"></i>
+                                        <span>Copy Script</span>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="lg:col-span-5 space-y-6">
+                            <div class="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-6 space-y-5">
+                                <h3 class="font-bold text-slate-900 text-sm border-b border-slate-100 pb-3 flex items-center justify-between">
+                                    <span>Informasi Kredensial</span>
+                                    <i class="fa-solid fa-key text-slate-400"></i>
+                                </h3>
+
+                                <div class="space-y-4">
+                                    <div class="flex items-center justify-between py-1">
+                                        <span class="text-xs font-semibold text-slate-500">Username VPN</span>
+                                        <span class="text-xs font-bold text-slate-900 font-mono" x-text="selectedVpn?.username"></span>
+                                    </div>
+                                    <div class="flex items-center justify-between py-1">
+                                        <span class="text-xs font-semibold text-slate-500">Password VPN</span>
+                                        <div class="flex items-center gap-2">
+                                            <span class="text-xs font-bold text-slate-900 font-mono" x-text="selectedVpn?.password"></span>
+                                            <button @click="copyText(selectedVpn?.password, 'Password')" class="text-slate-400 hover:text-brand-600"><i class="fa-regular fa-copy text-xs"></i></button>
+                                        </div>
+                                    </div>
+                                    <div class="flex items-center justify-between py-1 border-t border-slate-100 pt-3">
+                                        <span class="text-xs font-semibold text-slate-500">URL Remote</span>
+                                        <span class="inline-flex items-center gap-1.5 px-2.5 py-1 bg-brand-50 text-brand-700 rounded-lg font-mono text-xs font-bold border border-brand-200">
+                                            <span x-text="selectedVpn?.serverHost + ':' + selectedVpn?.portRemote"></span>
+                                        </span>
+                                    </div>
+                                    <div class="flex items-center justify-between py-1">
+                                        <span class="text-xs font-semibold text-slate-500">IP VPN Assigned</span>
+                                        <span class="text-xs font-bold text-slate-800 font-mono" x-text="selectedVpn?.ipVpn"></span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- VIEW 3: HTTP REVERSE PROXY TAB -->
+                <div x-show="activeTab === 'reverse_proxy'" x-cloak class="space-y-6">
+                    <div class="bg-indigo-50/70 border border-indigo-100 rounded-2xl p-4 flex items-start gap-3.5 text-xs text-indigo-950 shadow-xs">
+                        <div class="p-2 bg-indigo-600 text-white rounded-xl shadow-xs shrink-0">
+                            <i class="fa-solid fa-cloud-bolt text-sm"></i>
+                        </div>
+                        <div class="space-y-1">
+                            <p class="font-bold">HTTP Reverse Proxy dengan HTTPS SSL Gratis:</p>
+                            <p class="text-indigo-900/80 leading-relaxed">
+                                Petakan web internal MikroTik/WebFig/CCTV kamu ke Subdomain HTTPS custom seperti <span class="font-mono bg-indigo-100 px-1.5 py-0.5 rounded text-indigo-900 font-semibold">https://router-kantor.mikpay.link</span> tanpa perlu membuka port publik.
+                            </p>
+                        </div>
+                    </div>
+
+                    <!-- Proxy List Table -->
+                    <div class="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
+                        <div class="p-5 border-b border-slate-100 flex items-center justify-between">
+                            <h3 class="font-bold text-slate-900 text-sm">Subdomain Proxy Aktif</h3>
+                            <button @click="modalProxyOpen = true" class="px-3 py-1.5 bg-brand-600 hover:bg-brand-700 text-white font-semibold rounded-xl text-xs transition-colors">
+                                + Tambah Proxy Baru
+                            </button>
+                        </div>
+
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left text-xs border-collapse">
+                                <thead>
+                                    <tr class="bg-slate-50/80 text-slate-400 font-bold uppercase tracking-wider border-b border-slate-100 text-[11px]">
+                                        <th class="px-6 py-4">Subdomain Proxy</th>
+                                        <th class="px-6 py-4">Target IP Internal & Port</th>
+                                        <th class="px-6 py-4">Status SSL</th>
+                                        <th class="px-6 py-4">Aksi</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-slate-100 text-slate-700">
+                                    <template x-for="proxy in proxyList" :key="proxy.id">
+                                        <tr class="hover:bg-slate-50/80 transition-colors">
+                                            <td class="px-6 py-4 font-bold text-brand-600 font-mono text-sm">
+                                                <a :href="'https://' + proxy.subdomain" target="_blank" class="hover:underline flex items-center gap-2">
+                                                    <span x-text="proxy.subdomain"></span>
+                                                    <i class="fa-solid fa-arrow-up-right-from-square text-[10px] text-slate-400"></i>
+                                                </a>
+                                            </td>
+                                            <td class="px-6 py-4 font-mono">
+                                                <span class="px-2.5 py-1 bg-slate-100 rounded-lg text-slate-800" x-text="proxy.targetIp + ':' + proxy.targetPort"></span>
+                                            </td>
+                                            <td class="px-6 py-4">
+                                                <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-600 border border-emerald-200">
+                                                    <i class="fa-solid fa-lock text-[10px]"></i> SSL Active
+                                                </span>
+                                            </td>
+                                            <td class="px-6 py-4">
+                                                <button @click="deleteProxy(proxy.id)" class="text-rose-500 hover:text-rose-700 font-semibold text-xs">Hapus</button>
+                                            </td>
+                                        </tr>
+                                    </template>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- VIEW 4: DDNS MANAGER TAB -->
+                <div x-show="activeTab === 'ddns'" x-cloak class="space-y-6">
+                    <div class="bg-blue-50/70 border border-blue-100 rounded-2xl p-4 flex items-start gap-3.5 text-xs text-blue-950 shadow-xs">
+                        <div class="p-2 bg-blue-600 text-white rounded-xl shadow-xs shrink-0">
+                            <i class="fa-solid fa-globe text-sm"></i>
+                        </div>
+                        <div class="space-y-1">
+                            <p class="font-bold">Dynamic DNS (DDNS) Service:</p>
+                            <p class="text-blue-900/80 leading-relaxed">
+                                Gantikan IP Publik Dinamis (Indihome/Biznet/Seluler) dengan hostname tetap seperti <span class="font-mono bg-blue-100 px-1.5 py-0.5 rounded text-blue-900 font-semibold">myrouter.mikpay.ddns.me</span>. Dapatkan script updater otomatis di MikroTik.
+                            </p>
+                        </div>
+                    </div>
+
+                    <div class="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
+                        <div class="p-5 border-b border-slate-100 flex items-center justify-between">
+                            <h3 class="font-bold text-slate-900 text-sm">Hostname DDNS Terdaftar</h3>
+                            <button @click="modalDdnsOpen = true" class="px-3 py-1.5 bg-brand-600 hover:bg-brand-700 text-white font-semibold rounded-xl text-xs transition-colors">
+                                + Tambah DDNS Baru
+                            </button>
+                        </div>
+
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left text-xs border-collapse">
+                                <thead>
+                                    <tr class="bg-slate-50/80 text-slate-400 font-bold uppercase tracking-wider border-b border-slate-100 text-[11px]">
+                                        <th class="px-6 py-4">Hostname DDNS</th>
+                                        <th class="px-6 py-4">Current IP Terdeteksi</th>
+                                        <th class="px-6 py-4">Last Update</th>
+                                        <th class="px-6 py-4 text-center">Script Fetch</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-slate-100 text-slate-700">
+                                    <template x-for="ddns in ddnsList" :key="ddns.id">
+                                        <tr class="hover:bg-slate-50/80 transition-colors">
+                                            <td class="px-6 py-4 font-bold text-slate-900 font-mono text-sm" x-text="ddns.hostname"></td>
+                                            <td class="px-6 py-4 font-mono text-emerald-600 font-bold" x-text="ddns.ip"></td>
+                                            <td class="px-6 py-4 text-slate-500" x-text="ddns.updated"></td>
+                                            <td class="px-6 py-4 text-center">
+                                                <button @click="copyText('/tool fetch url=\"https://ddns.mikpay.link/update?host=' + ddns.hostname + '&key=' + ddns.token + '\" keep-result=no', 'Script DDNS')" class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-semibold text-xs transition-colors">
+                                                    <i class="fa-regular fa-copy mr-1"></i> Copy Script Updater
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    </template>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- VIEW 5: TOP UP SALDO TAB -->
+                <div x-show="activeTab === 'topup'" x-cloak class="space-y-6">
+                    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                        <!-- Quick Topup Options (7 cols) -->
+                        <div class="lg:col-span-7 space-y-6">
+                            <div class="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-6 space-y-5">
+                                <div>
+                                    <h3 class="font-bold text-slate-900 text-base">Pilih Nominal Top Up Saldo</h3>
+                                    <p class="text-xs text-slate-500">Saldo digunakan untuk membayar perpanjangan otomatis akun VPN & layanan remote.</p>
+                                </div>
+
+                                <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                                    <template x-for="amount in [20000, 50000, 100000, 200000, 500000, 1000000]">
+                                        <button @click="topupAmount = amount" 
+                                                :class="topupAmount === amount ? 'border-brand-600 bg-brand-50/50 text-brand-700 ring-2 ring-brand-500/20' : 'border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100'"
+                                                class="p-4 rounded-2xl border text-center transition-all">
+                                            <div class="text-xs text-slate-400 font-medium">Nominal</div>
+                                            <div class="text-sm font-black font-mono mt-1" x-text="formatRupiah(amount)"></div>
+                                        </button>
+                                    </template>
+                                </div>
+
+                                <!-- Custom Amount -->
+                                <div>
+                                    <label class="block text-xs font-bold text-slate-700 mb-1">Atau Nominal Custom (Rp)</label>
+                                    <input type="number" x-model.number="topupAmount" placeholder="Minimal Rp 10.000" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-mono focus:outline-none focus:ring-2 focus:ring-brand-500">
+                                </div>
+
+                                <button @click="openTopupModal()" class="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs shadow-lg shadow-emerald-500/20 transition-all">
+                                    Lanjutkan Pembayaran (<span x-text="formatRupiah(topupAmount)"></span>)
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Balance History (5 cols) -->
+                        <div class="lg:col-span-5 space-y-6">
+                            <div class="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-6 space-y-4">
+                                <h3 class="font-bold text-slate-900 text-sm border-b border-slate-100 pb-3">Riwayat Transaksi Saldo</h3>
+                                <div class="space-y-3">
+                                    <template x-for="trx in topupHistory" :key="trx.id">
+                                        <div class="p-3 bg-slate-50 rounded-xl border border-slate-100 flex items-center justify-between">
+                                            <div>
+                                                <div class="text-xs font-bold text-slate-800" x-text="trx.type"></div>
+                                                <div class="text-[11px] text-slate-400" x-text="trx.date"></div>
+                                            </div>
+                                            <div class="text-right">
+                                                <div class="text-xs font-bold font-mono" :class="trx.amount > 0 ? 'text-emerald-600' : 'text-rose-600'" x-text="(trx.amount > 0 ? '+' : '') + formatRupiah(trx.amount)"></div>
+                                                <div class="text-[10px] font-semibold text-emerald-600" x-text="trx.status"></div>
+                                            </div>
+                                        </div>
+                                    </template>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- VIEW 6: PANDUAN MIKROTIK TAB -->
+                <div x-show="activeTab === 'guide'" x-cloak class="space-y-6">
+                    <div class="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-6 space-y-6">
+                        <div>
+                            <h3 class="text-lg font-bold text-slate-900">Panduan Lengkap Remote MikroTik</h3>
+                            <p class="text-xs text-slate-500">Petunjuk langkah demi langkah menghubungkan RouterOS dengan server MikPay.</p>
+                        </div>
+
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <!-- Card 1: Remote Winbox ROS v7 -->
+                            <div class="p-5 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-3">
+                                <div class="flex items-center gap-3">
+                                    <div class="w-8 h-8 rounded-xl bg-brand-600 text-white flex items-center justify-center font-bold text-xs">1</div>
+                                    <h4 class="font-bold text-slate-900 text-sm">Cara Remote Winbox (RouterOS v7)</h4>
+                                </div>
+                                <ol class="list-decimal list-inside text-xs text-slate-600 space-y-1.5 leading-relaxed pl-1">
+                                    <li>Buka Winbox, klik menu <span class="font-semibold text-slate-800">New Terminal</span>.</li>
+                                    <li>Salin script OpenVPN / WireGuard dari halaman Detail VPN.</li>
+                                    <li>Paste di terminal dan tekan <span class="font-semibold text-slate-800">Enter</span>.</li>
+                                    <li>Gunakan URL Remote (cth: <span class="font-mono text-brand-600">id-1.mikpay.link:4479</span>) di Winbox dari mana saja.</li>
+                                </ol>
+                            </div>
+
+                            <!-- Card 2: Remote WebFig/HTTP -->
+                            <div class="p-5 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-3">
+                                <div class="flex items-center gap-3">
+                                    <div class="w-8 h-8 rounded-xl bg-brand-600 text-white flex items-center justify-center font-bold text-xs">2</div>
+                                    <h4 class="font-bold text-slate-900 text-sm">Remote WebFig / Web Browser (Port 80)</h4>
+                                </div>
+                                <p class="text-xs text-slate-600 leading-relaxed">
+                                    Saat order VPN, pilih port tujuan <span class="font-mono bg-slate-200 px-1 rounded">Port 80</span>. Kamu cukup membuka URL Remote yang diberikan langsung di Google Chrome atau Firefox tanpa perlu software tambahan.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- VIEW 7: TIKET BANTUAN TAB -->
+                <div x-show="activeTab === 'tickets'" x-cloak class="space-y-6">
+                    <div class="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
+                        <div class="p-5 border-b border-slate-100 flex items-center justify-between">
+                            <div>
+                                <h3 class="font-bold text-slate-900 text-sm">Tiket Bantuan & Support 24/7</h3>
+                                <p class="text-xs text-slate-500">Kirim kendala teknis atau pertanyaan ke tim teknisi kami.</p>
+                            </div>
+                            <button @click="modalTicketOpen = true" class="px-3.5 py-2 bg-brand-600 hover:bg-brand-700 text-white font-semibold rounded-xl text-xs transition-colors">
+                                + Buat Tiket Baru
+                            </button>
+                        </div>
+
+                        <div class="divide-y divide-slate-100">
+                            <template x-for="ticket in ticketList" :key="ticket.id">
+                                <div class="p-5 hover:bg-slate-50/80 transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                                    <div>
+                                        <div class="flex items-center gap-2">
+                                            <span class="text-xs font-mono font-bold text-brand-600" x-text="'#' + ticket.code"></span>
+                                            <span class="font-bold text-slate-900 text-sm" x-text="ticket.subject"></span>
+                                        </div>
+                                        <div class="text-xs text-slate-400 mt-1" x-text="'Kategori: ' + ticket.category + ' • Diperbarui: ' + ticket.updated"></div>
+                                    </div>
+
+                                    <div class="flex items-center gap-3">
+                                        <span class="px-3 py-1 rounded-full text-xs font-bold"
+                                              :class="ticket.status === 'Open' ? 'bg-amber-50 text-amber-600 border border-amber-200' : 'bg-emerald-50 text-emerald-600 border border-emerald-200'"
+                                              x-text="ticket.status"></span>
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </main>
+    </div>
+
+    <!-- MODAL ORDER VPN BARU -->
+    <div x-show="modalOrderOpen" x-cloak class="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+        <div class="bg-white rounded-3xl max-w-lg w-full shadow-2xl border border-slate-100 overflow-hidden" @click.away="modalOrderOpen = false">
+            <div class="p-6 bg-slate-900 text-white flex items-center justify-between">
+                <div>
+                    <h3 class="text-lg font-bold">Order Tunnel VPN Baru</h3>
+                    <p class="text-xs text-slate-400">Pilih protokol dan konfigurasi remote MikroTik kamu.</p>
+                </div>
+                <button @click="modalOrderOpen = false" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark text-lg"></i></button>
+            </div>
+
+            <form @submit.prevent="submitOrder()" class="p-6 space-y-4">
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">Custom Username</label>
+                    <div class="flex rounded-xl overflow-hidden border border-slate-200 focus-within:ring-2 focus-within:ring-brand-500">
+                        <input type="text" x-model="newOrder.username" placeholder="nama-router" class="flex-1 px-3.5 py-2 text-xs focus:outline-none">
+                        <span class="bg-slate-100 text-slate-500 text-xs px-3 py-2 font-mono flex items-center border-l border-slate-200">@mikpay.link</span>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">Pilih Protokol</label>
+                    <div class="grid grid-cols-3 gap-2">
+                        <template x-for="proto in ['OpenVPN', 'WireGuard', 'SSTP']">
+                            <button type="button" @click="newOrder.protocol = proto" 
+                                    :class="newOrder.protocol === proto ? 'bg-brand-50 border-brand-500 text-brand-700 font-bold' : 'border-slate-200 text-slate-600'"
+                                    class="py-2.5 px-3 border rounded-xl text-xs text-center transition-all" x-text="proto">
+                            </button>
+                        </template>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">Port Tujuan MikroTik</label>
+                    <select x-model="newOrder.portTarget" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-brand-500">
+                        <option value="8291">Winbox (Port 8291)</option>
+                        <option value="80">Webfig / HTTP (Port 80)</option>
+                        <option value="8728">API MikroTik (Port 8728)</option>
+                    </select>
+                </div>
+
+                <div class="p-4 bg-slate-50 rounded-2xl border border-slate-200/80 space-y-2">
+                    <div class="flex justify-between text-xs font-semibold text-slate-600">
+                        <span>Biaya Sewa (1 Bulan)</span>
+                        <span class="font-mono text-slate-900 font-bold">Rp 10.000</span>
+                    </div>
+                    <div class="flex justify-between text-xs font-semibold text-slate-600">
+                        <span>Sisa Saldo Kamu</span>
+                        <span class="font-mono text-emerald-600 font-bold" x-text="formatRupiah(userBalance)"></span>
+                    </div>
+                </div>
+
+                <div class="pt-2">
+                    <button type="submit" class="w-full py-3 bg-brand-600 hover:bg-brand-700 text-white font-bold rounded-xl text-xs shadow-lg shadow-brand-500/25 transition-all">
+                        Konfirmasi & Bayar Sekarang
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL PROXY BARU -->
+    <div x-show="modalProxyOpen" x-cloak class="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+        <div class="bg-white rounded-3xl max-w-md w-full shadow-2xl border border-slate-100 overflow-hidden" @click.away="modalProxyOpen = false">
+            <div class="p-6 bg-slate-900 text-white flex items-center justify-between">
+                <h3 class="text-base font-bold">Tambah Subdomain Reverse Proxy</h3>
+                <button @click="modalProxyOpen = false" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <form @submit.prevent="addProxy()" class="p-6 space-y-4">
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">Subdomain Prefix</label>
+                    <div class="flex rounded-xl overflow-hidden border border-slate-200">
+                        <input type="text" x-model="newProxy.subdomain" placeholder="router-kantor" class="flex-1 px-3.5 py-2 text-xs focus:outline-none">
+                        <span class="bg-slate-100 text-slate-500 text-xs px-3 py-2 font-mono flex items-center border-l border-slate-200">.mikpay.link</span>
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">IP VPN Internal MikroTik</label>
+                    <input type="text" x-model="newProxy.targetIp" placeholder="10.23.112.4" class="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">Port Target (cth: 80 / 8080)</label>
+                    <input type="text" x-model="newProxy.targetPort" placeholder="80" class="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none">
+                </div>
+                <button type="submit" class="w-full py-2.5 bg-brand-600 text-white font-bold rounded-xl text-xs shadow-md">Aktifkan Subdomain SSL</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL DDNS BARU -->
+    <div x-show="modalDdnsOpen" x-cloak class="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+        <div class="bg-white rounded-3xl max-w-md w-full shadow-2xl border border-slate-100 overflow-hidden" @click.away="modalDdnsOpen = false">
+            <div class="p-6 bg-slate-900 text-white flex items-center justify-between">
+                <h3 class="text-base font-bold">Buat Hostname DDNS Baru</h3>
+                <button @click="modalDdnsOpen = false" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <form @submit.prevent="addDdns()" class="p-6 space-y-4">
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">Hostname Prefix</label>
+                    <div class="flex rounded-xl overflow-hidden border border-slate-200">
+                        <input type="text" x-model="newDdns.hostname" placeholder="myrouter" class="flex-1 px-3.5 py-2 text-xs focus:outline-none">
+                        <span class="bg-slate-100 text-slate-500 text-xs px-3 py-2 font-mono flex items-center border-l border-slate-200">.mikpay.ddns.me</span>
+                    </div>
+                </div>
+                <button type="submit" class="w-full py-2.5 bg-brand-600 text-white font-bold rounded-xl text-xs shadow-md">Buat Hostname DDNS</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL TOPUP PAYMENT SIMULATION -->
+    <div x-show="modalTopupOpen" x-cloak class="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+        <div class="bg-white rounded-3xl max-w-md w-full shadow-2xl border border-slate-100 overflow-hidden" @click.away="modalTopupOpen = false">
+            <div class="p-6 bg-slate-900 text-white flex items-center justify-between">
+                <div>
+                    <h3 class="text-base font-bold">Simulasi Pembayaran QRIS</h3>
+                    <p class="text-xs text-slate-400">Scan QRIS menggunakan Mobile Banking atau E-Wallet.</p>
+                </div>
+                <button @click="modalTopupOpen = false" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="p-6 text-center space-y-4">
+                <div class="p-4 bg-slate-100 rounded-2xl inline-block border border-slate-200">
+                    <!-- QR Code Dummy Image -->
+                    <img src="https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=MikPayTopUp" alt="QRIS Code" class="w-44 h-44 mx-auto rounded-lg">
+                </div>
+                <div class="text-xs text-slate-500">
+                    Total Pembayaran: <span class="font-mono font-bold text-slate-900 text-sm" x-text="formatRupiah(topupAmount)"></span>
+                </div>
+                <button @click="confirmTopup()" class="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs shadow-lg shadow-emerald-500/20 transition-all">
+                    <i class="fa-solid fa-circle-check mr-1"></i> Simulasi Bayar Sekarang
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL TIKET BARU -->
+    <div x-show="modalTicketOpen" x-cloak class="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+        <div class="bg-white rounded-3xl max-w-md w-full shadow-2xl border border-slate-100 overflow-hidden" @click.away="modalTicketOpen = false">
+            <div class="p-6 bg-slate-900 text-white flex items-center justify-between">
+                <h3 class="text-base font-bold">Buat Tiket Bantuan Teknisi</h3>
+                <button @click="modalTicketOpen = false" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <form @submit.prevent="addTicket()" class="p-6 space-y-4">
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">Judul Kendala / Subjek</label>
+                    <input type="text" x-model="newTicket.subject" placeholder="cth: Winbox Port 8291 Tidak Bisa Akses" class="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">Kategori Kendala</label>
+                    <select x-model="newTicket.category" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs focus:outline-none">
+                        <option>Gangguan Koneksi VPN</option>
+                        <option>Permintaan Custom Port</option>
+                        <option>Top Up & Masalah Saldo</option>
+                        <option>Pertanyaan Umum</option>
+                    </select>
+                </div>
+                <button type="submit" class="w-full py-2.5 bg-brand-600 text-white font-bold rounded-xl text-xs shadow-md">Kirim Tiket Bantuan</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Alpine.js Application Logic -->
+    <script>
+        function dashboardApp() {
+            return {
+                mobileMenuOpen: false,
+                activeTab: 'list', // 'list', 'detail', 'reverse_proxy', 'ddns', 'topup', 'guide', 'tickets'
+                rosVersion: 'v7',
+                searchQuery: '',
+                userBalance: 150000,
+                
+                // Modals State
+                modalOrderOpen: false,
+                modalProxyOpen: false,
+                modalDdnsOpen: false,
+                modalTopupOpen: false,
+                modalTicketOpen: false,
+
+                topupAmount: 50000,
+                
+                toast: {
+                    show: false,
+                    message: ''
+                },
+
+                // Data Models
+                newOrder: {
+                    username: '',
+                    protocol: 'OpenVPN',
+                    portTarget: '8291'
+                },
+
+                newProxy: {
+                    subdomain: '',
+                    targetIp: '10.23.112.4',
+                    targetPort: '80'
+                },
+
+                newDdns: {
+                    hostname: ''
+                },
+
+                newTicket: {
+                    subject: '',
+                    category: 'Gangguan Koneksi VPN'
+                },
+
+                selectedVpn: null,
+
+                vpnList: [
+                    {
+                        id: 1,
+                        username: 'andinet@mikpay.link',
+                        password: '1234',
+                        showPass: false,
+                        serverHost: 'id-1.mikpay.link',
+                        portRemote: '4479',
+                        portTarget: '8728',
+                        ipVpn: '10.23.112.4',
+                        protocol: 'OpenVPN',
+                        status: 'Active',
+                        expired: '13 August 2026'
+                    },
+                    {
+                        id: 2,
+                        username: 'v-bosandi@mikpay.link',
+                        password: 'Akusayank123',
+                        showPass: false,
+                        serverHost: 'id-2.mikpay.link',
+                        portRemote: '3756',
+                        portTarget: '8291',
+                        ipVpn: '10.23.112.19',
+                        protocol: 'WireGuard',
+                        status: 'Active',
+                        expired: '01 October 2026'
+                    }
+                ],
+
+                proxyList: [
+                    {
+                        id: 1,
+                        subdomain: 'router-kantor.mikpay.link',
+                        targetIp: '10.23.112.4',
+                        targetPort: '80'
+                    }
+                ],
+
+                ddnsList: [
+                    {
+                        id: 1,
+                        hostname: 'andinet.mikpay.ddns.me',
+                        ip: '180.252.110.42',
+                        token: 'tk_9821a',
+                        updated: '5 menit lalu'
+                    }
+                ],
+
+                topupHistory: [
+                    { id: 1, type: 'Top Up QRIS', amount: 50000, date: '20 Jul 2026', status: 'Selesai' },
+                    { id: 2, type: 'Perpanjang VPN Remote', amount: -10000, date: '15 Jul 2026', status: 'Selesai' }
+                ],
+
+                ticketList: [
+                    { id: 1, code: 'TK-8891', subject: 'Akses Winbox Port 8291 kadang timeout', category: 'Gangguan VPN', status: 'Open', updated: 'Hari ini 10:30' }
+                ],
+
+                init() {
+                    this.selectedVpn = this.vpnList[0];
+                },
+
+                getTabTitle() {
+                    const titles = {
+                        'list': 'VPN Remote',
+                        'detail': 'Detail Tunnel',
+                        'reverse_proxy': 'HTTP Reverse Proxy',
+                        'ddns': 'DDNS Manager',
+                        'topup': 'Top Up Saldo',
+                        'guide': 'Panduan MikroTik',
+                        'tickets': 'Tiket Bantuan'
+                    };
+                    return titles[this.activeTab] || 'Dashboard';
+                },
+
+                getTabHeader() {
+                    const headers = {
+                        'list': 'Daftar VPN Remote',
+                        'detail': 'Detail Account Tunnel',
+                        'reverse_proxy': 'Kelola Reverse Proxy HTTPS',
+                        'ddns': 'Dynamic DNS Manager',
+                        'topup': 'Isi Saldo & Deposit',
+                        'guide': 'Pusat Panduan MikroTik',
+                        'tickets': 'Tiket Layanan Bantuan'
+                    };
+                    return headers[this.activeTab] || 'MikPay Panel';
+                },
+
+                get filteredVpnList() {
+                    if (!this.searchQuery) return this.vpnList;
+                    return this.vpnList.filter(item => 
+                        item.username.toLowerCase().includes(this.searchQuery.toLowerCase()) ||
+                        item.ipVpn.includes(this.searchQuery) ||
+                        item.serverHost.toLowerCase().includes(this.searchQuery.toLowerCase())
+                    );
+                },
+
+                formatRupiah(number) {
+                    return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(number);
+                },
+
+                selectVpn(item) {
+                    this.selectedVpn = item;
+                },
+
+                openModalOrder() {
+                    this.modalOrderOpen = true;
+                },
+
+                submitOrder() {
+                    if(!this.newOrder.username) {
+                        this.showToast('Harap isi username VPN!');
+                        return;
+                    }
+
+                    if(this.userBalance < 10000) {
+                        this.showToast('Saldo kamu tidak cukup. Harap top up dulu!');
+                        return;
+                    }
+
+                    this.userBalance -= 10000;
+                    const newItem = {
+                        id: Date.now(),
+                        username: this.newOrder.username + '@mikpay.link',
+                        password: Math.floor(1000 + Math.random() * 9000).toString(),
+                        showPass: false,
+                        serverHost: 'id-1.mikpay.link',
+                        portRemote: Math.floor(3000 + Math.random() * 5000).toString(),
+                        portTarget: this.newOrder.portTarget,
+                        ipVpn: '10.23.112.' + Math.floor(20 + Math.random() * 200),
+                        protocol: this.newOrder.protocol,
+                        status: 'Active',
+                        expired: '24 August 2026'
+                    };
+
+                    this.vpnList.unshift(newItem);
+                    this.topupHistory.unshift({ id: Date.now(), type: 'Order VPN Baru', amount: -10000, date: 'Hari ini', status: 'Selesai' });
+                    this.modalOrderOpen = false;
+                    this.showToast('Berhasil membuat akun VPN baru!');
+                    this.newOrder.username = '';
+                },
+
+                addProxy() {
+                    if(!this.newProxy.subdomain) return;
+                    this.proxyList.unshift({
+                        id: Date.now(),
+                        subdomain: this.newProxy.subdomain + '.mikpay.link',
+                        targetIp: this.newProxy.targetIp,
+                        targetPort: this.newProxy.targetPort
+                    });
+                    this.modalProxyOpen = false;
+                    this.showToast('Reverse Proxy HTTPS berhasil ditambahkan!');
+                    this.newProxy.subdomain = '';
+                },
+
+                deleteProxy(id) {
+                    this.proxyList = this.proxyList.filter(p => p.id !== id);
+                    this.showToast('Reverse Proxy berhasil dihapus.');
+                },
+
+                addDdns() {
+                    if(!this.newDdns.hostname) return;
+                    this.ddnsList.unshift({
+                        id: Date.now(),
+                        hostname: this.newDdns.hostname + '.mikpay.ddns.me',
+                        ip: '114.122.' + Math.floor(10 + Math.random() * 200) + '.1',
+                        token: 'tk_' + Math.random().toString(36).substring(7),
+                        updated: 'Baru saja'
+                    });
+                    this.modalDdnsOpen = false;
+                    this.showToast('Hostname DDNS berhasil dibuat!');
+                    this.newDdns.hostname = '';
+                },
+
+                openTopupModal() {
+                    if(this.topupAmount < 10000) {
+                        this.showToast('Minimal Top Up adalah Rp 10.000');
+                        return;
+                    }
+                    this.modalTopupOpen = true;
+                },
+
+                confirmTopup() {
+                    this.userBalance += this.topupAmount;
+                    this.topupHistory.unshift({
+                        id: Date.now(),
+                        type: 'Top Up QRIS',
+                        amount: this.topupAmount,
+                        date: 'Hari ini',
+                        status: 'Selesai'
+                    });
+                    this.modalTopupOpen = false;
+                    this.showToast(`Top up ${this.formatRupiah(this.topupAmount)} berhasil dimasukkan!`);
+                },
+
+                addTicket() {
+                    if(!this.newTicket.subject) return;
+                    this.ticketList.unshift({
+                        id: Date.now(),
+                        code: 'TK-' + Math.floor(1000 + Math.random() * 9000),
+                        subject: this.newTicket.subject,
+                        category: this.newTicket.category,
+                        status: 'Open',
+                        updated: 'Baru saja'
+                    });
+                    this.modalTicketOpen = false;
+                    this.showToast('Tiket bantuan telah dikirim ke teknisi!');
+                    this.newTicket.subject = '';
+                },
+
+                generateMikrotikScript() {
+                    if(!this.selectedVpn) return '';
+                    const vpn = this.selectedVpn;
+                    if(this.rosVersion === 'v7') {
+                        return `/interface ovpn-client add connect-to=${vpn.serverHost} name=${vpn.username} user=${vpn.username} password=${vpn.password} comment="id-${vpn.portRemote}<->${vpn.portTarget}" disabled=no`;
+                    } else {
+                        return `/interface ovpn-client add connect-to=${vpn.serverHost} port=1194 mode=ip user=${vpn.username} password=${vpn.password} profile=default disabled=no comment="id-${vpn.portRemote}<->${vpn.portTarget}"`;
+                    }
+                },
+
+                copyScript() {
+                    const text = this.generateMikrotikScript();
+                    this.copyToClipboard(text);
+                    this.showToast('Script terminal berhasil disalin ke clipboard!');
+                },
+
+                copyText(text, label) {
+                    this.copyToClipboard(text);
+                    this.showToast(`${label} berhasil disalin!`);
+                },
+
+                copyToClipboard(text) {
+                    const el = document.createElement('textarea');
+                    el.value = text;
+                    document.body.appendChild(el);
+                    el.select();
+                    document.execCommand('copy');
+                    document.body.removeChild(el);
+                },
+
+                showToast(msg) {
+                    this.toast.message = msg;
+                    this.toast.show = true;
+                    setTimeout(() => {
+                        this.toast.show = false;
+                    }, 3000);
+                }
+            }
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,1262 @@
+<!DOCTYPE html>
+<html lang="id" class="h-full bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100 transition-colors duration-200">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MikPay - ISP & Network Management System</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome CDN -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Chart.js CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Leaflet CSS & JS for Interactive Map -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            50: '#eef2ff',
+                            500: '#6366f1',
+                            600: '#4f46e5',
+                            700: '#4338ca',
+                            900: '#312e81',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        /* Custom scrollbar for modern sleek look */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: rgba(241, 245, 249, 0.5);
+        }
+        .dark ::-webkit-scrollbar-track {
+            background: #0f172a;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 4px;
+        }
+        .dark ::-webkit-scrollbar-thumb {
+            background: #334155;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+        .dark ::-webkit-scrollbar-thumb:hover {
+            background: #475569;
+        }
+        /* Leaflet Dark Map adjustment (only applied in dark mode) */
+        .dark .leaflet-tile {
+            filter: brightness(0.7) invert(1) contrast(1.2) hue-rotate(200deg) saturate(0.3);
+        }
+        .dark .leaflet-container {
+            background: #090d16 !important;
+        }
+        .leaflet-container {
+            background: #f8fafc !important;
+        }
+    </style>
+</head>
+<body class="h-full flex overflow-hidden font-sans antialiased text-slate-800 bg-slate-50 dark:text-slate-200 dark:bg-slate-950 transition-colors duration-200">
+
+    <!-- SIDEBAR -->
+    <aside class="w-64 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 flex flex-col justify-between shrink-0 z-20 transition-all duration-300 shadow-sm">
+        <div>
+            <!-- Logo Header -->
+            <div class="h-16 flex items-center px-6 gap-3 border-b border-slate-200 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-900/50">
+                <div class="w-9 h-9 rounded-xl bg-gradient-to-tr from-indigo-600 to-cyan-500 flex items-center justify-center text-white shadow-lg shadow-indigo-500/30 font-black text-xl">
+                    M
+                </div>
+                <div>
+                    <h1 class="font-extrabold text-lg tracking-wider text-slate-900 dark:text-white leading-tight">MikPay<span class="text-indigo-600 dark:text-indigo-400">.id</span></h1>
+                    <p class="text-[10px] text-slate-500 dark:text-slate-400 tracking-wider uppercase font-semibold">ISP & OLT Manager</p>
+                </div>
+            </div>
+
+            <!-- Network Health Pill Status -->
+            <div class="px-4 py-3">
+                <div class="p-2.5 rounded-lg bg-slate-100 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/50 flex items-center justify-between">
+                    <div class="flex items-center gap-2">
+                        <span class="relative flex h-2.5 w-2.5">
+                          <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                          <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+                        </span>
+                        <span class="text-xs font-medium text-slate-700 dark:text-slate-300">WireGuard Tunnel</span>
+                    </div>
+                    <span class="text-[10px] font-mono text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20 font-bold">ONLINE</span>
+                </div>
+            </div>
+
+            <!-- Main Menu Navigation -->
+            <nav class="px-3 py-2 space-y-1 text-sm font-medium">
+                <button onclick="switchTab('dashboard')" id="nav-dashboard" class="nav-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-500/10 border border-indigo-200 dark:border-indigo-500/20 font-semibold transition">
+                    <i class="fa-solid fa-chart-pie w-5 text-center"></i>
+                    <span>Dashboard</span>
+                </button>
+                <button onclick="switchTab('gis')" id="nav-gis" class="nav-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800/60 transition">
+                    <i class="fa-solid fa-map-location-dot w-5 text-center text-cyan-600 dark:text-cyan-400"></i>
+                    <span>Peta GIS & ODP</span>
+                    <span class="ml-auto bg-cyan-500/10 dark:bg-cyan-500/20 text-cyan-700 dark:text-cyan-300 text-[10px] px-1.5 py-0.5 rounded-full font-bold">MAP</span>
+                </button>
+                <button onclick="switchTab('remote')" id="nav-remote" class="nav-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800/60 transition">
+                    <i class="fa-solid fa-server w-5 text-center text-amber-500 dark:text-amber-400"></i>
+                    <span>Remote OLT & MikroTik</span>
+                    <span class="ml-auto bg-amber-500/10 dark:bg-amber-500/20 text-amber-700 dark:text-amber-300 text-[10px] px-1.5 py-0.5 rounded-full font-bold">SNMP</span>
+                </button>
+                <button onclick="switchTab('customers')" id="nav-customers" class="nav-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800/60 transition">
+                    <i class="fa-solid fa-users w-5 text-center text-blue-500 dark:text-blue-400"></i>
+                    <span>Data Pelanggan</span>
+                </button>
+                <button onclick="switchTab('billing')" id="nav-billing" class="nav-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800/60 transition">
+                    <i class="fa-solid fa-file-invoice-dollar w-5 text-center text-emerald-600 dark:text-emerald-400"></i>
+                    <span>Billing & Tagihan</span>
+                    <span class="ml-auto bg-rose-500/10 dark:bg-rose-500/20 text-rose-700 dark:text-rose-300 text-[10px] px-1.5 py-0.5 rounded-full font-bold">12 Isolir</span>
+                </button>
+                <button onclick="switchTab('vouchers')" id="nav-vouchers" class="nav-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800/60 transition">
+                    <i class="fa-solid fa-ticket w-5 text-center text-purple-600 dark:text-purple-400"></i>
+                    <span>Hotspot & Voucher</span>
+                </button>
+                <button onclick="switchTab('finance')" id="nav-finance" class="nav-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800/60 transition">
+                    <i class="fa-solid fa-wallet w-5 text-center text-emerald-600 dark:text-emerald-400"></i>
+                    <span>Laporan Keuangan</span>
+                </button>
+                <button onclick="switchTab('tickets')" id="nav-tickets" class="nav-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800/60 transition">
+                    <i class="fa-solid fa-headset w-5 text-center text-orange-500 dark:text-orange-400"></i>
+                    <span>Tiket Gangguan</span>
+                    <span class="ml-auto bg-orange-500/10 dark:bg-orange-500/20 text-orange-700 dark:text-orange-300 text-[10px] px-1.5 py-0.5 rounded-full font-bold">2 Baru</span>
+                </button>
+                <button onclick="switchTab('settings')" id="nav-settings" class="nav-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800/60 transition">
+                    <i class="fa-solid fa-gear w-5 text-center text-slate-500 dark:text-slate-400"></i>
+                    <span>Pengaturan Sistem</span>
+                </button>
+            </nav>
+        </div>
+
+        <!-- User Profile Bottom Bar -->
+        <div class="p-3 border-t border-slate-200 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-900/80">
+            <div class="flex items-center gap-3 p-2 rounded-lg bg-slate-100 dark:bg-slate-800/40">
+                <img src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=100&q=80" alt="Avatar" class="w-9 h-9 rounded-full object-cover ring-2 ring-indigo-500">
+                <div class="overflow-hidden">
+                    <h4 class="text-xs font-semibold text-slate-800 dark:text-slate-200 truncate">Administrator NOC</h4>
+                    <p class="text-[10px] text-slate-500 dark:text-slate-400 truncate">admin@mikpay.net</p>
+                </div>
+                <button class="ml-auto text-slate-400 hover:text-rose-500 text-xs p-1" title="Logout">
+                    <i class="fa-solid fa-right-from-bracket"></i>
+                </button>
+            </div>
+        </div>
+    </aside>
+
+    <!-- MAIN CONTENT AREA -->
+    <div class="flex-1 flex flex-col min-w-0 overflow-hidden bg-slate-50 dark:bg-slate-950 transition-colors duration-200">
+        
+        <!-- TOP NAVBAR -->
+        <header class="h-16 border-b border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/70 backdrop-blur-md px-6 flex items-center justify-between gap-4 shrink-0 z-10 shadow-sm">
+            <!-- Search Bar -->
+            <div class="flex items-center gap-3 flex-1 max-w-md">
+                <div class="relative w-full">
+                    <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
+                    <input type="text" placeholder="Cari Pelanggan, IP PPPoE, Kode Voucher, ODP..." class="w-full pl-9 pr-4 py-1.5 bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-xs text-slate-800 dark:text-slate-200 focus:outline-none focus:border-indigo-500 transition">
+                </div>
+            </div>
+
+            <!-- Header Quick Info & Actions -->
+            <div class="flex items-center gap-3 sm:gap-4">
+                <!-- Theme Switcher Toggle Button (Light/Dark Mode) -->
+                <button onclick="toggleTheme()" id="themeToggleBtn" class="flex items-center justify-center w-9 h-9 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-amber-400 border border-slate-200 dark:border-slate-700 hover:scale-105 transition shadow-sm" title="Ubah Tema Cerah/Gelap">
+                    <i id="themeIcon" class="fa-solid fa-sun text-sm"></i>
+                </button>
+
+                <!-- WhatsApp Gateway Badge -->
+                <div class="hidden md:flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-xs font-medium">
+                    <i class="fa-brands fa-whatsapp text-sm"></i>
+                    <span>WA Gateway Connected</span>
+                </div>
+
+                <!-- MikroTik ROS Info -->
+                <div class="hidden lg:flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-700 dark:text-indigo-300 text-xs font-medium">
+                    <i class="fa-solid fa-network-wired text-sm"></i>
+                    <span>RB4011-iGS+ (10.10.0.1)</span>
+                </div>
+
+                <!-- Notification Bell -->
+                <button class="relative p-2 text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 transition">
+                    <i class="fa-regular fa-bell"></i>
+                    <span class="absolute top-1 right-1 w-2 h-2 rounded-full bg-rose-500"></span>
+                </button>
+
+                <!-- Quick Add Customer Button -->
+                <button onclick="showToast('Membuka form pendaftaran pelanggan baru')" class="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold px-3.5 py-2 rounded-xl transition shadow-lg shadow-indigo-600/20">
+                    <i class="fa-solid fa-user-plus"></i>
+                    <span class="hidden sm:inline">Pasang Baru</span>
+                </button>
+            </div>
+        </header>
+
+        <!-- DYNAMIC CONTENT VIEW CONTAINER -->
+        <main class="flex-1 overflow-y-auto p-6 space-y-6">
+
+            <!-- TAB 1: DASHBOARD -->
+            <section id="tab-dashboard" class="tab-content space-y-6">
+                <!-- Welcome Banner -->
+                <div class="p-6 rounded-2xl bg-gradient-to-r from-indigo-600 via-indigo-700 to-cyan-600 dark:from-indigo-900/50 dark:via-slate-900 dark:to-slate-900 border border-indigo-200 dark:border-indigo-500/20 text-white shadow-md flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                    <div>
+                        <h2 class="text-xl font-bold mb-1">Selamat Datang di MikPay Control Center 👋</h2>
+                        <p class="text-xs opacity-90 dark:text-slate-400">Monitoring seluruh jaringan Fiber Optik, OLT, MikroTik, dan Billing secara real-time.</p>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <button onclick="switchTab('gis')" class="bg-white/10 hover:bg-white/20 dark:bg-slate-800 dark:hover:bg-slate-700 border border-white/20 dark:border-slate-700 text-xs px-3.5 py-2 rounded-xl font-medium transition text-white">
+                            <i class="fa-solid fa-map-marked-alt text-cyan-300 dark:text-cyan-400 mr-1.5"></i> Buka Peta ODP
+                        </button>
+                        <button onclick="switchTab('remote')" class="bg-white/10 hover:bg-white/20 dark:bg-slate-800 dark:hover:bg-slate-700 border border-white/20 dark:border-slate-700 text-xs px-3.5 py-2 rounded-xl font-medium transition text-white">
+                            <i class="fa-solid fa-sliders text-amber-300 dark:text-amber-400 mr-1.5"></i> Control OLT
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 4 Metrics Summary Cards -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <!-- Total Pemasukan -->
+                    <div class="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm hover:shadow-md transition">
+                        <div class="flex items-center justify-between text-slate-500 dark:text-slate-400 mb-3">
+                            <span class="text-xs font-semibold uppercase tracking-wider">Omset Bulan Ini</span>
+                            <div class="w-8 h-8 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
+                                <i class="fa-solid fa-rupiah-sign"></i>
+                            </div>
+                        </div>
+                        <h3 class="text-2xl font-extrabold text-slate-900 dark:text-white">Rp 28.450.000</h3>
+                        <p class="text-[11px] text-emerald-600 dark:text-emerald-400 mt-2 flex items-center gap-1 font-medium">
+                            <i class="fa-solid fa-arrow-trend-up"></i> +12.5% dari bulan lalu
+                        </p>
+                    </div>
+
+                    <!-- Total Pelanggan Active/Isolir -->
+                    <div class="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm hover:shadow-md transition">
+                        <div class="flex items-center justify-between text-slate-500 dark:text-slate-400 mb-3">
+                            <span class="text-xs font-semibold uppercase tracking-wider">Pelanggan PPPoE</span>
+                            <div class="w-8 h-8 rounded-lg bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 flex items-center justify-center">
+                                <i class="fa-solid fa-users"></i>
+                            </div>
+                        </div>
+                        <h3 class="text-2xl font-extrabold text-slate-900 dark:text-white">184 <span class="text-xs font-normal text-slate-500 dark:text-slate-400">Client</span></h3>
+                        <div class="flex items-center gap-3 mt-2 text-[11px]">
+                            <span class="text-emerald-600 dark:text-emerald-400 font-semibold"><i class="fa-solid fa-circle text-[8px] mr-1"></i>172 Aktif</span>
+                            <span class="text-rose-600 dark:text-rose-400 font-semibold"><i class="fa-solid fa-circle text-[8px] mr-1"></i>12 Isolir</span>
+                        </div>
+                    </div>
+
+                    <!-- ODP Port Occupancy -->
+                    <div class="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm hover:shadow-md transition">
+                        <div class="flex items-center justify-between text-slate-500 dark:text-slate-400 mb-3">
+                            <span class="text-xs font-semibold uppercase tracking-wider">Kapasitas ODP</span>
+                            <div class="w-8 h-8 rounded-lg bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 flex items-center justify-center">
+                                <i class="fa-solid fa-box-archive"></i>
+                            </div>
+                        </div>
+                        <h3 class="text-2xl font-extrabold text-slate-900 dark:text-white">142 / 192 <span class="text-xs font-normal text-slate-500 dark:text-slate-400">Port</span></h3>
+                        <!-- Progress bar -->
+                        <div class="w-full bg-slate-200 dark:bg-slate-800 h-1.5 rounded-full mt-3 overflow-hidden">
+                            <div class="bg-cyan-500 h-full rounded-full" style="width: 74%;"></div>
+                        </div>
+                    </div>
+
+                    <!-- OLT & Optical Status -->
+                    <div class="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm hover:shadow-md transition">
+                        <div class="flex items-center justify-between text-slate-500 dark:text-slate-400 mb-3">
+                            <span class="text-xs font-semibold uppercase tracking-wider">Status OLT HSGQ</span>
+                            <div class="w-8 h-8 rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center">
+                                <i class="fa-solid fa-tower-cell"></i>
+                            </div>
+                        </div>
+                        <h3 class="text-2xl font-extrabold text-slate-900 dark:text-white">4 PON <span class="text-xs font-semibold text-emerald-600 dark:text-emerald-400">NORMAL</span></h3>
+                        <p class="text-[11px] text-slate-500 dark:text-slate-400 mt-2">
+                            Avg Optical Power: <span class="text-emerald-600 dark:text-emerald-400 font-mono font-semibold">-19.4 dBm</span>
+                        </p>
+                    </div>
+                </div>
+
+                <!-- Charts Section -->
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    <!-- Realtime Bandwidth Graph (2 cols) -->
+                    <div class="lg:col-span-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm">
+                        <div class="flex items-center justify-between mb-4">
+                            <div>
+                                <h3 class="font-bold text-sm text-slate-900 dark:text-slate-100">Live Bandwidth Traffic (MikroTik ROS)</h3>
+                                <p class="text-xs text-slate-500 dark:text-slate-400">Interface ether1-WAN & sfp-sfpplus1-LAN</p>
+                            </div>
+                            <div class="flex items-center gap-2 text-xs">
+                                <span class="flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-medium"><i class="fa-solid fa-circle text-[8px]"></i> Download (450 Mbps)</span>
+                                <span class="flex items-center gap-1 text-indigo-600 dark:text-indigo-400 font-medium"><i class="fa-solid fa-circle text-[8px]"></i> Upload (180 Mbps)</span>
+                            </div>
+                        </div>
+                        <div class="h-64 relative">
+                            <canvas id="chartBandwidth"></canvas>
+                        </div>
+                    </div>
+
+                    <!-- Revenue vs Expense Donut / Status Breakdown -->
+                    <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 flex flex-col justify-between shadow-sm">
+                        <div>
+                            <h3 class="font-bold text-sm text-slate-900 dark:text-slate-100 mb-1">Status Penagihan Bulan Ini</h3>
+                            <p class="text-xs text-slate-500 dark:text-slate-400 mb-4">Progres pembayaran tagihan bulanan pelanggan</p>
+                            <div class="h-48 relative">
+                                <canvas id="chartBillingStatus"></canvas>
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-2 gap-2 mt-4 pt-4 border-t border-slate-100 dark:border-slate-800 text-center text-xs">
+                            <div class="p-2 rounded-xl bg-slate-100 dark:bg-slate-800/50">
+                                <p class="text-slate-500 dark:text-slate-400">Lunas</p>
+                                <p class="font-bold text-emerald-600 dark:text-emerald-400 text-sm">152 User</p>
+                            </div>
+                            <div class="p-2 rounded-xl bg-slate-100 dark:bg-slate-800/50">
+                                <p class="text-slate-500 dark:text-slate-400">Belum Bayar</p>
+                                <p class="font-bold text-rose-600 dark:text-rose-400 text-sm">32 User</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Recent Network Alerts & Activity -->
+                <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm">
+                    <h3 class="font-bold text-sm text-slate-900 dark:text-slate-100 mb-4 flex items-center gap-2">
+                        <i class="fa-solid fa-bell text-amber-500"></i> Aktivitas Sistem & Alert Terbaru
+                    </h3>
+                    <div class="space-y-3 text-xs">
+                        <div class="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 flex items-center justify-between gap-3">
+                            <div class="flex items-center gap-3">
+                                <div class="w-8 h-8 rounded-lg bg-rose-500/10 text-rose-600 dark:text-rose-400 flex items-center justify-center shrink-0">
+                                    <i class="fa-solid fa-triangle-exclamation"></i>
+                                </div>
+                                <div>
+                                    <p class="font-medium text-slate-900 dark:text-slate-200">Redaman Tinggi Terdeteksi! (LOS Hazard)</p>
+                                    <p class="text-slate-500 dark:text-slate-400">Pelanggan: Asep Saepudin (ODP-BLOK-B2 Port 4) - Redaman Drop ke <span class="text-rose-600 dark:text-rose-400 font-mono font-bold">-28.9 dBm</span></p>
+                                </div>
+                            </div>
+                            <span class="text-[10px] text-slate-400 dark:text-slate-500 shrink-0">5 Menit lalu</span>
+                        </div>
+
+                        <div class="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 flex items-center justify-between gap-3">
+                            <div class="flex items-center gap-3">
+                                <div class="w-8 h-8 rounded-lg bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shrink-0">
+                                    <i class="fa-solid fa-robot"></i>
+                                </div>
+                                <div>
+                                    <p class="font-medium text-slate-900 dark:text-slate-200">Auto-Isolir Sistem Dijalankan</p>
+                                    <p class="text-slate-500 dark:text-slate-400">Sistem otomatis men-suspend 12 akun PPPoE yang melewati jatuh tempo tanggal 20.</p>
+                                </div>
+                            </div>
+                            <span class="text-[10px] text-slate-400 dark:text-slate-500 shrink-0">1 Jam lalu</span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- TAB 2: PETA INTERAKTIF GIS & ODP -->
+            <section id="tab-gis" class="tab-content space-y-4 hidden">
+                <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                    <div>
+                        <h2 class="text-lg font-bold text-slate-900 dark:text-white">Pemetaan Jaringan Fiber Optik (GIS Infrastructure)</h2>
+                        <p class="text-xs text-slate-500 dark:text-slate-400">Pemetaan lokasi OLT, Kotak ODP, Jalur Kabel FO, dan Rumah Pelanggan.</p>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <button onclick="showToast('Menambahkan ODP Baru ke Koordinat Peta')" class="bg-indigo-600 hover:bg-indigo-500 text-xs px-3.5 py-2 rounded-xl font-semibold transition text-white shadow-sm">
+                            <i class="fa-solid fa-plus mr-1"></i> Tambah ODP Baru
+                        </button>
+                    </div>
+                </div>
+
+                <!-- GIS Map Container with Sidebar Info -->
+                <div class="grid grid-cols-1 lg:grid-cols-4 gap-4 h-[650px]">
+                    <!-- Interactive Leaflet Map (3 Cols) -->
+                    <div class="lg:col-span-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden relative shadow-sm">
+                        <div id="gisMap" class="w-full h-full"></div>
+                        
+                        <!-- Map Legend Overlay -->
+                        <div class="absolute bottom-4 left-4 z-[1000] bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border border-slate-200 dark:border-slate-800 p-3 rounded-xl text-[11px] space-y-1.5 shadow-xl">
+                            <p class="font-bold text-slate-800 dark:text-slate-200 mb-1">Legenda Peta:</p>
+                            <div class="flex items-center gap-2">
+                                <span class="w-3 h-3 rounded-full bg-amber-400 inline-block"></span>
+                                <span class="text-slate-700 dark:text-slate-300">Server OLT Center</span>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <span class="w-3 h-3 rounded-full bg-cyan-400 inline-block"></span>
+                                <span class="text-slate-700 dark:text-slate-300">Kotak ODP (Fiber Splitter)</span>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <span class="w-3 h-3 rounded-full bg-emerald-400 inline-block"></span>
+                                <span class="text-slate-700 dark:text-slate-300">Pelanggan Active (ONU)</span>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <span class="w-3 h-3 rounded-full bg-rose-500 inline-block"></span>
+                                <span class="text-slate-700 dark:text-slate-300">Pelanggan Isolir / Redaman Jelek</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- ODP & Port Inspector Sidepanel (1 Col) -->
+                    <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 flex flex-col justify-between overflow-y-auto space-y-4 shadow-sm">
+                        <div>
+                            <h3 class="font-bold text-sm text-slate-900 dark:text-slate-100 mb-2 flex items-center justify-between">
+                                <span>Inspector ODP</span>
+                                <span class="text-[10px] bg-cyan-500/10 text-cyan-700 dark:text-cyan-400 px-2 py-0.5 rounded-full font-mono font-bold">ODP-BLOK-A1</span>
+                            </h3>
+                            
+                            <!-- ODP Specs summary -->
+                            <div class="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/50 space-y-2 text-xs mb-4">
+                                <div class="flex justify-between text-slate-500 dark:text-slate-400">
+                                    <span>Tersambung ke PON:</span>
+                                    <span class="text-slate-800 dark:text-slate-200 font-semibold">PON 1 (HSGQ OLT)</span>
+                                </div>
+                                <div class="flex justify-between text-slate-500 dark:text-slate-400">
+                                    <span>Kapasitas Splitter:</span>
+                                    <span class="text-slate-800 dark:text-slate-200 font-semibold">1 : 8 Port</span>
+                                </div>
+                                <div class="flex justify-between text-slate-500 dark:text-slate-400">
+                                    <span>Rata-rata Redaman:</span>
+                                    <span class="text-emerald-600 dark:text-emerald-400 font-mono font-semibold">-18.5 dBm (Bagus)</span>
+                                </div>
+                            </div>
+
+                            <h4 class="text-xs font-semibold text-slate-700 dark:text-slate-300 mb-2">Mapping 8 Port ODP:</h4>
+                            <!-- 8 Port Grid Buttons -->
+                            <div class="grid grid-cols-2 gap-2 text-xs">
+                                <div class="p-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-800 dark:text-emerald-300">
+                                    <p class="font-bold text-[10px]">Port 1: Aktif</p>
+                                    <p class="truncate font-semibold">Budi Santoso</p>
+                                    <p class="text-[9px] text-slate-500 dark:text-slate-400 font-mono">-17.8 dBm</p>
+                                </div>
+                                <div class="p-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-800 dark:text-emerald-300">
+                                    <p class="font-bold text-[10px]">Port 2: Aktif</p>
+                                    <p class="truncate font-semibold">Siti Aminah</p>
+                                    <p class="text-[9px] text-slate-500 dark:text-slate-400 font-mono">-18.2 dBm</p>
+                                </div>
+                                <div class="p-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-800 dark:text-emerald-300">
+                                    <p class="font-bold text-[10px]">Port 3: Aktif</p>
+                                    <p class="truncate font-semibold">Agus Setiawan</p>
+                                    <p class="text-[9px] text-slate-500 dark:text-slate-400 font-mono">-19.1 dBm</p>
+                                </div>
+                                <div class="p-2 rounded-lg bg-rose-500/10 border border-rose-500/20 text-rose-800 dark:text-rose-300">
+                                    <p class="font-bold text-[10px]">Port 4: Isolir</p>
+                                    <p class="truncate font-semibold">Asep Saepudin</p>
+                                    <p class="text-[9px] text-rose-600 dark:text-rose-400 font-mono font-bold">-28.9 dBm ⚠️</p>
+                                </div>
+                                <div class="p-2 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400">
+                                    <p class="font-bold text-[10px]">Port 5: KOSONG</p>
+                                    <p class="text-[10px] italic">Siap Pakai</p>
+                                </div>
+                                <div class="p-2 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400">
+                                    <p class="font-bold text-[10px]">Port 6: KOSONG</p>
+                                    <p class="text-[10px] italic">Siap Pakai</p>
+                                </div>
+                                <div class="p-2 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400">
+                                    <p class="font-bold text-[10px]">Port 7: KOSONG</p>
+                                    <p class="text-[10px] italic">Siap Pakai</p>
+                                </div>
+                                <div class="p-2 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400">
+                                    <p class="font-bold text-[10px]">Port 8: KOSONG</p>
+                                    <p class="text-[10px] italic">Siap Pakai</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <button onclick="showToast('Memindai ulang sinyal optik seluruh ODP...')" class="w-full bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-xs py-2 rounded-xl font-medium border border-slate-200 dark:border-slate-700 transition text-slate-800 dark:text-slate-200">
+                            <i class="fa-solid fa-arrows-rotate mr-1"></i> Scan Ulang Redaman ODP
+                        </button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- TAB 3: REMOTE CONTROL OLT & MIKROTIK -->
+            <section id="tab-remote" class="tab-content space-y-6 hidden">
+                <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                    <div>
+                        <h2 class="text-lg font-bold text-slate-900 dark:text-white">Remote Management & Cloud VPN Tunnel</h2>
+                        <p class="text-xs text-slate-500 dark:text-slate-400">Kelola MikroTik & OLT dari mana saja menggunakan VPN Remote dedicated gratis.</p>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-xs font-bold flex items-center gap-2">
+                            <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                            VPN Tunnel Connected
+                        </span>
+                    </div>
+                </div>
+
+                <!-- Cloud VPN Tunnel Status Banner -->
+                <div class="p-5 rounded-2xl bg-gradient-to-r from-indigo-900 via-slate-900 to-slate-900 text-white border border-indigo-500/30 shadow-lg space-y-4">
+                    <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-4 border-b border-slate-800">
+                        <div class="flex items-center gap-3">
+                            <div class="w-12 h-12 rounded-2xl bg-indigo-600/30 border border-indigo-500/40 flex items-center justify-center text-indigo-400 text-xl shrink-0">
+                                <i class="fa-solid fa-shield-halved"></i>
+                            </div>
+                            <div>
+                                <div class="flex items-center gap-2">
+                                    <h3 class="font-extrabold text-base text-white">Free MikPay Cloud VPN Gateway</h3>
+                                    <span class="bg-indigo-500/20 text-indigo-300 border border-indigo-500/40 text-[10px] px-2 py-0.5 rounded-full font-mono font-bold">WIREGUARD v7</span>
+                                </div>
+                                <p class="text-xs text-slate-400 mt-0.5">Domain Tunnel: <span class="text-indigo-300 font-mono font-semibold">cl45.remote.mikpay.id</span> (Node: CGK-DC1 Jakarta)</p>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-3 text-xs">
+                            <div class="bg-slate-800/80 px-3 py-2 rounded-xl border border-slate-700/50">
+                                <p class="text-[10px] text-slate-400">Latency Tunnel</p>
+                                <p class="font-mono font-bold text-emerald-400">4 ms (Sangat Stabil)</p>
+                            </div>
+                            <div class="bg-slate-800/80 px-3 py-2 rounded-xl border border-slate-700/50">
+                                <p class="text-[10px] text-slate-400">Uptime Tunnel</p>
+                                <p class="font-mono font-bold text-slate-200">14 Hari 08 Jam</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Active Remote Port Mappings -->
+                    <div>
+                        <h4 class="text-xs font-bold text-slate-300 uppercase tracking-wider mb-3">Daftar Port Remote Aktif Anda:</h4>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
+                            <!-- Winbox Remote -->
+                            <div class="p-3 rounded-xl bg-slate-950/70 border border-slate-800 space-y-2 hover:border-indigo-500/50 transition">
+                                <div class="flex justify-between items-center text-slate-400">
+                                    <span class="font-semibold text-white flex items-center gap-1.5"><i class="fa-solid fa-desktop text-indigo-400"></i> Winbox RouterOS</span>
+                                    <span class="text-[10px] font-mono bg-indigo-500/20 text-indigo-300 px-1.5 py-0.5 rounded">Port 8291</span>
+                                </div>
+                                <div class="font-mono text-xs text-amber-400 truncate bg-slate-900 p-1.5 rounded border border-slate-800 select-all">cl45.remote.mikpay.id:28291</div>
+                                <button onclick="copyText('cl45.remote.mikpay.id:28291')" class="w-full bg-slate-800 hover:bg-slate-700 text-slate-300 py-1 rounded text-[11px] font-semibold transition">
+                                    <i class="fa-regular fa-copy mr-1"></i> Copy Alamat Winbox
+                                </button>
+                            </div>
+
+                            <!-- OLT Web Management -->
+                            <div class="p-3 rounded-xl bg-slate-950/70 border border-slate-800 space-y-2 hover:border-amber-500/50 transition">
+                                <div class="flex justify-between items-center text-slate-400">
+                                    <span class="font-semibold text-white flex items-center gap-1.5"><i class="fa-solid fa-network-wired text-amber-400"></i> Web Remote OLT</span>
+                                    <span class="text-[10px] font-mono bg-amber-500/20 text-amber-300 px-1.5 py-0.5 rounded">Port 80 / 8080</span>
+                                </div>
+                                <div class="font-mono text-xs text-amber-400 truncate bg-slate-900 p-1.5 rounded border border-slate-800 select-all">cl45.remote.mikpay.id:28080</div>
+                                <button onclick="openOltWebview()" class="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 py-1 rounded text-[11px] font-bold transition">
+                                    <i class="fa-solid fa-arrow-up-right-from-square mr-1"></i> Buka Web OLT Direct
+                                </button>
+                            </div>
+
+                            <!-- WebFig MikroTik -->
+                            <div class="p-3 rounded-xl bg-slate-950/70 border border-slate-800 space-y-2 hover:border-cyan-500/50 transition">
+                                <div class="flex justify-between items-center text-slate-400">
+                                    <span class="font-semibold text-white flex items-center gap-1.5"><i class="fa-solid fa-globe text-cyan-400"></i> WebFig Router</span>
+                                    <span class="text-[10px] font-mono bg-cyan-500/20 text-cyan-300 px-1.5 py-0.5 rounded">Port 8088</span>
+                                </div>
+                                <div class="font-mono text-xs text-amber-400 truncate bg-slate-900 p-1.5 rounded border border-slate-800 select-all">cl45.remote.mikpay.id:28088</div>
+                                <button onclick="copyText('http://cl45.remote.mikpay.id:28088')" class="w-full bg-slate-800 hover:bg-slate-700 text-slate-300 py-1 rounded text-[11px] font-semibold transition">
+                                    <i class="fa-regular fa-copy mr-1"></i> Copy Link WebFig
+                                </button>
+                            </div>
+
+                            <!-- RouterOS API -->
+                            <div class="p-3 rounded-xl bg-slate-950/70 border border-slate-800 space-y-2 hover:border-emerald-500/50 transition">
+                                <div class="flex justify-between items-center text-slate-400">
+                                    <span class="font-semibold text-white flex items-center gap-1.5"><i class="fa-solid fa-code text-emerald-400"></i> API RouterOS</span>
+                                    <span class="text-[10px] font-mono bg-emerald-500/20 text-emerald-300 px-1.5 py-0.5 rounded">Port 8728</span>
+                                </div>
+                                <div class="font-mono text-xs text-amber-400 truncate bg-slate-900 p-1.5 rounded border border-slate-800 select-all">cl45.remote.mikpay.id:28728</div>
+                                <button onclick="copyText('cl45.remote.mikpay.id:28728')" class="w-full bg-slate-800 hover:bg-slate-700 text-slate-300 py-1 rounded text-[11px] font-semibold transition">
+                                    <i class="fa-regular fa-copy mr-1"></i> Copy API Address
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 1-Click VPN Script Generator Card -->
+                <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm space-y-4">
+                    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <div>
+                            <h3 class="font-bold text-sm text-slate-900 dark:text-slate-100 flex items-center gap-2">
+                                <i class="fa-solid fa-terminal text-indigo-600 dark:text-indigo-400"></i> 1-Click Auto Configuration Script Generator
+                            </h3>
+                            <p class="text-xs text-slate-500 dark:text-slate-400">Salin skrip di bawah dan paste ke Terminal Winbox MikroTik Anda untuk mengaktifkan VPN Remote otomatis.</p>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <select id="vpnVersion" onchange="switchVpnScript()" class="bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs rounded-xl p-2 font-medium text-slate-800 dark:text-slate-200 focus:outline-none focus:border-indigo-500">
+                                <option value="ros7">RouterOS v7 (WireGuard - Rekomendasi)</option>
+                                <option value="ros6">RouterOS v6 (SSTP Client)</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Terminal Code Box -->
+                    <div class="relative">
+                        <textarea id="vpnScriptCode" readonly rows="4" class="w-full bg-slate-950 text-emerald-400 font-mono text-[11px] p-4 rounded-xl border border-slate-800 focus:outline-none resize-none leading-relaxed select-all">/interface wireguard add listen-port=13231 name=mikpay-vpn private-key="uP83sX=..."
+/interface wireguard peers add interface=mikpay-vpn public-key="K8a2d..." endpoint-address="103.178.14.22" endpoint-port=51820 allowed-address=10.100.0.0/16 persistent-keepalive=25s
+/ip address add address=10.100.45.2/24 interface=mikpay-vpn</textarea>
+                        <button onclick="copyVpnScript()" class="absolute top-3 right-3 bg-indigo-600 hover:bg-indigo-500 text-white text-xs px-3 py-1.5 rounded-lg font-semibold transition shadow-md flex items-center gap-1.5">
+                            <i class="fa-regular fa-copy"></i>
+                            <span>Salin Script MikroTik</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Unregistered ONU Auto Discovery Alert Banner -->
+                <div class="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-between gap-4">
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-xl bg-amber-500/20 text-amber-500 dark:text-amber-400 flex items-center justify-center shrink-0">
+                            <i class="fa-solid fa-wifi text-lg"></i>
+                        </div>
+                        <div>
+                            <h4 class="text-sm font-bold text-slate-900 dark:text-amber-300">New ONU Discovered on PON 2!</h4>
+                            <p class="text-xs text-slate-600 dark:text-slate-300">Serial Number: <span class="font-mono bg-amber-100 dark:bg-amber-950 text-amber-900 dark:text-amber-300 px-1.5 py-0.5 rounded border border-amber-500/30 font-semibold">ZTEG-C9812A4</span> (Optical Power: -18.2 dBm)</p>
+                        </div>
+                    </div>
+                    <button onclick="openOnuModal()" class="bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs px-4 py-2 rounded-xl transition shrink-0">
+                        <i class="fa-solid fa-link mr-1"></i> Registrasikan Ke Pelanggan
+                    </button>
+                </div>
+
+                <!-- OLT Controller Cards -->
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    <!-- OLT PON Status Summary -->
+                    <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 space-y-4 shadow-sm">
+                        <h3 class="font-bold text-sm text-slate-900 dark:text-slate-100 flex items-center gap-2">
+                            <i class="fa-solid fa-tower-broadcast text-amber-500"></i> Status 4-Port EPON/GPON OLT
+                        </h3>
+                        <div class="space-y-2 text-xs">
+                            <div class="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-800 flex items-center justify-between">
+                                <div>
+                                    <p class="font-bold text-slate-800 dark:text-slate-200">PON Port 1</p>
+                                    <p class="text-[10px] text-slate-500 dark:text-slate-400">32 ONU Connected</p>
+                                </div>
+                                <span class="text-emerald-600 dark:text-emerald-400 font-mono font-bold">+2.5 dBm Tx</span>
+                            </div>
+                            <div class="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-800 flex items-center justify-between">
+                                <div>
+                                    <p class="font-bold text-slate-800 dark:text-slate-200">PON Port 2</p>
+                                    <p class="text-[10px] text-slate-500 dark:text-slate-400">45 ONU Connected</p>
+                                </div>
+                                <span class="text-emerald-600 dark:text-emerald-400 font-mono font-bold">+2.4 dBm Tx</span>
+                            </div>
+                            <div class="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-800 flex items-center justify-between">
+                                <div>
+                                    <p class="font-bold text-slate-800 dark:text-slate-200">PON Port 3</p>
+                                    <p class="text-[10px] text-slate-500 dark:text-slate-400">28 ONU Connected</p>
+                                </div>
+                                <span class="text-emerald-600 dark:text-emerald-400 font-mono font-bold">+2.6 dBm Tx</span>
+                            </div>
+                            <div class="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-800 flex items-center justify-between">
+                                <div>
+                                    <p class="font-bold text-slate-800 dark:text-slate-200">PON Port 4</p>
+                                    <p class="text-[10px] text-slate-500 dark:text-slate-400">39 ONU Connected</p>
+                                </div>
+                                <span class="text-emerald-600 dark:text-emerald-400 font-mono font-bold">+2.3 dBm Tx</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Remote Actions ONU / Customer WiFi Control (2 cols) -->
+                    <div class="lg:col-span-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 space-y-4 shadow-sm">
+                        <h3 class="font-bold text-sm text-slate-900 dark:text-slate-100 flex items-center gap-2">
+                            <i class="fa-solid fa-wand-magic-sparkles text-indigo-600 dark:text-indigo-400"></i> Remote Action Modem Pelanggan (TR-069 & SNMP)
+                        </h3>
+                        
+                        <div class="p-4 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-3">
+                            <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 border-b border-slate-200 dark:border-slate-800 pb-3">
+                                <div>
+                                    <h4 class="font-bold text-xs text-slate-900 dark:text-white">Target Pelanggan: Budi Santoso (PPPoE: budi_home)</h4>
+                                    <p class="text-[11px] text-slate-500 dark:text-slate-400">Modem: ZTE F660 V6 | SN: ZTEGC88112233 | ODP-BLOK-A1 Port 1</p>
+                                </div>
+                                <span class="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-[10px] px-2 py-0.5 rounded-full font-bold">ONLINE (-17.8 dBm)</span>
+                            </div>
+
+                            <!-- Remote Buttons Grid -->
+                            <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2">
+                                <button onclick="showToast('Perintah Reboot Modem telah dikirim via TR-069')" class="p-2.5 rounded-xl bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 text-xs font-medium text-slate-800 dark:text-slate-200 transition text-center space-y-1 shadow-sm">
+                                    <i class="fa-solid fa-power-off text-rose-500 text-base block"></i>
+                                    <span>Reboot Modem</span>
+                                </button>
+                                <button onclick="showToast('Sinyal optik dipindai: RX -17.8 dBm (EXCELLENT)')" class="p-2.5 rounded-xl bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 text-xs font-medium text-slate-800 dark:text-slate-200 transition text-center space-y-1 shadow-sm">
+                                    <i class="fa-solid fa-wave-square text-cyan-500 text-base block"></i>
+                                    <span>Cek Sinyal dBm</span>
+                                </button>
+                                <button onclick="showToast('Form Ganti Nama & Password Wifi Dibuka')" class="p-2.5 rounded-xl bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 text-xs font-medium text-slate-800 dark:text-slate-200 transition text-center space-y-1 shadow-sm">
+                                    <i class="fa-solid fa-key text-amber-500 text-base block"></i>
+                                    <span>Ganti Pass Wifi</span>
+                                </button>
+                                <button onclick="showToast('Membaca Port Forwarding & NAT')" class="p-2.5 rounded-xl bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 text-xs font-medium text-slate-800 dark:text-slate-200 transition text-center space-y-1 shadow-sm">
+                                    <i class="fa-solid fa-route text-indigo-500 text-base block"></i>
+                                    <span>Set Port Forward</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- TAB 4: MANAJEMEN PELANGGAN -->
+            <section id="tab-customers" class="tab-content space-y-4 hidden">
+                <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                    <div>
+                        <h2 class="text-lg font-bold text-slate-900 dark:text-white">Data Pelanggan Internet</h2>
+                        <p class="text-xs text-slate-500 dark:text-slate-400">Total 184 Pelanggan terdaftar dalam sistem MikPay.</p>
+                    </div>
+                </div>
+
+                <!-- Customer Table -->
+                <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-sm">
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left text-xs text-slate-700 dark:text-slate-300">
+                            <thead class="bg-slate-100 dark:bg-slate-950 text-slate-500 dark:text-slate-400 uppercase text-[10px] font-bold border-b border-slate-200 dark:border-slate-800">
+                                <tr>
+                                    <th class="p-4">Pelanggan</th>
+                                    <th class="p-4">Paket</th>
+                                    <th class="p-4">IP / PPPoE</th>
+                                    <th class="p-4">ODP & Port</th>
+                                    <th class="p-4">Redaman Sinyal</th>
+                                    <th class="p-4">Status</th>
+                                    <th class="p-4 text-right">Aksi</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
+                                <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/40">
+                                    <td class="p-4">
+                                        <p class="font-bold text-slate-900 dark:text-slate-100">Budi Santoso</p>
+                                        <p class="text-[10px] text-slate-500 dark:text-slate-400">WA: 0812-3456-7890</p>
+                                    </td>
+                                    <td class="p-4"><span class="px-2 py-0.5 rounded bg-indigo-50 dark:bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 font-semibold">Home 20 Mbps</span></td>
+                                    <td class="p-4 font-mono text-slate-500 dark:text-slate-400">10.10.20.14 (budi_home)</td>
+                                    <td class="p-4">ODP-BLOK-A1 <span class="text-slate-400 dark:text-slate-500">(Port 1)</span></td>
+                                    <td class="p-4 font-mono text-emerald-600 dark:text-emerald-400 font-bold">-17.8 dBm</td>
+                                    <td class="p-4"><span class="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-bold text-[10px]">AKTIF</span></td>
+                                    <td class="p-4 text-right space-x-1">
+                                        <button onclick="showToast('Detail Pelanggan Budi Santoso')" class="p-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded text-slate-700 dark:text-slate-300"><i class="fa-solid fa-eye"></i></button>
+                                        <button onclick="showToast('Menjalankan perbaikan koneksi')" class="p-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded text-amber-500"><i class="fa-solid fa-wrench"></i></button>
+                                    </td>
+                                </tr>
+                                <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/40">
+                                    <td class="p-4">
+                                        <p class="font-bold text-slate-900 dark:text-slate-100">Asep Saepudin</p>
+                                        <p class="text-[10px] text-slate-500 dark:text-slate-400">WA: 0857-1122-3344</p>
+                                    </td>
+                                    <td class="p-4"><span class="px-2 py-0.5 rounded bg-indigo-50 dark:bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 font-semibold">Home 10 Mbps</span></td>
+                                    <td class="p-4 font-mono text-slate-500 dark:text-slate-400">10.10.20.88 (asep_wifi)</td>
+                                    <td class="p-4">ODP-BLOK-A1 <span class="text-slate-400 dark:text-slate-500">(Port 4)</span></td>
+                                    <td class="p-4 font-mono text-rose-600 dark:text-rose-400 font-bold">-28.9 dBm ⚠️</td>
+                                    <td class="p-4"><span class="px-2 py-0.5 rounded-full bg-rose-500/10 text-rose-600 dark:text-rose-400 font-bold text-[10px]">ISOLIR</span></td>
+                                    <td class="p-4 text-right space-x-1">
+                                        <button onclick="showToast('Detail Pelanggan Asep Saepudin')" class="p-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded text-slate-700 dark:text-slate-300"><i class="fa-solid fa-eye"></i></button>
+                                        <button onclick="showToast('Membuka kunci isolir secara manual')" class="p-1.5 bg-emerald-500/10 hover:bg-emerald-500/20 rounded text-emerald-600 dark:text-emerald-400"><i class="fa-solid fa-lock-open"></i></button>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- TAB 5: BILLING & TAGIHAN -->
+            <section id="tab-billing" class="tab-content space-y-4 hidden">
+                <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                    <div>
+                        <h2 class="text-lg font-bold text-white">Sistem Billing & Tagihan Bulanan</h2>
+                        <p class="text-xs text-slate-400">Otomatisasi pengiriman pesan WA tagihan dan isolir MikroTik.</p>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <button onclick="sendWaBlast()" class="bg-emerald-600 hover:bg-emerald-500 text-white text-xs px-3.5 py-2 rounded-xl font-bold transition">
+                            <i class="fa-brands fa-whatsapp mr-1"></i> Blast WA Pengingat Tagihan
+                        </button>
+                    </div>
+                </div>
+
+                <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="font-bold text-sm text-slate-100">Daftar Tagihan Jatuh Tempo Bulan Ini</h3>
+                    </div>
+                    <div class="space-y-2 text-xs">
+                        <div class="p-3 rounded-xl bg-slate-800/40 border border-slate-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                            <div>
+                                <p class="font-bold text-slate-100">Tagihan INV-2026-001 (Budi Santoso)</p>
+                                <p class="text-slate-400">Paket Home 20 Mbps - Rp 200.000 (Jatuh Tempo: 20 Jul 2026)</p>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <span class="px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-bold text-[10px]">LUNAS</span>
+                                <button onclick="openThermalModal('Budi Santoso', 'Rp 200.000', 'Home 20 Mbps')" class="bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs px-3 py-1.5 rounded-lg border border-slate-700 transition">
+                                    <i class="fa-solid fa-print mr-1"></i> Struk Thermal
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="p-3 rounded-xl bg-slate-800/40 border border-slate-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                            <div>
+                                <p class="font-bold text-slate-100">Tagihan INV-2026-088 (Asep Saepudin)</p>
+                                <p class="text-slate-400">Paket Home 10 Mbps - Rp 150.000 (Menunggak 2 Bulan)</p>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <span class="px-2 py-0.5 rounded bg-rose-500/10 text-rose-400 font-bold text-[10px]">TERISOLIR</span>
+                                <button onclick="showToast('Notifikasi WA tagihan telah dikirim ulang ke 0857-1122-3344')" class="bg-emerald-600/20 text-emerald-400 hover:bg-emerald-600/30 text-xs px-3 py-1.5 rounded-lg transition">
+                                    <i class="fa-brands fa-whatsapp mr-1"></i> Kirim WA
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- TAB 6: HOTSPOT & VOUCHER GENERATOR -->
+            <section id="tab-vouchers" class="tab-content space-y-6 hidden">
+                <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                    <div>
+                        <h2 class="text-lg font-bold text-white">Hotspot & Voucher Generator</h2>
+                        <p class="text-xs text-slate-400">Generate kode voucher massal untuk jualan internet koin / harian.</p>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    <!-- Form Generator -->
+                    <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-4">
+                        <h3 class="font-bold text-sm text-slate-100">Buat Voucher Baru</h3>
+                        <div class="space-y-3 text-xs">
+                            <div>
+                                <label class="block text-slate-400 mb-1">Pilih Paket Profile</label>
+                                <select id="vProfile" class="w-full bg-slate-950 border border-slate-800 rounded-xl p-2 text-slate-200">
+                                    <option value="5000">1 Hari / Rp 5.000 (Speed 5 Mbps)</option>
+                                    <option value="10000">3 Hari / Rp 10.000 (Speed 5 Mbps)</option>
+                                    <option value="50000">30 Hari / Rp 50.000 (Speed 10 Mbps)</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-slate-400 mb-1">Jumlah Voucher</label>
+                                <input type="number" id="vQty" value="6" class="w-full bg-slate-950 border border-slate-800 rounded-xl p-2 text-slate-200">
+                            </div>
+                            <button onclick="generateVouchers()" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-2.5 rounded-xl transition">
+                                <i class="fa-solid fa-bolt mr-1"></i> Generate Voucher Massal
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Voucher Card Preview Area (2 Cols) -->
+                    <div class="lg:col-span-2 bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-4">
+                        <div class="flex items-center justify-between">
+                            <h3 class="font-bold text-sm text-slate-100">Preview Layout Cetak Voucher</h3>
+                            <button onclick="window.print()" class="bg-slate-800 hover:bg-slate-700 text-xs px-3 py-1.5 rounded-lg border border-slate-700 text-slate-200">
+                                <i class="fa-solid fa-print mr-1"></i> Cetak Ke Paper/Printer
+                            </button>
+                        </div>
+
+                        <!-- Dynamic Vouchers Container -->
+                        <div id="voucherContainer" class="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                            <!-- Voucher item preview generated via JS -->
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- TAB 7: FINANCE & LAPORAN -->
+            <section id="tab-finance" class="tab-content space-y-4 hidden">
+                <h2 class="text-lg font-bold text-white">Laporan Keuangan & Laba Rugi</h2>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div class="p-4 rounded-2xl bg-slate-900 border border-slate-800">
+                        <p class="text-xs text-slate-400">Total Pemasukan (Bulan Ini)</p>
+                        <h4 class="text-xl font-bold text-emerald-400 mt-1">Rp 28.450.000</h4>
+                    </div>
+                    <div class="p-4 rounded-2xl bg-slate-900 border border-slate-800">
+                        <p class="text-xs text-slate-400">Pengeluaran Operasional</p>
+                        <h4 class="text-xl font-bold text-rose-400 mt-1">Rp 8.200.000</h4>
+                    </div>
+                    <div class="p-4 rounded-2xl bg-slate-900 border border-slate-800">
+                        <p class="text-xs text-slate-400">Estimasi Profit Bersih</p>
+                        <h4 class="text-xl font-bold text-indigo-400 mt-1">Rp 20.250.000</h4>
+                    </div>
+                </div>
+            </section>
+
+            <!-- TAB 8: TIKET GANGGUAN TEKNISI -->
+            <section id="tab-tickets" class="tab-content space-y-4 hidden">
+                <h2 class="text-lg font-bold text-white">Tiket Perbaikan Lapangan (Field Ops)</h2>
+                <div class="p-4 rounded-2xl bg-slate-900 border border-slate-800 space-y-3">
+                    <div class="p-3 rounded-xl bg-slate-800/40 flex justify-between items-center text-xs">
+                        <div>
+                            <p class="font-bold text-slate-100">Kabel Dropcore Putus Tertimpa Pohon</p>
+                            <p class="text-slate-400">Lokasi: ODP-BLOK-B2 (Pelanggan Asep Saepudin) | Assigned: Teknisi Rian</p>
+                        </div>
+                        <span class="px-2 py-1 rounded bg-amber-500/10 text-amber-400 font-bold text-[10px]">IN PROGRESS</span>
+                    </div>
+                </div>
+            </section>
+
+            <!-- TAB 9: PENGATURAN -->
+            <section id="tab-settings" class="tab-content space-y-4 hidden">
+                <h2 class="text-lg font-bold text-white">Pengaturan Sistem</h2>
+                <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 text-xs text-slate-300 space-y-3">
+                    <p class="font-bold text-sm text-white">Integrasi WhatsApp Gateway API</p>
+                    <input type="text" value="https://api.whatsapp-gateway.net/v1/send" class="w-full bg-slate-950 p-2 rounded-xl border border-slate-800">
+                </div>
+            </section>
+
+        </main>
+    </div>
+
+    <!-- MODAL 1: CETAK STRUK THERMAL BLUETOOTH -->
+    <div id="thermalModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center hidden">
+        <div class="bg-white text-slate-900 w-80 p-5 rounded-2xl shadow-2xl font-mono text-xs space-y-3">
+            <div class="text-center border-b border-dashed border-slate-400 pb-3">
+                <h3 class="font-extrabold text-base uppercase">MIKPAY NET</h3>
+                <p class="text-[10px] text-slate-600">Layanan Internet Cepat & Unlimited</p>
+                <p class="text-[9px] text-slate-500">WA: 0812-9999-8888</p>
+            </div>
+            <div class="space-y-1 text-[11px]">
+                <div class="flex justify-between"><span>No. Struk:</span><span id="stNo">INV-2026-001</span></div>
+                <div class="flex justify-between"><span>Pelanggan:</span><span id="stName">Budi Santoso</span></div>
+                <div class="flex justify-between"><span>Paket:</span><span id="stPaket">Home 20 Mbps</span></div>
+                <div class="flex justify-between"><span>Tgl Lunas:</span><span>22 Jul 2026</span></div>
+            </div>
+            <div class="border-t border-b border-dashed border-slate-400 py-2 flex justify-between font-bold text-sm">
+                <span>TOTAL BAYAR</span>
+                <span id="stTotal">Rp 200.000</span>
+            </div>
+            <p class="text-center text-[10px] text-slate-600">Terima kasih atas pembayaran Anda!</p>
+            <div class="flex gap-2 pt-2">
+                <button onclick="closeThermalModal()" class="flex-1 bg-slate-200 hover:bg-slate-300 py-2 rounded-xl text-slate-800 font-bold transition">Tutup</button>
+                <button onclick="showToast('Mengirim perintah ke Printer Thermal Bluetooth...')" class="flex-1 bg-indigo-600 hover:bg-indigo-500 py-2 rounded-xl text-white font-bold transition">Cetak</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL 2: REGISTRASI ONU BARU -->
+    <div id="onuModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center hidden">
+        <div class="bg-slate-900 border border-slate-800 text-slate-200 w-full max-w-md p-6 rounded-2xl shadow-2xl space-y-4">
+            <h3 class="font-bold text-base text-white">Registrasi ONU/Modem Baru</h3>
+            <div class="space-y-3 text-xs">
+                <div>
+                    <label class="text-slate-400 block mb-1">Serial Number ONU</label>
+                    <input type="text" value="ZTEG-C9812A4" readonly class="w-full bg-slate-950 p-2 rounded-xl border border-slate-800 font-mono text-amber-400">
+                </div>
+                <div>
+                    <label class="text-slate-400 block mb-1">Hubungkan ke Pelanggan</label>
+                    <select class="w-full bg-slate-950 p-2 rounded-xl border border-slate-800 text-slate-200">
+                        <option>Pilih Pelanggan...</option>
+                        <option>Budi Santoso (ODP-BLOK-A1)</option>
+                        <option>Asep Saepudin (ODP-BLOK-A1)</option>
+                    </select>
+                </div>
+            </div>
+            <div class="flex gap-2 pt-2">
+                <button onclick="closeOnuModal()" class="flex-1 bg-slate-800 py-2 rounded-xl font-semibold">Batal</button>
+                <button onclick="closeOnuModal(); showToast('ONU Berhasil Didaftarkan dan Disinkronkan!')" class="flex-1 bg-amber-500 text-slate-950 font-bold py-2 rounded-xl">Simpan & Bind</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL 3: WEBVIEW REMOTE OLT DIRECT -->
+    <div id="oltWebviewModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-slate-900 border border-slate-800 w-full max-w-4xl h-[85vh] rounded-2xl shadow-2xl flex flex-col overflow-hidden">
+            <!-- Modal Header -->
+            <div class="p-4 bg-slate-950 border-b border-slate-800 flex items-center justify-between shrink-0">
+                <div class="flex items-center gap-2">
+                    <span class="w-3 h-3 rounded-full bg-amber-500 inline-block"></span>
+                    <h3 class="font-bold text-sm text-white">Web Management OLT HSGQ (Tunnel: cl45.remote.mikpay.id:28080)</h3>
+                </div>
+                <div class="flex items-center gap-2">
+                    <span class="text-[10px] font-mono bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded font-bold">HTTP PROXY ACTIVE</span>
+                    <button onclick="closeOltWebview()" class="text-slate-400 hover:text-white p-1 text-base ml-2"><i class="fa-solid fa-xmark"></i></button>
+                </div>
+            </div>
+            <!-- Modal Webview Body Simulation -->
+            <div class="flex-1 bg-slate-950 p-6 flex flex-col items-center justify-center text-center space-y-4">
+                <div class="w-16 h-16 rounded-2xl bg-amber-500/20 text-amber-400 flex items-center justify-center text-2xl border border-amber-500/30">
+                    <i class="fa-solid fa-server"></i>
+                </div>
+                <div>
+                    <h4 class="font-extrabold text-lg text-white">Simulasi Antarmuka Web OLT (EPON / GPON)</h4>
+                    <p class="text-xs text-slate-400 max-w-md mx-auto mt-1">Sistem berhasil membuat terowongan HTTP Proxy aman langsung dari Cloud VPN Server MikPay ke IP Lokal OLT (192.168.100.1).</p>
+                </div>
+                <div class="p-4 rounded-xl bg-slate-900 border border-slate-800 font-mono text-xs text-left w-full max-w-md text-slate-300 space-y-1">
+                    <p><span class="text-indigo-400">Target IP:</span> 192.168.100.1:80</p>
+                    <p><span class="text-indigo-400">Status Gateway:</span> 200 OK (Response: 12ms)</p>
+                    <p><span class="text-indigo-400">Auth Token:</span> MikPay-Secure-Tunnel-Pass</p>
+                </div>
+                <div class="flex gap-3">
+                    <button onclick="showToast('Membuka Web OLT di tab baru...'); closeOltWebview()" class="bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs px-5 py-2.5 rounded-xl transition">
+                        <i class="fa-solid fa-external-link mr-1"></i> Buka Di Tab Browser Baru
+                    </button>
+                    <button onclick="closeOltWebview()" class="bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold text-xs px-5 py-2.5 rounded-xl transition">
+                        Tutup Webview
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- TOAST NOTIFICATION CONTAINER -->
+    <div id="toast" class="fixed bottom-6 right-6 bg-indigo-600 text-white px-4 py-3 rounded-2xl shadow-2xl text-xs font-semibold flex items-center gap-2 transition-all duration-300 opacity-0 pointer-events-none z-50">
+        <i class="fa-solid fa-circle-check"></i>
+        <span id="toastMsg">Notifikasi pesan...</span>
+    </div>
+
+    <script>
+        // Copy text to clipboard helper
+        function copyText(text) {
+            const temp = document.createElement('textarea');
+            temp.value = text;
+            document.body.appendChild(temp);
+            temp.select();
+            document.execCommand('copy');
+            document.body.removeChild(temp);
+            showToast('Alamat URL berhasil disalin: ' + text);
+        }
+
+        // VPN Script Copy Helper
+        function copyVpnScript() {
+            const scriptText = document.getElementById('vpnScriptCode').value;
+            copyText(scriptText);
+        }
+
+        // Switch VPN Script Version
+        function switchVpnScript() {
+            const version = document.getElementById('vpnVersion').value;
+            const textarea = document.getElementById('vpnScriptCode');
+            if (version === 'ros7') {
+                textarea.value = `/interface wireguard add listen-port=13231 name=mikpay-vpn private-key="uP83sX=..."\n/interface wireguard peers add interface=mikpay-vpn public-key="K8a2d..." endpoint-address="103.178.14.22" endpoint-port=51820 allowed-address=10.100.0.0/16 persistent-keepalive=25s\n/ip address add address=10.100.45.2/24 interface=mikpay-vpn`;
+                showToast('Skrip diubah ke RouterOS v7 (WireGuard)');
+            } else {
+                textarea.value = `/interface sstp-client add name=mikpay-vpn connect-to=cl45.remote.mikpay.id user=user_cl45 password=sec_pass_99 profile=default-encryption disabled=no\n/ip address add address=10.100.45.2/24 interface=mikpay-vpn`;
+                showToast('Skrip diubah ke RouterOS v6 (SSTP)');
+            }
+        }
+
+        // Open & Close OLT Webview Modal
+        function openOltWebview() {
+            document.getElementById('oltWebviewModal').classList.remove('hidden');
+        }
+
+        function closeOltWebview() {
+            document.getElementById('oltWebviewModal').classList.add('hidden');
+        }
+
+        // Theme Switcher Logic (Light / Dark Mode)
+        function toggleTheme() {
+            const html = document.documentElement;
+            const icon = document.getElementById('themeIcon');
+            if (html.classList.contains('dark')) {
+                html.classList.remove('dark');
+                localStorage.setItem('theme', 'light');
+                icon.className = 'fa-solid fa-moon text-sm text-slate-700';
+                showToast('Mode Terang Aktif');
+            } else {
+                html.classList.add('dark');
+                localStorage.setItem('theme', 'dark');
+                icon.className = 'fa-solid fa-sun text-sm text-amber-400';
+                showToast('Mode Gelap Aktif');
+            }
+            // Re-render chart colors if charts initialized
+            if (window.bandwidthChart) {
+                const isDark = html.classList.contains('dark');
+                const gridColor = isDark ? '#1e293b' : '#e2e8f0';
+                const textColor = isDark ? '#64748b' : '#94a3b8';
+                window.bandwidthChart.options.scales.x.grid.color = gridColor;
+                window.bandwidthChart.options.scales.x.ticks.color = textColor;
+                window.bandwidthChart.options.scales.y.grid.color = gridColor;
+                window.bandwidthChart.options.scales.y.ticks.color = textColor;
+                window.bandwidthChart.update();
+            }
+        }
+
+        // Tab Switcher
+        function switchTab(tabId) {
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+            document.querySelectorAll('.nav-btn').forEach(btn => {
+                btn.classList.remove('text-indigo-600', 'dark:text-indigo-400', 'bg-indigo-50', 'dark:bg-indigo-500/10', 'border', 'border-indigo-200', 'dark:border-indigo-500/20', 'font-semibold');
+                btn.classList.add('text-slate-600', 'dark:text-slate-400');
+            });
+
+            document.getElementById('tab-' + tabId).classList.remove('hidden');
+            const activeBtn = document.getElementById('nav-' + tabId);
+            if (activeBtn) {
+                activeBtn.classList.add('text-indigo-600', 'dark:text-indigo-400', 'bg-indigo-50', 'dark:bg-indigo-500/10', 'border', 'border-indigo-200', 'dark:border-indigo-500/20', 'font-semibold');
+                activeBtn.classList.remove('text-slate-600', 'dark:text-slate-400');
+            }
+
+            if(tabId === 'gis' && !window.gisMapInitialized) {
+                initGisMap();
+            }
+        }
+
+        // Toast Helper
+        function showToast(msg) {
+            const toast = document.getElementById('toast');
+            document.getElementById('toastMsg').innerText = msg;
+            toast.classList.remove('opacity-0', 'pointer-events-none');
+            setTimeout(() => {
+                toast.classList.add('opacity-0', 'pointer-events-none');
+            }, 3000);
+        }
+
+        // Send WA Blast Simulator
+        function sendWaBlast() {
+            showToast('Mengirim 32 Pesan WhatsApp Tagihan via Gateway...');
+        }
+
+        // Thermal Struk Modal Controls
+        function openThermalModal(name, total, paket) {
+            document.getElementById('stName').innerText = name;
+            document.getElementById('stTotal').innerText = total;
+            document.getElementById('stPaket').innerText = paket;
+            document.getElementById('thermalModal').classList.remove('hidden');
+        }
+        function closeThermalModal() {
+            document.getElementById('thermalModal').classList.add('hidden');
+        }
+
+        // ONU Modal
+        function openOnuModal() {
+            document.getElementById('onuModal').classList.remove('hidden');
+        }
+        function closeOnuModal() {
+            document.getElementById('onuModal').classList.add('hidden');
+        }
+
+        // Voucher Generator Simulation
+        function generateVouchers() {
+            const qty = parseInt(document.getElementById('vQty').value) || 6;
+            const price = document.getElementById('vProfile').value;
+            const container = document.getElementById('voucherContainer');
+            container.innerHTML = '';
+
+            for(let i = 0; i < qty; i++) {
+                const code = 'MP-' + Math.random().toString(36).substring(2, 7).toUpperCase();
+                const card = `
+                    <div class="p-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl space-y-1.5 text-center relative overflow-hidden shadow-sm">
+                        <div class="text-[9px] font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-widest">MikPay Voucher</div>
+                        <div class="text-sm font-extrabold font-mono text-slate-900 dark:text-white tracking-wider bg-white dark:bg-slate-900 py-1 rounded border border-slate-200 dark:border-slate-800">${code}</div>
+                        <div class="text-[10px] text-slate-500 dark:text-slate-400 font-semibold">Rp ${parseInt(price).toLocaleString('id-ID')}</div>
+                        <div class="w-12 h-12 bg-white p-1 mx-auto rounded border border-slate-200 dark:border-slate-800">
+                            <img src="https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=${code}" alt="QR" class="w-full h-full">
+                        </div>
+                    </div>
+                `;
+                container.innerHTML += card;
+            }
+            showToast(`${qty} Voucher Berhasil Di-generate!`);
+        }
+
+        // Initialize Chart.js Graphs
+        window.onload = function() {
+            // Apply light theme default or restored choice
+            const savedTheme = localStorage.getItem('theme');
+            if (savedTheme === 'dark') {
+                document.documentElement.classList.add('dark');
+                document.getElementById('themeIcon').className = 'fa-solid fa-sun text-sm text-amber-400';
+            } else {
+                document.documentElement.classList.remove('dark');
+                document.getElementById('themeIcon').className = 'fa-solid fa-moon text-sm text-slate-700';
+            }
+
+            const isDark = document.documentElement.classList.contains('dark');
+            const gridColor = isDark ? '#1e293b' : '#e2e8f0';
+            const textColor = isDark ? '#64748b' : '#94a3b8';
+
+            // Bandwidth Line Chart
+            const ctxBandwidth = document.getElementById('chartBandwidth').getContext('2d');
+            window.bandwidthChart = new Chart(ctxBandwidth, {
+                type: 'line',
+                data: {
+                    labels: ['10:00', '10:05', '10:10', '10:15', '10:20', '10:25', '10:30'],
+                    datasets: [
+                        {
+                            label: 'Download (Mbps)',
+                            data: [210, 320, 280, 410, 390, 450, 480],
+                            borderColor: '#10b981',
+                            tension: 0.4,
+                            fill: false
+                        },
+                        {
+                            label: 'Upload (Mbps)',
+                            data: [80, 110, 95, 140, 160, 180, 195],
+                            borderColor: '#6366f1',
+                            tension: 0.4,
+                            fill: false
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        x: { grid: { color: gridColor }, ticks: { color: textColor, font: { size: 10 } } },
+                        y: { grid: { color: gridColor }, ticks: { color: textColor, font: { size: 10 } } }
+                    }
+                }
+            });
+
+            // Billing Donut Chart
+            const ctxBilling = document.getElementById('chartBillingStatus').getContext('2d');
+            new Chart(ctxBilling, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Lunas', 'Menunggak / Belum Bayar'],
+                    datasets: [{
+                        data: [152, 32],
+                        backgroundColor: ['#10b981', '#f43f5e'],
+                        borderWidth: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    cutout: '75%'
+                }
+            });
+
+            // Initial Voucher render
+            generateVouchers();
+        };
+
+        // Initialize Leaflet GIS Map
+        function initGisMap() {
+            window.gisMapInitialized = true;
+            const map = L.map('gisMap').setView([-6.2088, 106.8456], 15);
+
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                maxZoom: 19
+            }).addTo(map);
+
+            // OLT Center Marker
+            L.circleMarker([-6.2088, 106.8456], {
+                color: '#f59e0b',
+                fillColor: '#f59e0b',
+                fillOpacity: 0.9,
+                radius: 10
+            }).addTo(map).bindPopup('<b>OLT Center (HSGQ EPON)</b><br>IP: 192.168.100.1');
+
+            // ODP-01 Marker
+            L.circleMarker([-6.2065, 106.8480], {
+                color: '#06b6d4',
+                fillColor: '#06b6d4',
+                fillOpacity: 0.8,
+                radius: 7
+            }).addTo(map).bindPopup('<b>ODP-BLOK-A1</b><br>Terpakai: 4/8 Port');
+
+            // Polyline Cable FO
+            L.polyline([
+                [-6.2088, 106.8456],
+                [-6.2065, 106.8480]
+            ], { color: '#06b6d4', weight: 3, dashArray: '5, 5' }).addTo(map);
+
+            // Client Marker
+            L.circleMarker([-6.2058, 106.8490], {
+                color: '#10b981',
+                fillColor: '#10b981',
+                fillOpacity: 0.8,
+                radius: 5
+            }).addTo(map).bindPopup('<b>Client: Budi Santoso</b><br>Redaman: -17.8 dBm (Active)');
+        }
+    </script>
+</body>
+</html>
