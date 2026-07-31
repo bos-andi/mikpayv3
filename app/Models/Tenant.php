@@ -31,6 +31,11 @@ class Tenant extends Model
         return $this->hasMany(Router::class);
     }
 
+    public function users(): HasMany
+    {
+        return $this->hasMany(User::class);
+    }
+
     public function tunnelAccounts(): HasMany
     {
         return $this->hasMany(TunnelAccount::class);
@@ -173,6 +178,70 @@ class Tenant extends Model
     public function hasWaapiToken(): bool
     {
         return $this->plainWaapiToken() !== '';
+    }
+
+    /**
+     * Status koneksi device WaAPI (di-cache singkat agar tidak hit API tiap request).
+     *
+     * @return array{state: string, label: string, connected: bool, phone: ?string, detail: ?string}
+     */
+    public function waapiGatewayStatus(bool $forceRefresh = false): array
+    {
+        if (! $this->waapiEnabled() || ! $this->hasWaapiToken()) {
+            return [
+                'state' => 'off',
+                'label' => 'WA Gateway Off',
+                'connected' => false,
+                'phone' => null,
+                'detail' => null,
+            ];
+        }
+
+        $cacheKey = 'waapi.device_status.'.$this->id;
+        if ($forceRefresh) {
+            \Illuminate\Support\Facades\Cache::forget($cacheKey);
+        }
+
+        $cached = \Illuminate\Support\Facades\Cache::remember($cacheKey, now()->addMinutes(3), function () {
+            try {
+                $result = app(\App\Services\WaApiService::class)->deviceStatus($this->plainWaapiToken());
+                $device = is_array($result['device'] ?? null) ? $result['device'] : [];
+
+                return [
+                    'ok' => (bool) ($result['ok'] ?? false),
+                    'connected' => (bool) ($result['connected'] ?? false),
+                    'phone' => isset($device['phone']) ? (string) $device['phone'] : null,
+                    'detail' => (string) ($result['message'] ?? ''),
+                    'status_label' => isset($device['status_label']) ? (string) $device['status_label'] : null,
+                ];
+            } catch (\Throwable $e) {
+                return [
+                    'ok' => false,
+                    'connected' => false,
+                    'phone' => null,
+                    'detail' => $e->getMessage(),
+                    'status_label' => null,
+                ];
+            }
+        });
+
+        if (! empty($cached['connected'])) {
+            return [
+                'state' => 'connected',
+                'label' => 'WA Gateway Connected',
+                'connected' => true,
+                'phone' => $cached['phone'] ?? null,
+                'detail' => $cached['detail'] ?? null,
+            ];
+        }
+
+        return [
+            'state' => 'disconnected',
+            'label' => 'WA Device Offline',
+            'connected' => false,
+            'phone' => $cached['phone'] ?? null,
+            'detail' => $cached['detail'] ?? 'Perangkat WhatsApp belum terhubung di wa-api.id',
+        ];
     }
 
     /** @deprecated */

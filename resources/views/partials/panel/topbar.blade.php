@@ -21,10 +21,18 @@
             <i id="themeIcon" class="fa-solid fa-moon text-sm text-slate-700"></i>
         </button>
 
-        <div class="hidden md:flex items-center gap-2 px-3 py-1 rounded-full text-xs font-medium {{ current_tenant()?->waapiEnabled() && current_tenant()?->hasWaapiToken() ? 'bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400' : 'bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-500' }}">
+        @php
+            $waGate = current_tenant()?->waapiGatewayStatus() ?? ['state' => 'off', 'label' => 'WA Gateway Off'];
+            $waGateClass = match ($waGate['state'] ?? 'off') {
+                'connected' => 'bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400',
+                'disconnected' => 'bg-rose-500/10 border border-rose-500/20 text-rose-600 dark:text-rose-400',
+                default => 'bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-500',
+            };
+        @endphp
+        <a href="{{ panel_route('settings') }}?tab=whatsapp" class="hidden md:flex items-center gap-2 px-3 py-1 rounded-full text-xs font-medium {{ $waGateClass }}" title="{{ $waGate['detail'] ?? '' }}">
             <i class="fa-brands fa-whatsapp text-sm"></i>
-            <span>{{ current_tenant()?->waapiEnabled() && current_tenant()?->hasWaapiToken() ? 'WA Gateway Connected' : 'WA Gateway Off' }}</span>
-        </div>
+            <span>{{ $waGate['label'] }}</span>
+        </a>
 
         <details class="relative hidden lg:block group">
             <summary class="list-none cursor-pointer flex items-center gap-2 px-3 py-1.5 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-700 dark:text-indigo-300 text-xs font-medium hover:bg-indigo-500/15 transition max-w-[280px] [&::-webkit-details-marker]:hidden">

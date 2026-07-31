@@ -36,7 +36,7 @@
         </p>
     </div>
     <div class="flex flex-wrap items-center gap-2">
-        <form method="POST" action="{{ panel_route('billing.auto-isolir') }}" onsubmit="return confirm('Jalankan auto isolir untuk semua pelanggan yang menunggak di router ini?')">
+        <form method="POST" action="{{ panel_route('billing.auto-isolir') }}" onsubmit="return MikPay.confirmForm(event, 'Jalankan auto isolir untuk semua pelanggan yang menunggak di router ini?', { title: 'Auto Isolir', variant: 'warning', confirmText: 'Ya, isolir' })">
             @csrf
             <button type="submit" class="inline-flex items-center gap-2 text-xs font-bold px-3.5 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white shadow-md shadow-rose-600/20">
                 <i class="fa-solid fa-lock"></i> Jalankan Auto Isolir
@@ -189,8 +189,20 @@
                                 <span class="px-2 py-0.5 rounded-full font-bold text-[10px] {{ $statusClass[$r['status']] ?? $statusClass['waiting'] }}">
                                     {{ strtoupper($r['status_label']) }}
                                 </span>
+                                @if ($r['status'] === 'partial' && ($r['remaining'] ?? 0) > 0)
+                                    <p class="text-[10px] font-semibold text-sky-600 mt-1">Sisa Rp {{ number_format($r['remaining'], 0, ',', '.') }}</p>
+                                @endif
                                 @if ($r['isolir'] || $r['disabled'])
                                     <span class="ml-1 px-2 py-0.5 rounded-full font-bold text-[10px] bg-rose-500/10 text-rose-600">ISOLIR</span>
+                                @elseif (!empty($r['promise_active']) && !empty($r['promised_pay_date']))
+                                    <span class="ml-1 px-2 py-0.5 rounded-full font-bold text-[10px] bg-violet-500/10 text-violet-700" title="{{ $r['promised_pay_note'] ?? ($r['isolir_label'] ?? '') }}">
+                                        JANJI {{ \Carbon\Carbon::parse($r['promised_pay_date'])->translatedFormat('d M') }}
+                                    </span>
+                                @elseif (!empty($r['promise_overdue']))
+                                    <span class="ml-1 px-2 py-0.5 rounded-full font-bold text-[10px] bg-rose-500/10 text-rose-600" title="{{ $r['isolir_label'] ?? '' }}">JANJI LEWAT</span>
+                                    @if ($r['should_isolir'])
+                                        <span class="ml-1 px-2 py-0.5 rounded-full font-bold text-[10px] bg-amber-500/10 text-amber-700">SIAP ISOLIR</span>
+                                    @endif
                                 @elseif ($r['should_isolir'])
                                     <span class="ml-1 px-2 py-0.5 rounded-full font-bold text-[10px] bg-amber-500/10 text-amber-700">SIAP ISOLIR</span>
                                 @elseif (($r['days_to_isolir'] ?? null) !== null && ($r['arrears_count'] ?? 0) > 0)
@@ -227,10 +239,18 @@
                                             >
                                                 <i class="fa-brands fa-whatsapp"></i>
                                             </button>
+                                            <button
+                                                type="button"
+                                                class="p-1.5 {{ !empty($r['is_promised']) ? 'bg-violet-500/20 text-violet-700' : 'bg-violet-500/10 text-violet-600' }} hover:bg-violet-500/20 rounded"
+                                                title="{{ !empty($r['promised_pay_date']) ? 'Janji bayar: '.$r['promised_pay_date'] : 'Janji bayar (tunda isolir)' }}"
+                                                onclick="openPromiseModal(@js($r))"
+                                            >
+                                                <i class="fa-regular fa-calendar-check"></i>
+                                            </button>
                                         @endif
                                     @endif
                                     @if ($r['isolir'] || $r['disabled'])
-                                        <form method="POST" action="{{ panel_route('billing.open') }}" onsubmit="return confirm('Buka isolir {{ $r['name'] }}?')">
+                                        <form method="POST" action="{{ panel_route('billing.open') }}" onsubmit="return MikPay.confirmForm(event, 'Buka isolir {{ $r['name'] }}?', { title: 'Buka Isolir', confirmText: 'Ya, buka' })">
                                             @csrf
                                             <input type="hidden" name="id" value="{{ $r['id'] }}">
                                             <input type="hidden" name="name" value="{{ $r['name'] }}">
@@ -239,7 +259,7 @@
                                             </button>
                                         </form>
                                     @elseif ($r['id'])
-                                        <form method="POST" action="{{ panel_route('billing.isolir') }}" onsubmit="return confirm('Isolir {{ $r['name'] }} sekarang?')">
+                                        <form method="POST" action="{{ panel_route('billing.isolir') }}" onsubmit="return MikPay.confirmForm(event, 'Isolir {{ $r['name'] }} sekarang?', { title: 'Isolir Pelanggan', variant: 'warning', confirmText: 'Ya, isolir' })">
                                             @csrf
                                             <input type="hidden" name="id" value="{{ $r['id'] }}">
                                             <input type="hidden" name="name" value="{{ $r['name'] }}">
@@ -293,11 +313,18 @@
                             <p class="font-mono text-[10px]">{{ $p->invoice_id ?: '—' }}</p>
                             <p class="text-[10px] text-slate-500">{{ $p->period }}</p>
                         </td>
-                        <td class="p-3 font-bold text-emerald-600">Rp {{ number_format($p->amount, 0, ',', '.') }}</td>
+                        <td class="p-3">
+                            <p class="font-bold text-emerald-600">Rp {{ number_format($p->amount, 0, ',', '.') }}</p>
+                            @if ($p->status === 'partial')
+                                <p class="text-[10px] font-bold text-sky-600 mt-0.5">Sebagian · sisa Rp {{ number_format((int) $p->remaining_amount, 0, ',', '.') }}</p>
+                            @elseif ($p->status === 'paid')
+                                <p class="text-[10px] font-semibold text-emerald-600/80 mt-0.5">Lunas periode</p>
+                            @endif
+                        </td>
                         <td class="p-3 text-[11px]">{{ optional($p->payment_date)->format('d M Y H:i') ?: '—' }}</td>
                         <td class="p-3 text-[11px]">{{ $p->payment_method ?: '—' }}</td>
                         <td class="p-3 text-right">
-                            <form method="POST" action="{{ panel_route('billing.payments.destroy', $p) }}" onsubmit="return confirm('Hapus pembayaran ini?')" class="inline">
+                            <form method="POST" action="{{ panel_route('billing.payments.destroy', $p) }}" onsubmit="return MikPay.confirmForm(event, 'Hapus pembayaran ini? Data tidak bisa dikembalikan.', { title: 'Hapus Pembayaran', variant: 'danger', confirmText: 'Ya, hapus' })" class="inline">
                                 @csrf
                                 @method('DELETE')
                                 <button type="submit" class="p-1.5 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10 rounded" title="Hapus">
@@ -316,7 +343,7 @@
     </div>
 </div>
 
-{{-- Modal Bayar --}}
+{{-- Modal Bayar (Tunai / Transfer Manual — mendukung cicilan) --}}
 <div id="payModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/50 p-4">
     <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl w-full max-w-md p-5 space-y-4">
         <div class="flex items-center justify-between">
@@ -331,39 +358,121 @@
                 <p id="pay_customer_label" class="text-sm font-bold text-slate-900 dark:text-white"></p>
                 <p id="pay_arrears" class="text-[10px] text-rose-600 mt-1"></p>
             </div>
+
+            <div id="pay_summary" class="grid grid-cols-3 gap-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 p-3 text-center">
+                <div>
+                    <p class="text-[9px] font-bold uppercase tracking-wide text-slate-400">Tagihan</p>
+                    <p id="pay_sum_fee" class="text-[11px] font-bold text-slate-800 dark:text-slate-100 mt-0.5">—</p>
+                </div>
+                <div>
+                    <p class="text-[9px] font-bold uppercase tracking-wide text-slate-400">Sudah masuk</p>
+                    <p id="pay_sum_paid" class="text-[11px] font-bold text-emerald-600 mt-0.5">—</p>
+                </div>
+                <div>
+                    <p class="text-[9px] font-bold uppercase tracking-wide text-slate-400">Sisa</p>
+                    <p id="pay_sum_remain" class="text-[11px] font-bold text-rose-600 mt-0.5">—</p>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="block text-[11px] font-bold text-slate-600 mb-1">Periode mulai</label>
+                    <input type="month" name="period" id="pay_period" value="{{ $period }}" required class="w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 px-3 py-2 text-xs" onchange="onPayPeriodChange()">
+                </div>
+                <div>
+                    <label class="block text-[11px] font-bold text-slate-600 mb-1">Bayar berapa bulan?</label>
+                    <select name="advance_months" id="pay_advance_months" class="w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 px-3 py-2 text-xs" onchange="onAdvanceMonthsChange()">
+                        <option value="1">1 bulan (periode ini / cicilan)</option>
+                        <option value="2">2 bulan (di muka)</option>
+                        <option value="3">3 bulan (di muka)</option>
+                        <option value="4">4 bulan (di muka)</option>
+                        <option value="5">5 bulan (di muka)</option>
+                        <option value="6">6 bulan (di muka)</option>
+                        <option value="12">12 bulan (1 tahun di muka)</option>
+                    </select>
+                </div>
+            </div>
+
             <div class="grid grid-cols-2 gap-3">
                 <div>
                     <label class="block text-[11px] font-bold text-slate-600 mb-1">Nominal (Rp)</label>
-                    <input type="number" name="amount" id="pay_amount" required min="1" class="w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 px-3 py-2 text-xs">
+                    <input type="number" name="amount" id="pay_amount" required min="1" class="w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 px-3 py-2 text-xs" oninput="updatePayPreview()">
+                    <div id="pay_quick_btns" class="flex flex-wrap gap-1.5 mt-2">
+                        <button type="button" onclick="setPayQuick('full')" class="text-[10px] font-bold px-2 py-1 rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100">Lunas sisa</button>
+                        <button type="button" onclick="setPayQuick('half')" class="text-[10px] font-bold px-2 py-1 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50">50% sisa</button>
+                        <button type="button" onclick="setPayQuick(50000)" class="text-[10px] font-bold px-2 py-1 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50">Rp 50rb</button>
+                    </div>
                 </div>
-                <div>
-                    <label class="block text-[11px] font-bold text-slate-600 mb-1">Periode (bulan tunggakan)</label>
-                    <input type="month" name="period" id="pay_period" value="{{ $period }}" required class="w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 px-3 py-2 text-xs">
-                </div>
-            </div>
-            <div class="grid grid-cols-2 gap-3">
                 <div>
                     <label class="block text-[11px] font-bold text-slate-600 mb-1">Tanggal bayar</label>
                     <input type="date" name="payment_date" value="{{ now()->toDateString() }}" required class="w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 px-3 py-2 text-xs">
                 </div>
+            </div>
+            <div>
+                <label class="block text-[11px] font-bold text-slate-600 mb-1">Metode (manual)</label>
+                <select name="payment_method" required class="w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 px-3 py-2 text-xs">
+                    <option value="Tunai">Tunai</option>
+                    <option value="Transfer Manual">Transfer Manual</option>
+                </select>
+                <p class="text-[10px] text-slate-400 mt-1">Khusus catat admin — bukan Xendit. Bayar di muka hanya di sini.</p>
+            </div>
+            <div>
+                <label class="block text-[11px] font-bold text-slate-600 mb-1">Catatan</label>
+                <input type="text" name="notes" class="w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 px-3 py-2 text-xs" placeholder="Opsional, mis. cicilan 1">
+            </div>
+            <p id="pay_preview" class="text-[11px] font-semibold text-slate-700 dark:text-slate-200"></p>
+            <p id="pay_hint" class="text-[10px] text-slate-500"></p>
+            <div class="flex gap-2 pt-1">
+                <button type="submit" class="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold py-2.5 rounded-xl">Simpan Pembayaran</button>
+                <button type="button" onclick="closePayModal()" class="px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-600">Batal</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+{{-- Modal Janji Bayar --}}
+<div id="promiseModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/50 p-4">
+    <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl w-full max-w-md p-5 space-y-4">
+        <div class="flex items-center justify-between">
+            <h3 class="text-sm font-bold text-slate-900 dark:text-white">Janji Bayar</h3>
+            <button type="button" onclick="closePromiseModal()" class="text-slate-400 hover:text-slate-700"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <p class="text-[11px] text-slate-500 leading-relaxed">
+            Tunda isolir otomatis sampai tanggal janji. Setelah tanggal itu lewat dan masih belum lunas, pelanggan siap diisolir.
+        </p>
+        <form id="promiseForm" method="POST" action="{{ panel_route('billing.promises.store') }}" class="space-y-3" autocomplete="off">
+            @csrf
+            <input type="hidden" name="customer_name" id="promise_customer_name">
+            <div>
+                <p class="text-[11px] font-bold text-slate-500 mb-1">Pelanggan</p>
+                <p id="promise_customer_label" class="text-sm font-bold text-slate-900 dark:text-white"></p>
+            </div>
+            <div class="grid grid-cols-2 gap-3">
                 <div>
-                    <label class="block text-[11px] font-bold text-slate-600 mb-1">Metode (manual)</label>
-                    <select name="payment_method" required class="w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 px-3 py-2 text-xs">
-                        <option value="Tunai">Tunai</option>
-                        <option value="Transfer Manual">Transfer Manual</option>
-                    </select>
-                    <p class="text-[10px] text-slate-400 mt-1">Pembayaran dicatat admin (bukan via Xendit).</p>
+                    <label class="block text-[11px] font-bold text-slate-600 mb-1">Periode tunggakan</label>
+                    <input type="month" name="period" id="promise_period" required class="w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 px-3 py-2 text-xs">
+                </div>
+                <div>
+                    <label class="block text-[11px] font-bold text-slate-600 mb-1">Tanggal janji bayar</label>
+                    <input type="date" name="promised_pay_date" id="promise_date" required class="w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 px-3 py-2 text-xs">
                 </div>
             </div>
             <div>
                 <label class="block text-[11px] font-bold text-slate-600 mb-1">Catatan</label>
-                <input type="text" name="notes" class="w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 px-3 py-2 text-xs" placeholder="Opsional">
+                <input type="text" name="promised_pay_note" id="promise_note" maxlength="255" class="w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 px-3 py-2 text-xs" placeholder="Opsional, mis. transfer Sabtu sore">
             </div>
-            <p id="pay_hint" class="text-[10px] text-slate-500"></p>
-            <div class="flex gap-2 pt-1">
-                <button type="submit" class="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold py-2.5 rounded-xl">Simpan Pembayaran</button>
-                <button type="button" onclick="closePayModal()" class="px-4 text-xs font-bold rounded-xl border border-slate-200 dark:border-slate-700">Batal</button>
+            <p id="promise_hint" class="text-[10px] text-slate-500"></p>
+            <div class="flex flex-wrap gap-2 pt-1">
+                <button type="submit" class="flex-1 bg-violet-600 hover:bg-violet-500 text-white text-xs font-bold py-2.5 rounded-xl">Simpan Janji</button>
+                <button type="button" id="promise_clear_btn" onclick="clearPromise()" class="hidden px-3 py-2.5 rounded-xl border border-rose-200 text-rose-600 text-xs font-bold hover:bg-rose-50">Hapus janji</button>
+                <button type="button" onclick="closePromiseModal()" class="px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-600">Batal</button>
             </div>
+        </form>
+        <form id="promiseClearForm" method="POST" action="{{ panel_route('billing.promises.destroy') }}" class="hidden">
+            @csrf
+            @method('DELETE')
+            <input type="hidden" name="customer_name" id="promise_clear_customer">
+            <input type="hidden" name="period" id="promise_clear_period">
         </form>
     </div>
 </div>
@@ -432,7 +541,12 @@ async function copyPaymentLink(customerName, btn) {
 }
 
 async function sendPaymentLinkWa(customerName, phone, btn) {
-    if (!confirm('Kirim link bayar via WhatsApp ke ' + (phone || '…') + '?')) return;
+    const ok = await MikPay.confirm({
+        title: 'Kirim WhatsApp',
+        message: 'Kirim link bayar via WhatsApp ke ' + (phone || '…') + '?',
+        confirmText: 'Ya, kirim',
+    });
+    if (!ok) return;
     if (btn) btn.disabled = true;
     try {
         const { res, data } = await createPaymentLink(customerName, true);
@@ -445,7 +559,154 @@ async function sendPaymentLinkWa(customerName, phone, btn) {
     }
 }
 
+function formatRp(n) {
+    const v = Math.max(0, Math.round(Number(n) || 0));
+    return 'Rp ' + v.toLocaleString('id-ID');
+}
+
+let __payRow = null;
+
+function addMonthsYm(ym, n) {
+    const parts = String(ym || '').split('-');
+    const y = Number(parts[0]) || new Date().getFullYear();
+    const m = Number(parts[1]) || (new Date().getMonth() + 1);
+    const d = new Date(y, m - 1 + n, 1);
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+}
+
+function advancePeriodList(start, n) {
+    const months = Math.max(1, Math.min(12, Number(n) || 1));
+    const out = [];
+    for (let i = 0; i < months; i++) out.push(addMonthsYm(start, i));
+    return out;
+}
+
+function formatPeriodLabel(ym) {
+    try {
+        const [y, m] = String(ym).split('-');
+        const names = ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des'];
+        return (names[Number(m) - 1] || m) + ' ' + y;
+    } catch (e) {
+        return ym;
+    }
+}
+
+function periodRemain(row, period) {
+    const fee = Number(row?.monthly_fee || 0);
+    const map = row?.shortfall_by_period || {};
+    if (period && map[period] != null) return Math.max(0, Number(map[period]));
+    if (period && (row?.arrears_periods || []).includes(period)) return fee;
+    // Periode berjalan yang dipilih
+    if (period && period === (row?.first_unpaid_period)) {
+        return Math.max(0, Number(row?.remaining ?? fee));
+    }
+    // Periode depan (belum terbit otomatis) → tarif penuh
+    return fee > 0 ? fee : 0;
+}
+
+function getAdvanceMonths() {
+    return Math.max(1, Math.min(12, Number(document.getElementById('pay_advance_months')?.value || 1)));
+}
+
+function refreshPaySummary() {
+    const row = __payRow || {};
+    const fee = Number(row.monthly_fee || 0);
+    const period = document.getElementById('pay_period')?.value || '';
+    const advance = getAdvanceMonths();
+    const periods = advancePeriodList(period, advance);
+    const remainOne = periodRemain(row, period);
+    const remainTotal = periods.reduce((s, p) => s + periodRemain(row, p), 0);
+    const paid = fee > 0 ? Math.max(0, fee - remainOne) : 0;
+    const set = (id, text) => { const el = document.getElementById(id); if (el) el.textContent = text; };
+
+    if (advance > 1) {
+        set('pay_sum_fee', fee > 0 ? (formatRp(fee) + ' × ' + advance) : '—');
+        set('pay_sum_paid', 'Di muka');
+        set('pay_sum_remain', remainTotal > 0 ? formatRp(remainTotal) : '—');
+    } else {
+        set('pay_sum_fee', fee > 0 ? formatRp(fee) : '—');
+        set('pay_sum_paid', fee > 0 ? formatRp(paid) : '—');
+        set('pay_sum_remain', remainOne > 0 ? formatRp(remainOne) : (fee > 0 ? 'Lunas' : '—'));
+    }
+
+    const quick = document.getElementById('pay_quick_btns');
+    if (quick) quick.classList.toggle('hidden', advance > 1);
+
+    return { fee, paid, remain: remainOne, remainTotal, advance, periods };
+}
+
+function updatePayPreview() {
+    const { remain, remainTotal, advance, periods } = refreshPaySummary();
+    const amount = Math.max(0, Number(document.getElementById('pay_amount')?.value || 0));
+    const preview = document.getElementById('pay_preview');
+    const hint = document.getElementById('pay_hint');
+    if (!preview) return;
+
+    const labels = (periods || []).map(formatPeriodLabel).join(', ');
+
+    if (advance > 1) {
+        if (hint) {
+            hint.textContent = 'Bayar di muka: ' + labels + '. Saat bulan itu tiba, sudah terhitung lunas.';
+        }
+        if (!amount) {
+            preview.textContent = 'Nominal disarankan total lunas untuk ' + advance + ' bulan.';
+            return;
+        }
+        if (amount >= remainTotal) {
+            preview.textContent = 'Akan melunasi: ' + labels + '.';
+        } else {
+            preview.textContent = 'Nominal kurang dari total ' + formatRp(remainTotal) + ' — dialokasikan berurutan mulai ' + formatPeriodLabel(periods[0]) + '.';
+        }
+        return;
+    }
+
+    if (hint && __payRow) {
+        hint.textContent = (__payRow.arrears_count > 0)
+            ? '1 bulan / cicilan. Isolir baru dibuka setelah lunas. Untuk bayar di muka, pilih 2–12 bulan.'
+            : '1 bulan / cicilan. Pilih 2–12 bulan untuk bayar di muka.';
+    }
+
+    if (!amount) {
+        preview.textContent = 'Boleh cicil — isi nominal kurang dari sisa.';
+        return;
+    }
+    if (amount < remain) {
+        preview.textContent = 'Setelah ini, sisa periode: ' + formatRp(remain - amount) + ' (status Sebagian).';
+    } else if (amount === remain) {
+        preview.textContent = 'Periode ini akan lunas.';
+    } else {
+        preview.textContent = 'Lebih dari sisa periode — kelebihan dialihkan ke tunggakan berikutnya.';
+    }
+}
+
+function setPayQuick(mode) {
+    const { remain } = refreshPaySummary();
+    let val = remain;
+    if (mode === 'half') val = Math.max(1, Math.floor(remain / 2));
+    else if (typeof mode === 'number') val = Math.min(mode, remain > 0 ? remain : mode);
+    const input = document.getElementById('pay_amount');
+    if (input) input.value = val > 0 ? val : '';
+    updatePayPreview();
+}
+
+function fillSuggestedAmount() {
+    const { remain, remainTotal, advance } = refreshPaySummary();
+    const need = advance > 1 ? remainTotal : remain;
+    const input = document.getElementById('pay_amount');
+    if (input) input.value = need > 0 ? need : '';
+    updatePayPreview();
+}
+
+function onPayPeriodChange() {
+    fillSuggestedAmount();
+}
+
+function onAdvanceMonthsChange() {
+    fillSuggestedAmount();
+}
+
 function openPayModal(row) {
+    __payRow = row;
     const modal = document.getElementById('payModal');
     document.getElementById('pay_customer_name').value = row.name;
     document.getElementById('pay_customer_label').textContent = (row.display_name || row.name) + ' (' + row.name + ')';
@@ -454,11 +715,9 @@ function openPayModal(row) {
         : '';
     const firstUnpaid = row.first_unpaid_period || row.arrears_periods?.[0] || '{{ $period }}';
     document.getElementById('pay_period').value = firstUnpaid;
-    const amount = Number(row.monthly_fee || 0) || Number(row.remaining || 0);
-    document.getElementById('pay_amount').value = amount > 0 ? amount : '';
-    document.getElementById('pay_hint').textContent = row.arrears_count > 0
-        ? 'Periode otomatis diisi bulan tunggakan tertua. Ubah jika ingin bayar bulan lain.'
-        : (row.billing_configured ? 'Isi nominal sesuai tarif.' : 'Data tagihan belum diatur — isi nominal manual.');
+    const adv = document.getElementById('pay_advance_months');
+    if (adv) adv.value = '1';
+    fillSuggestedAmount();
     modal.classList.remove('hidden');
     modal.classList.add('flex');
 }
@@ -466,9 +725,57 @@ function closePayModal() {
     const modal = document.getElementById('payModal');
     modal.classList.add('hidden');
     modal.classList.remove('flex');
+    __payRow = null;
 }
 document.getElementById('payModal')?.addEventListener('click', function (e) {
     if (e.target === this) closePayModal();
+});
+
+function openPromiseModal(row) {
+    document.getElementById('promise_customer_name').value = row.name;
+    document.getElementById('promise_customer_label').textContent = (row.display_name || row.name) + ' (' + row.name + ')';
+    const period = row.promise_period || row.first_unpaid_period || row.arrears_periods?.[0] || '{{ $period }}';
+    document.getElementById('promise_period').value = period;
+    document.getElementById('promise_date').value = row.promised_pay_date || '';
+    document.getElementById('promise_note').value = row.promised_pay_note || '';
+    document.getElementById('promise_clear_customer').value = row.name;
+    document.getElementById('promise_clear_period').value = period;
+    const clearBtn = document.getElementById('promise_clear_btn');
+    if (clearBtn) clearBtn.classList.toggle('hidden', !row.is_promised);
+    const hint = document.getElementById('promise_hint');
+    if (hint) {
+        hint.textContent = row.promised_pay_date
+            ? ('Janji aktif sampai ' + row.promised_pay_date + '. Isolir ditunda hingga tanggal itu lewat.')
+            : 'Contoh: pelanggan janji bayar 1 Agustus → isi tanggal itu. Mulai 2 Agustus baru siap isolir.';
+    }
+    const modal = document.getElementById('promiseModal');
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+}
+
+function closePromiseModal() {
+    const modal = document.getElementById('promiseModal');
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
+}
+
+async function clearPromise() {
+    const ok = await MikPay.confirm({
+        title: 'Hapus Janji Bayar',
+        message: 'Hapus janji bayar pelanggan ini? Isolir akan mengikuti aturan biasa lagi.',
+        variant: 'danger',
+        confirmText: 'Ya, hapus',
+    });
+    if (!ok) return;
+    document.getElementById('promise_clear_period').value = document.getElementById('promise_period').value;
+    document.getElementById('promiseClearForm').submit();
+}
+
+document.getElementById('promiseModal')?.addEventListener('click', function (e) {
+    if (e.target === this) closePromiseModal();
+});
+document.getElementById('promise_period')?.addEventListener('change', function () {
+    document.getElementById('promise_clear_period').value = this.value;
 });
 </script>
 @endpush

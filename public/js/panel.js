@@ -126,6 +126,115 @@ MikPay.generateVouchers = function () {
     MikPay.showToast(`${qty} Voucher Berhasil Di-generate!`);
 };
 
+/**
+ * Custom confirm modal (mengganti window.confirm).
+ * @param {string|{title?:string,message?:string,confirmText?:string,cancelText?:string,variant?:'default'|'danger'|'warning'}} opts
+ * @returns {Promise<boolean>}
+ */
+MikPay.confirm = function (opts) {
+    const options = typeof opts === 'string' ? { message: opts } : (opts || {});
+    const modal = document.getElementById('mikpayConfirmModal');
+    const titleEl = document.getElementById('mikpayConfirmTitle');
+    const msgEl = document.getElementById('mikpayConfirmMessage');
+    const okBtn = document.getElementById('mikpayConfirmOk');
+    const cancelBtn = document.getElementById('mikpayConfirmCancel');
+    const backdrop = document.getElementById('mikpayConfirmBackdrop');
+    const iconWrap = document.getElementById('mikpayConfirmIconWrap');
+    const icon = document.getElementById('mikpayConfirmIcon');
+
+    if (!modal || !okBtn || !cancelBtn) {
+        return Promise.resolve(window.confirm(options.message || 'Lanjutkan?'));
+    }
+
+    const variant = options.variant || 'default';
+    titleEl.textContent = options.title || 'Konfirmasi';
+    msgEl.textContent = options.message || 'Lanjutkan?';
+    okBtn.textContent = options.confirmText || (variant === 'danger' ? 'Ya, hapus' : 'Ya, lanjut');
+    cancelBtn.textContent = options.cancelText || 'Batal';
+
+    okBtn.className = 'flex-1 px-3 py-2.5 rounded-2xl text-white text-xs font-bold shadow-md transition ' + (
+        variant === 'danger'
+            ? 'bg-rose-600 hover:bg-rose-500 shadow-rose-600/20'
+            : variant === 'warning'
+                ? 'bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-amber-500/20'
+                : 'bg-violet-600 hover:bg-violet-500 shadow-violet-600/20'
+    );
+
+    if (iconWrap && icon) {
+        iconWrap.className = 'h-10 w-10 rounded-2xl flex items-center justify-center shrink-0 ' + (
+            variant === 'danger'
+                ? 'bg-rose-100 text-rose-600'
+                : variant === 'warning'
+                    ? 'bg-amber-100 text-amber-600'
+                    : 'bg-violet-100 text-violet-600'
+        );
+        icon.className = 'fa-solid text-lg ' + (
+            variant === 'danger'
+                ? 'fa-trash-can'
+                : variant === 'warning'
+                    ? 'fa-triangle-exclamation'
+                    : 'fa-circle-question'
+        );
+    }
+
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+    okBtn.focus();
+
+    return new Promise((resolve) => {
+        const close = (value) => {
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+            okBtn.onclick = null;
+            cancelBtn.onclick = null;
+            if (backdrop) backdrop.onclick = null;
+            document.removeEventListener('keydown', onKey);
+            resolve(value);
+        };
+        const onKey = (e) => {
+            if (e.key === 'Escape') close(false);
+            if (e.key === 'Enter') close(true);
+        };
+        okBtn.onclick = () => close(true);
+        cancelBtn.onclick = () => close(false);
+        if (backdrop) backdrop.onclick = () => close(false);
+        document.addEventListener('keydown', onKey);
+    });
+};
+
+/**
+ * Untuk onsubmit form: onsubmit="return MikPay.confirmForm(event, 'Pesan?', { variant: 'danger' })"
+ */
+MikPay.confirmForm = function (event, message, options) {
+    const form = event.target;
+    if (!(form instanceof HTMLFormElement)) return false;
+
+    if (form.dataset.mikpayConfirmed === '1') {
+        delete form.dataset.mikpayConfirmed;
+        return true;
+    }
+
+    event.preventDefault();
+    const opts = typeof message === 'object' && message !== null
+        ? message
+        : Object.assign({ message: message || 'Lanjutkan?' }, options || {});
+
+    MikPay.confirm(opts).then((ok) => {
+        if (!ok) return;
+        form.dataset.mikpayConfirmed = '1';
+        if (typeof form.requestSubmit === 'function') {
+            form.requestSubmit();
+        } else {
+            HTMLFormElement.prototype.submit.call(form);
+        }
+    });
+
+    return false;
+};
+
+window.mikpayConfirm = MikPay.confirm;
+window.mikpayConfirmForm = MikPay.confirmForm;
+
 // Global aliases for inline onclick handlers from template
 window.toggleTheme = MikPay.toggleTheme;
 window.copyText = MikPay.copyText;

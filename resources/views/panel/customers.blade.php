@@ -182,7 +182,7 @@
                                     <i class="fa-solid fa-pen"></i>
                                 </a>
                                 @if ($c['isolir'] || $c['disabled'])
-                                    <form method="POST" action="{{ panel_route('customers.open') }}" onsubmit="return confirm('Buka isolir untuk {{ $c['name'] }}?')">
+                                    <form method="POST" action="{{ panel_route('customers.open') }}" onsubmit="return MikPay.confirmForm(event, 'Buka isolir untuk {{ $c['name'] }}?', { title: 'Buka Isolir', confirmText: 'Ya, buka' })">
                                         @csrf
                                         <input type="hidden" name="id" value="{{ $c['id'] }}">
                                         <input type="hidden" name="name" value="{{ $c['name'] }}">
@@ -191,7 +191,7 @@
                                         </button>
                                     </form>
                                 @else
-                                    <form method="POST" action="{{ panel_route('customers.isolir') }}" onsubmit="return confirm('Isolir {{ $c['name'] }}?')">
+                                    <form method="POST" action="{{ panel_route('customers.isolir') }}" onsubmit="return MikPay.confirmForm(event, 'Isolir {{ $c['name'] }}?', { title: 'Isolir Pelanggan', variant: 'warning', confirmText: 'Ya, isolir' })">
                                         @csrf
                                         <input type="hidden" name="id" value="{{ $c['id'] }}">
                                         <input type="hidden" name="name" value="{{ $c['name'] }}">

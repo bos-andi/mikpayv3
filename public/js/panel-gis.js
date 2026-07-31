@@ -1,49 +1,728 @@
 document.addEventListener('DOMContentLoaded', () => {
     const mapEl = document.getElementById('gisMap');
-    if (!mapEl || typeof L === 'undefined') {
+    const cfg = window.__gisConfig || {};
+    if (!mapEl || typeof L === 'undefined' || !cfg.dataUrl) {
         return;
     }
 
-    const map = L.map('gisMap').setView([-6.2088, 106.8456], 15);
+    const TYPE_COLOR = {
+        olt: '#f59e0b',
+        odc: '#8b5cf6',
+        odp: '#06b6d4',
+    };
 
+    const state = {
+        mode: 'view', // view | add-odp | add-odc | add-olt | place-port
+        nodes: [],
+        customers: [],
+        selectedId: null,
+        editingId: null,
+        placePort: null,
+        layer: null,
+        gpsLayer: null,
+        locatedOnce: false,
+    };
+
+    const map = L.map('gisMap', { zoomControl: true }).setView([-2.5, 118], 5);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         maxZoom: 19,
+        attribution: '&copy; OpenStreetMap',
     }).addTo(map);
+    state.layer = L.layerGroup().addTo(map);
+    state.gpsLayer = L.layerGroup().addTo(map);
 
-    L.circleMarker([-6.2088, 106.8456], {
-        color: '#f59e0b',
-        fillColor: '#f59e0b',
-        fillOpacity: 0.9,
-        radius: 10,
-    })
-        .addTo(map)
-        .bindPopup('<b>OLT Center (HSGQ EPON)</b><br>IP: 192.168.100.1');
+    const els = {
+        banner: document.getElementById('gisModeBanner'),
+        stats: document.getElementById('gisStatsChip'),
+        btnLocate: document.getElementById('gisBtnLocate'),
+        btnAddOdp: document.getElementById('gisBtnAddOdp'),
+        btnAddOdc: document.getElementById('gisBtnAddOdc'),
+        btnAddOlt: document.getElementById('gisBtnAddOlt'),
+        btnCancel: document.getElementById('gisBtnCancelMode'),
+        empty: document.getElementById('gisInspectorEmpty'),
+        body: document.getElementById('gisInspectorBody'),
+        title: document.getElementById('gisInspTitle'),
+        code: document.getElementById('gisInspCode'),
+        badge: document.getElementById('gisInspBadge'),
+        parent: document.getElementById('gisInspParent'),
+        pon: document.getElementById('gisInspPon'),
+        ratio: document.getElementById('gisInspRatio'),
+        capacity: document.getElementById('gisInspCapacity'),
+        coords: document.getElementById('gisInspCoords'),
+        portsWrap: document.getElementById('gisPortsWrap'),
+        portsTitle: document.getElementById('gisPortsTitle'),
+        portsGrid: document.getElementById('gisPortsGrid'),
+        btnEdit: document.getElementById('gisBtnEditNode'),
+        btnDelete: document.getElementById('gisBtnDeleteNode'),
+        nodeModal: document.getElementById('gisNodeModal'),
+        nodeForm: document.getElementById('gisNodeForm'),
+        nodeTitle: document.getElementById('gisNodeModalTitle'),
+        nodeType: document.getElementById('gisNodeType'),
+        nodeLat: document.getElementById('gisNodeLat'),
+        nodeLng: document.getElementById('gisNodeLng'),
+        nodeCode: document.getElementById('gisNodeCode'),
+        nodeName: document.getElementById('gisNodeName'),
+        nodeParentWrap: document.getElementById('gisNodeParentWrap'),
+        nodeParent: document.getElementById('gisNodeParent'),
+        nodeParentHint: document.getElementById('gisNodeParentHint'),
+        nodePortWrap: document.getElementById('gisNodePortCountWrap'),
+        nodePortCount: document.getElementById('gisNodePortCount'),
+        nodePon: document.getElementById('gisNodePon'),
+        nodeNotes: document.getElementById('gisNodeNotes'),
+        nodeCoordHint: document.getElementById('gisNodeCoordHint'),
+        portModal: document.getElementById('gisPortModal'),
+        portForm: document.getElementById('gisPortForm'),
+        portModalNum: document.getElementById('gisPortModalNum'),
+        portNumber: document.getElementById('gisPortNumber'),
+        portCustomer: document.getElementById('gisPortCustomer'),
+        portLat: document.getElementById('gisPortLat'),
+        portLng: document.getElementById('gisPortLng'),
+        customerList: document.getElementById('gisCustomerList'),
+        btnPickPortLoc: document.getElementById('gisBtnPickPortLoc'),
+        btnClearPort: document.getElementById('gisBtnClearPort'),
+    };
 
-    L.circleMarker([-6.2065, 106.848], {
-        color: '#06b6d4',
-        fillColor: '#06b6d4',
-        fillOpacity: 0.8,
-        radius: 7,
-    })
-        .addTo(map)
-        .bindPopup('<b>ODP-BLOK-A1</b><br>Terpakai: 4/8 Port');
+    function toast(msg) {
+        if (typeof showToast === 'function') showToast(msg);
+        else if (window.MikPay?.showToast) MikPay.showToast(msg);
+        else console.log(msg);
+    }
 
-    L.polyline(
-        [
-            [-6.2088, 106.8456],
-            [-6.2065, 106.848],
-        ],
-        { color: '#06b6d4', weight: 3, dashArray: '5, 5' }
-    ).addTo(map);
+    function csrf() {
+        return cfg.csrf
+            || document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
+            || '';
+    }
 
-    L.circleMarker([-6.2058, 106.849], {
-        color: '#10b981',
-        fillColor: '#10b981',
-        fillOpacity: 0.8,
-        radius: 5,
-    })
-        .addTo(map)
-        .bindPopup('<b>Client: Budi Santoso</b><br>Redaman: -17.8 dBm (Active)');
+    async function api(url, options = {}) {
+        const headers = Object.assign(
+            {
+                Accept: 'application/json',
+                'X-Requested-With': 'XMLHttpRequest',
+                'X-CSRF-TOKEN': csrf(),
+            },
+            options.headers || {}
+        );
+        if (options.body && !(options.body instanceof FormData)) {
+            headers['Content-Type'] = 'application/json';
+            options.body = JSON.stringify(options.body);
+        }
+        const res = await fetch(url, Object.assign({}, options, { headers, credentials: 'same-origin' }));
+        let data = null;
+        try {
+            data = await res.json();
+        } catch (_) {
+            data = { ok: false, message: 'Respons tidak valid.' };
+        }
+        if (!res.ok && data && !data.message && data.errors) {
+            const first = Object.values(data.errors)[0];
+            data.message = Array.isArray(first) ? first[0] : String(first);
+        }
+        return { res, data };
+    }
 
-    setTimeout(() => map.invalidateSize(), 200);
+    function setMode(mode, message) {
+        state.mode = mode;
+        const placing = mode !== 'view';
+        els.btnCancel.classList.toggle('hidden', !placing);
+        els.banner.classList.toggle('hidden', !placing);
+        if (placing && message) els.banner.textContent = message;
+        mapEl.style.cursor = placing ? 'crosshair' : '';
+    }
+
+    function cancelMode() {
+        state.placePort = null;
+        setMode('view');
+    }
+
+    function selectedNode() {
+        return state.nodes.find((n) => n.id === state.selectedId) || null;
+    }
+
+    function nodeById(id) {
+        return state.nodes.find((n) => n.id === id) || null;
+    }
+
+    function colorForState(s) {
+        if (s === 'online') return '#10b981';
+        if (s === 'isolir' || s === 'offline') return '#f43f5e';
+        return '#94a3b8';
+    }
+
+    function typeColor(type) {
+        return TYPE_COLOR[type] || TYPE_COLOR.odp;
+    }
+
+    function badgeClass(type) {
+        if (type === 'olt') {
+            return 'text-[10px] bg-amber-500/10 text-amber-700 dark:text-amber-400 px-2 py-0.5 rounded-full font-mono font-bold shrink-0';
+        }
+        if (type === 'odc') {
+            return 'text-[10px] bg-violet-500/10 text-violet-700 dark:text-violet-400 px-2 py-0.5 rounded-full font-mono font-bold shrink-0';
+        }
+        return 'text-[10px] bg-cyan-500/10 text-cyan-700 dark:text-cyan-400 px-2 py-0.5 rounded-full font-mono font-bold shrink-0';
+    }
+
+    function escapeHtml(str) {
+        return String(str ?? '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;');
+    }
+
+    function renderMarkers(fit) {
+        state.layer.clearLayers();
+        const bounds = [];
+        const byId = {};
+        state.nodes.forEach((n) => { byId[n.id] = n; });
+
+        // Parent trunk lines first
+        state.nodes.forEach((node) => {
+            if (!node.parent_id || !byId[node.parent_id]) return;
+            const parent = byId[node.parent_id];
+            L.polyline(
+                [
+                    [parent.latitude, parent.longitude],
+                    [node.latitude, node.longitude],
+                ],
+                {
+                    color: typeColor(parent.type),
+                    weight: 3,
+                    opacity: 0.65,
+                }
+            ).addTo(state.layer);
+        });
+
+        state.nodes.forEach((node) => {
+            const color = typeColor(node.type);
+            const radius = node.type === 'olt' ? 10 : node.type === 'odc' ? 9 : 8;
+            const marker = L.circleMarker([node.latitude, node.longitude], {
+                color,
+                fillColor: color,
+                fillOpacity: 0.9,
+                radius,
+                weight: 2,
+            });
+
+            let popup = `<b>${escapeHtml(node.label)}</b><br>${escapeHtml(node.type_label || node.type.toUpperCase())}`;
+            if (node.ratio) popup += `<br>Rasio ${escapeHtml(node.ratio)}`;
+            if (node.type === 'odp') popup += `<br>Terpakai: ${node.used_ports}/${node.port_count} port`;
+            if (node.type === 'odc') popup += `<br>ODP anak: ${node.child_count || 0}`;
+            if (node.parent_label) popup += `<br>← ${escapeHtml(node.parent_type?.toUpperCase() || '')} ${escapeHtml(node.parent_code || node.parent_label)}`;
+
+            marker.bindPopup(popup);
+            marker.on('click', (e) => {
+                L.DomEvent.stopPropagation(e);
+                if (state.mode !== 'view') return;
+                selectNode(node.id);
+            });
+            marker.addTo(state.layer);
+            bounds.push([node.latitude, node.longitude]);
+
+            if (node.has_customer_ports && Array.isArray(node.ports)) {
+                node.ports.forEach((port) => {
+                    if (!port.occupied || !port.has_location) return;
+                    const c = colorForState(port.state);
+                    const cm = L.circleMarker([port.latitude, port.longitude], {
+                        color: c,
+                        fillColor: c,
+                        fillOpacity: 0.85,
+                        radius: 5,
+                        weight: 1,
+                    });
+                    const label = port.display_name
+                        ? `${port.customer_name} (${port.display_name})`
+                        : port.customer_name;
+                    cm.bindPopup(`<b>${escapeHtml(label)}</b><br>Port ${port.port_number} · ${port.state}`);
+                    cm.on('click', (e) => {
+                        L.DomEvent.stopPropagation(e);
+                        if (state.mode !== 'view') return;
+                        selectNode(node.id);
+                    });
+                    cm.addTo(state.layer);
+                    bounds.push([port.latitude, port.longitude]);
+
+                    L.polyline(
+                        [
+                            [node.latitude, node.longitude],
+                            [port.latitude, port.longitude],
+                        ],
+                        { color: c, weight: 2, opacity: 0.55, dashArray: '4,4' }
+                    ).addTo(state.layer);
+                });
+            }
+        });
+
+        if (fit && bounds.length === 1) {
+            map.setView(bounds[0], 16);
+        } else if (fit && bounds.length > 1) {
+            map.fitBounds(bounds, { padding: [40, 40], maxZoom: 17 });
+        }
+    }
+
+    function selectNode(id) {
+        state.selectedId = id;
+        const node = selectedNode();
+        if (!node) {
+            els.empty.classList.remove('hidden');
+            els.body.classList.add('hidden');
+            return;
+        }
+
+        els.empty.classList.add('hidden');
+        els.body.classList.remove('hidden');
+        els.title.textContent = node.label || node.code;
+        els.code.textContent = node.code;
+        els.badge.textContent = node.type_label || node.type.toUpperCase();
+        els.badge.className = badgeClass(node.type);
+        els.parent.textContent = node.parent_label
+            ? `${(node.parent_type || '').toUpperCase()} ${node.parent_code || node.parent_label}`
+            : (node.type === 'olt' ? '—' : 'Belum di-set');
+        els.pon.textContent = node.pon_label || '—';
+        els.ratio.textContent = node.ratio || '—';
+        els.coords.textContent = `${Number(node.latitude).toFixed(6)}, ${Number(node.longitude).toFixed(6)}`;
+
+        if (node.type === 'olt') {
+            els.capacity.textContent = `Anak: ${node.child_count || 0}`;
+            els.portsWrap.classList.add('hidden');
+            els.portsGrid.innerHTML = '';
+            return;
+        }
+
+        if (node.type === 'odc') {
+            els.capacity.textContent = `ODP terhubung: ${node.child_count || 0} / rasio ${node.ratio || '—'}`;
+            els.portsTitle.textContent = 'ODP terhubung';
+            els.portsWrap.classList.remove('hidden');
+            els.portsGrid.innerHTML = '';
+            const children = state.nodes.filter((n) => n.parent_id === node.id);
+            if (!children.length) {
+                els.portsGrid.innerHTML = '<p class="text-[11px] text-slate-400 italic">Belum ada ODP yang parent-nya ODC ini.</p>';
+            } else {
+                children.forEach((child) => {
+                    const card = document.createElement('button');
+                    card.type = 'button';
+                    card.className = 'text-left p-2 rounded-lg bg-violet-500/10 border border-violet-500/20 text-violet-800 dark:text-violet-300 hover:brightness-110 transition';
+                    card.innerHTML = `
+                        <p class="font-bold text-[10px]">${escapeHtml(child.code)}</p>
+                        <p class="truncate font-semibold">${escapeHtml(child.label)}</p>
+                        <p class="text-[9px] mt-0.5">${child.used_ports}/${child.port_count} port · ${escapeHtml(child.ratio || '')}</p>
+                    `;
+                    card.addEventListener('click', () => selectNode(child.id));
+                    els.portsGrid.appendChild(card);
+                });
+            }
+            return;
+        }
+
+        // ODP
+        els.capacity.textContent = `${node.used_ports}/${node.port_count} port pelanggan`;
+        els.portsTitle.textContent = 'Mapping Port Pelanggan';
+        els.portsWrap.classList.remove('hidden');
+        els.portsGrid.innerHTML = '';
+        (node.ports || []).forEach((port) => {
+            const card = document.createElement('button');
+            card.type = 'button';
+            card.className = portCardClass(port.state);
+            const title = port.occupied ? (port.display_name || port.customer_name) : 'KOSONG';
+            const sub = port.occupied
+                ? `<p class="text-[9px] font-mono text-slate-500 dark:text-slate-400 truncate">${escapeHtml(port.customer_name)}</p>
+                   <p class="text-[9px] mt-0.5">${statusLabel(port)}</p>`
+                : `<p class="text-[10px] italic text-slate-400">Siap pakai — klik assign</p>`;
+            card.innerHTML = `
+                <p class="font-bold text-[10px]">Port ${port.port_number}: ${statusTitle(port)}</p>
+                <p class="truncate font-semibold">${escapeHtml(title)}</p>
+                ${sub}
+            `;
+            card.addEventListener('click', () => openPortModal(node, port));
+            els.portsGrid.appendChild(card);
+        });
+    }
+
+    function portCardClass(stateName) {
+        if (stateName === 'online') {
+            return 'text-left p-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-800 dark:text-emerald-300 hover:brightness-110 transition';
+        }
+        if (stateName === 'isolir' || stateName === 'offline') {
+            return 'text-left p-2 rounded-lg bg-rose-500/10 border border-rose-500/20 text-rose-800 dark:text-rose-300 hover:brightness-110 transition';
+        }
+        return 'text-left p-2 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700 transition';
+    }
+
+    function statusTitle(port) {
+        if (!port.occupied) return 'KOSONG';
+        if (port.isolir) return 'Isolir';
+        if (port.online) return 'Online';
+        return 'Offline';
+    }
+
+    function statusLabel(port) {
+        const bits = [];
+        if (port.isolir) bits.push('Isolir');
+        else if (port.online) bits.push('Online');
+        else bits.push('Offline');
+        if (port.has_location) bits.push('📍 di peta');
+        return bits.join(' · ');
+    }
+
+    function fillCustomerList() {
+        els.customerList.innerHTML = '';
+        state.customers.forEach((c) => {
+            const opt = document.createElement('option');
+            opt.value = c.name;
+            opt.label = c.label;
+            els.customerList.appendChild(opt);
+        });
+    }
+
+    function fillParentOptions(type, selectedParentId, excludeId) {
+        els.nodeParent.innerHTML = '';
+        const none = document.createElement('option');
+        none.value = '';
+        none.textContent = '— Tidak di-set —';
+        els.nodeParent.appendChild(none);
+
+        let candidates = [];
+        if (type === 'odc') {
+            candidates = state.nodes.filter((n) => n.type === 'olt');
+            els.nodeParentHint.textContent = 'ODC idealnya terhubung ke OLT.';
+        } else if (type === 'odp') {
+            candidates = state.nodes.filter((n) => n.type === 'odc' || n.type === 'olt');
+            els.nodeParentHint.textContent = 'ODP idealnya ke ODC (atau langsung OLT).';
+        } else {
+            els.nodeParentHint.textContent = 'OLT adalah puncak hierarki.';
+        }
+
+        candidates
+            .filter((n) => n.id !== excludeId)
+            .forEach((n) => {
+                const opt = document.createElement('option');
+                opt.value = String(n.id);
+                opt.textContent = `${(n.type_label || n.type).toUpperCase()} · ${n.code}`;
+                if (selectedParentId && Number(selectedParentId) === n.id) {
+                    opt.selected = true;
+                }
+                els.nodeParent.appendChild(opt);
+            });
+    }
+
+    function showGpsPosition(lat, lng, accuracy) {
+        state.gpsLayer.clearLayers();
+        L.circle([lat, lng], {
+            radius: Math.max(accuracy || 30, 20),
+            color: '#4f46e5',
+            fillColor: '#6366f1',
+            fillOpacity: 0.15,
+            weight: 1,
+        }).addTo(state.gpsLayer);
+        L.circleMarker([lat, lng], {
+            radius: 7,
+            color: '#fff',
+            weight: 2,
+            fillColor: '#4f46e5',
+            fillOpacity: 1,
+        }).bindPopup('Lokasi GPS Anda').addTo(state.gpsLayer);
+    }
+
+    function locateMe(options = {}) {
+        const fly = options.fly !== false;
+        const silent = !!options.silent;
+        if (!navigator.geolocation) {
+            if (!silent) toast('Browser tidak mendukung GPS / geolocation.');
+            return Promise.resolve(null);
+        }
+        if (els.btnLocate) els.btnLocate.classList.add('animate-pulse');
+        return new Promise((resolve) => {
+            navigator.geolocation.getCurrentPosition(
+                (pos) => {
+                    if (els.btnLocate) els.btnLocate.classList.remove('animate-pulse');
+                    const lat = pos.coords.latitude;
+                    const lng = pos.coords.longitude;
+                    showGpsPosition(lat, lng, pos.coords.accuracy);
+                    if (fly) map.setView([lat, lng], Math.max(map.getZoom(), 16));
+                    state.locatedOnce = true;
+                    if (!silent) toast(`GPS aktif (±${Math.round(pos.coords.accuracy)} m)`);
+                    resolve({ lat, lng, accuracy: pos.coords.accuracy });
+                },
+                (err) => {
+                    if (els.btnLocate) els.btnLocate.classList.remove('animate-pulse');
+                    if (!silent) {
+                        const msg = err.code === 1
+                            ? 'Izin lokasi ditolak. Izinkan lokasi untuk situs ini di browser.'
+                            : err.code === 2
+                                ? 'Lokasi tidak tersedia. Cek GPS perangkat.'
+                                : 'Gagal membaca GPS. Coba lagi.';
+                        toast(msg);
+                    }
+                    resolve(null);
+                },
+                { enableHighAccuracy: true, timeout: 12000, maximumAge: 30000 }
+            );
+        });
+    }
+
+    async function loadData(selectId, fitMap) {
+        els.stats.textContent = 'Memuat…';
+        const { res, data } = await api(cfg.dataUrl);
+        if (!res.ok || !data.ok) {
+            els.stats.textContent = data.message || 'Gagal memuat GIS';
+            toast(data.message || 'Gagal memuat data GIS');
+            return;
+        }
+
+        state.nodes = data.nodes || [];
+        state.customers = data.customers || [];
+        fillCustomerList();
+        renderMarkers(!!fitMap);
+
+        const s = data.stats || {};
+        els.stats.textContent = `OLT ${s.olt_count || 0} · ODC ${s.odc_count || 0} · ODP ${s.odp_count || 0} · Port ${s.port_used || 0}/${s.port_total || 0}`;
+
+        const keep = selectId || state.selectedId;
+        if (keep && state.nodes.some((n) => n.id === keep)) {
+            selectNode(keep);
+        } else if (!state.nodes.length) {
+            state.selectedId = null;
+            els.empty.classList.remove('hidden');
+            els.body.classList.add('hidden');
+            if (fitMap && !state.locatedOnce) locateMe({ silent: true });
+        }
+    }
+
+    function openNodeModal(opts) {
+        const isEdit = !!opts.edit;
+        const type = opts.type || 'odp';
+        state.editingId = isEdit ? opts.node.id : null;
+
+        const titles = {
+            olt: isEdit ? 'Edit OLT' : 'Tambah OLT',
+            odc: isEdit ? 'Edit ODC' : 'Tambah ODC',
+            odp: isEdit ? 'Edit ODP' : 'Tambah ODP',
+        };
+        els.nodeTitle.textContent = titles[type] || 'Tambah';
+        els.nodeType.value = type;
+        els.nodeLat.value = opts.lat;
+        els.nodeLng.value = opts.lng;
+        els.nodeCoordHint.textContent = `Lat/Lng: ${Number(opts.lat).toFixed(6)}, ${Number(opts.lng).toFixed(6)}`;
+        els.nodeCode.value = isEdit ? opts.node.code : '';
+        els.nodeName.value = isEdit ? (opts.node.name || '') : '';
+        els.nodePon.value = isEdit ? (opts.node.pon_label || '') : '';
+        els.nodeNotes.value = isEdit ? (opts.node.notes || '') : '';
+
+        const showRatio = type === 'odp' || type === 'odc';
+        els.nodePortWrap.classList.toggle('hidden', !showRatio);
+        if (showRatio) {
+            els.nodePortCount.value = String(isEdit ? (opts.node.port_count || 8) : 8);
+        }
+
+        const showParent = type !== 'olt';
+        els.nodeParentWrap.classList.toggle('hidden', !showParent);
+        if (showParent) {
+            fillParentOptions(type, isEdit ? opts.node.parent_id : null, isEdit ? opts.node.id : null);
+        }
+
+        // Placeholder kode
+        els.nodeCode.placeholder = type === 'olt' ? 'OLT-1' : type === 'odc' ? 'ODC-BLOK-A' : 'ODP-BLOK-A1';
+
+        els.nodeModal.classList.remove('hidden');
+        els.nodeModal.classList.add('flex');
+        els.nodeCode.focus();
+    }
+
+    function closeNodeModal() {
+        els.nodeModal.classList.add('hidden');
+        els.nodeModal.classList.remove('flex');
+        state.editingId = null;
+    }
+
+    function openPortModal(node, port) {
+        els.portNumber.value = port.port_number;
+        els.portModalNum.textContent = String(port.port_number);
+        els.portCustomer.value = port.customer_name || '';
+        els.portLat.value = port.latitude ?? '';
+        els.portLng.value = port.longitude ?? '';
+        state.placePort = { odpId: node.id, portNumber: port.port_number, portsUrl: node.ports_url };
+        els.portModal.classList.remove('hidden');
+        els.portModal.classList.add('flex');
+    }
+
+    function closePortModal() {
+        els.portModal.classList.add('hidden');
+        els.portModal.classList.remove('flex');
+    }
+
+    // Events
+    els.btnLocate?.addEventListener('click', () => locateMe({ silent: false }));
+    els.btnAddOlt?.addEventListener('click', () => {
+        setMode('add-olt', 'Mode Tambah OLT — klik lokasi di peta.');
+    });
+    els.btnAddOdc?.addEventListener('click', () => {
+        setMode('add-odc', 'Mode Tambah ODC — klik lokasi di peta, lalu pilih parent OLT & rasio.');
+    });
+    els.btnAddOdp?.addEventListener('click', () => {
+        setMode('add-odp', 'Mode Tambah ODP — klik lokasi di peta, lalu pilih parent & rasio splitter.');
+    });
+    els.btnCancel?.addEventListener('click', cancelMode);
+
+    map.on('click', (e) => {
+        if (state.mode === 'add-odp' || state.mode === 'add-odc' || state.mode === 'add-olt') {
+            openNodeModal({
+                type: state.mode.replace('add-', ''),
+                lat: e.latlng.lat,
+                lng: e.latlng.lng,
+            });
+            return;
+        }
+        if (state.mode === 'place-port' && state.placePort) {
+            els.portLat.value = e.latlng.lat.toFixed(7);
+            els.portLng.value = e.latlng.lng.toFixed(7);
+            setMode('view');
+            els.portModal.classList.remove('hidden');
+            els.portModal.classList.add('flex');
+            toast('Koordinat port diambil dari peta.');
+        }
+    });
+
+    document.querySelectorAll('[data-gis-close-node]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+            closeNodeModal();
+            cancelMode();
+        });
+    });
+    document.querySelectorAll('[data-gis-close-port]').forEach((btn) => {
+        btn.addEventListener('click', closePortModal);
+    });
+
+    els.nodeForm?.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const type = els.nodeType.value;
+        const payload = {
+            type,
+            code: els.nodeCode.value.trim(),
+            name: els.nodeName.value.trim() || null,
+            latitude: Number(els.nodeLat.value),
+            longitude: Number(els.nodeLng.value),
+            pon_label: els.nodePon.value.trim() || null,
+            notes: els.nodeNotes.value.trim() || null,
+        };
+
+        if (type === 'odp' || type === 'odc') {
+            payload.port_count = Number(els.nodePortCount.value) || 8;
+            const parentVal = els.nodeParent.value;
+            payload.parent_id = parentVal ? Number(parentVal) : null;
+        }
+
+        let result;
+        if (state.editingId) {
+            const node = nodeById(state.editingId);
+            // Update tidak kirim type
+            const updateBody = { ...payload };
+            delete updateBody.type;
+            result = await api(node.update_url, { method: 'PUT', body: updateBody });
+        } else {
+            result = await api(cfg.storeUrl, { method: 'POST', body: payload });
+        }
+
+        if (!result.data.ok) {
+            toast(result.data.message || 'Gagal menyimpan.');
+            return;
+        }
+
+        toast(result.data.message || 'Tersimpan.');
+        const newId = result.data.id || state.editingId;
+        const wasCreate = !state.editingId;
+        closeNodeModal();
+        cancelMode();
+        await loadData(newId, wasCreate);
+    });
+
+    els.portForm?.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const node = selectedNode();
+        if (!node) return;
+        const lat = els.portLat.value;
+        const lng = els.portLng.value;
+        const body = {
+            port_number: Number(els.portNumber.value),
+            customer_name: els.portCustomer.value.trim(),
+        };
+        if (lat !== '' && lng !== '') {
+            body.latitude = Number(lat);
+            body.longitude = Number(lng);
+        }
+        const { data } = await api(node.ports_url, { method: 'PUT', body });
+        if (!data.ok) {
+            toast(data.message || 'Gagal menyimpan port.');
+            return;
+        }
+        toast(data.message || 'Port disimpan.');
+        closePortModal();
+        await loadData(node.id);
+    });
+
+    els.btnClearPort?.addEventListener('click', async () => {
+        const node = selectedNode();
+        if (!node) return;
+        const ok = window.MikPay?.confirm
+            ? await MikPay.confirm({
+                title: 'Kosongkan Port',
+                message: `Kosongkan port ${els.portNumber.value}?`,
+                variant: 'warning',
+                confirmText: 'Ya, kosongkan',
+            })
+            : confirm('Kosongkan port?');
+        if (!ok) return;
+        const { data } = await api(node.ports_url, {
+            method: 'PUT',
+            body: { port_number: Number(els.portNumber.value), clear: true },
+        });
+        toast(data.message || (data.ok ? 'Dikosongkan.' : 'Gagal.'));
+        if (data.ok) {
+            closePortModal();
+            await loadData(node.id);
+        }
+    });
+
+    els.btnPickPortLoc?.addEventListener('click', () => {
+        closePortModal();
+        setMode('place-port', `Klik lokasi rumah pelanggan untuk Port ${els.portNumber.value}.`);
+    });
+
+    els.btnEdit?.addEventListener('click', () => {
+        const node = selectedNode();
+        if (!node) return;
+        openNodeModal({
+            edit: true,
+            type: node.type,
+            node,
+            lat: node.latitude,
+            lng: node.longitude,
+        });
+    });
+
+    els.btnDelete?.addEventListener('click', async () => {
+        const node = selectedNode();
+        if (!node) return;
+        const kind = node.type_label || node.type.toUpperCase();
+        const ok = window.MikPay?.confirm
+            ? await MikPay.confirm({
+                title: `Hapus ${kind}`,
+                message: `Hapus ${kind} “${node.code}” dari peta?`,
+                variant: 'danger',
+                confirmText: 'Ya, hapus',
+            })
+            : confirm(`Hapus ${kind}?`);
+        if (!ok) return;
+        const { data } = await api(node.destroy_url, { method: 'DELETE' });
+        toast(data.message || (data.ok ? 'Dihapus.' : 'Gagal.'));
+        if (data.ok) {
+            state.selectedId = null;
+            els.empty.classList.remove('hidden');
+            els.body.classList.add('hidden');
+            await loadData();
+        }
+    });
+
+    loadData(null, true).then(() => setTimeout(() => map.invalidateSize(), 200));
+    window.addEventListener('resize', () => map.invalidateSize());
 });

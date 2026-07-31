@@ -137,9 +137,28 @@ class PaymentLinkService
 
         $tpl = trim((string) ($template ?: ''));
         if ($tpl === '') {
-            $tpl = "Halo *{nama}*, tagihan *{periode}* sebesar *{nominal}* belum lunas.\n"
-                ."Bayar di sini (tanpa login):\n{link}\n"
-                .'Abaikan jika sudah bayar.';
+            $tpl = "Yth. *{nama}*,\n\n"
+                ."Berikut informasi tagihan WiFi Anda untuk periode *{periode}* dengan total *{nominal}*.\n"
+                ."Tanggal jatuh tempo: *{tanggal}*.\n\n"
+                ."Silakan melakukan pembayaran melalui tautan berikut:\n{link}\n\n"
+                .'Abaikan pesan ini apabila pembayaran sudah dilakukan. Terima kasih.';
+        }
+
+        $tanggal = '—';
+        $customer = BillingCustomer::query()
+            ->where('router_id', $link->router_id)
+            ->where('customer_name', $link->customer_name)
+            ->first();
+        if ($customer && (int) $customer->due_day >= 1) {
+            $periodRef = $periods[0] ?? now()->format('Y-m');
+            try {
+                $base = Carbon::createFromFormat('Y-m', $periodRef)->startOfMonth();
+                $daysInMonth = (int) $base->format('t');
+                $day = min((int) $customer->due_day, $daysInMonth);
+                $tanggal = $base->copy()->addDays($day - 1)->translatedFormat('d M Y');
+            } catch (\Throwable) {
+                $tanggal = '—';
+            }
         }
 
         return strtr($tpl, [
@@ -148,6 +167,8 @@ class PaymentLinkService
             '{nominal}' => $amount,
             '{link}' => $url,
             '{username}' => $link->customer_name,
+            '{tanggal}' => $tanggal,
+            '{jatuh_tempo}' => $tanggal,
         ]);
     }
 
@@ -293,6 +314,15 @@ class PaymentLinkService
             $payment->invoice_id = BillingStatusHelper::formatInvoiceId($payment->period, (int) $payment->id);
             $payment->save();
             $created[] = $payment;
+        }
+
+        if ($created !== [] && $monthlyFee > 0) {
+            BillingArrearsHelper::clearPromisesForPaidPeriods(
+                (int) $link->router_id,
+                $link->customer_name,
+                $monthlyFee,
+                array_values(array_unique(array_map(fn ($p) => $p->period, $created)))
+            );
         }
 
         $router = Router::query()->find($link->router_id);

@@ -36,7 +36,7 @@
         window.MikPay.tenant = @json($tenantPayload);
     </script>
     <script src="{{ asset('js/mikpay.js') }}" defer></script>
-    <script src="{{ asset('js/panel.js') }}?v=3" defer></script>
+    <script src="{{ asset('js/panel.js') }}?v=4" defer></script>
     @stack('scripts')
 </body>
 </html>

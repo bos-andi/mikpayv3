@@ -45,8 +45,9 @@ class BillingStatusHelper
 
         $daysInMonth = (int) $today->format('t');
         $actualDueDay = min($dueDay, $daysInMonth);
-        $dueDateThisMonth = $today->copy()->startOfMonth()->addDays($actualDueDay - 1);
-        $daysToDue = (int) $today->diffInDays($dueDateThisMonth, false);
+        $dueDateThisMonth = $today->copy()->startOfMonth()->addDays($actualDueDay - 1)->startOfDay();
+        // Bandingkan tanggal kalender (bukan jam) agar sore hari tidak dianggap "hari ini" untuk jatuh tempo besok.
+        $daysToDue = (int) $today->copy()->startOfDay()->diffInDays($dueDateThisMonth, false);
 
         $fee = (int) ($monthlyFee ?? 0);
         $isFullyPaid = $fee > 0

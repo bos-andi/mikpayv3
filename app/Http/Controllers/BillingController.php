@@ -4,11 +4,13 @@ namespace App\Http\Controllers;
 
 use App\Models\BillingCustomer;
 use App\Models\BillingPayment;
+use App\Models\BillingPeriodPromise;
 use App\Services\AutoIsolirService;
 use App\Services\MikrotikService;
 use App\Services\PaymentLinkService;
 use App\Support\ActiveRouter;
 use App\Support\BillingArrearsHelper;
+use App\Support\BillingPaymentAllocator;
 use App\Support\BillingStatusHelper;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -77,11 +79,18 @@ class BillingController extends Controller
                 'arrears_count' => $arrears['unpaid_count'],
                 'arrears_past_count' => $arrears['unpaid_past_count'],
                 'outstanding_total' => $arrears['outstanding_total'],
+                'shortfall_by_period' => $arrears['shortfall_by_period'],
                 'should_isolir' => $arrears['should_isolir'],
                 'days_to_isolir' => $arrears['days_to_isolir'],
                 'isolir_label' => $arrears['isolir_label'],
                 'first_unpaid_period' => $arrears['unpaid_periods'][0] ?? $period,
                 'public_code' => $billing?->public_code,
+                'is_promised' => (bool) ($arrears['is_promised'] ?? false),
+                'promised_pay_date' => $arrears['promised_pay_date'] ?? null,
+                'promised_pay_note' => $arrears['promised_pay_note'] ?? null,
+                'promise_period' => $arrears['promise_period'] ?? null,
+                'promise_active' => (bool) ($arrears['promise_active'] ?? false),
+                'promise_overdue' => (bool) ($arrears['promise_overdue'] ?? false),
             ];
         });
 
@@ -182,6 +191,7 @@ class BillingController extends Controller
             'customer_name' => ['required', 'string', 'max:255'],
             'amount' => ['required', 'integer', 'min:1'],
             'period' => ['required', 'string', 'size:7', 'regex:/^\d{4}-\d{2}$/'],
+            'advance_months' => ['nullable', 'integer', 'min:1', 'max:12'],
             'payment_date' => ['required', 'date'],
             'payment_method' => ['required', 'string', 'in:Tunai,Transfer Manual'],
             'notes' => ['nullable', 'string', 'max:500'],
@@ -189,6 +199,7 @@ class BillingController extends Controller
             'customer_name' => 'Username PPP',
             'amount' => 'Nominal',
             'period' => 'Periode',
+            'advance_months' => 'Jumlah bulan',
             'payment_date' => 'Tanggal bayar',
             'payment_method' => 'Metode',
             'notes' => 'Catatan',
@@ -200,43 +211,93 @@ class BillingController extends Controller
             ->first();
 
         $monthlyFee = (int) ($customer?->monthly_fee ?? 0);
-        $periodPaid = (int) BillingPayment::query()
-            ->where('router_id', $router->id)
-            ->where('customer_name', $data['customer_name'])
-            ->where('period', $data['period'])
-            ->sum('amount');
-
-        $currentPaid = $periodPaid + (int) $data['amount'];
-        $paymentStatus = ($monthlyFee > 0 && $currentPaid < $monthlyFee) ? 'partial' : 'paid';
-        $remaining = max(0, $monthlyFee - $currentPaid);
+        $grace = $tenant->isolirGraceDays();
+        $advanceMonths = (int) ($data['advance_months'] ?? 1);
 
         $notes = trim((string) ($data['notes'] ?? ''));
-        if ($remaining > 0) {
-            $carry = 'Sisa tagihan periode ini: Rp '.number_format($remaining, 0, ',', '.');
-            $notes = $notes !== '' ? ($notes.' | '.$carry) : $carry;
+        if ($advanceMonths > 1) {
+            $tag = 'Bayar di muka '.$advanceMonths.' bulan';
+            $notes = $notes !== '' ? ($notes.' | '.$tag) : $tag;
         }
 
-        $payment = BillingPayment::query()->create([
+        // 1 bulan: periode dipilih + sisa tunggakan lain (FIFO).
+        // 2–N bulan: periode dipilih + bulan-bulan berikutnya (bayar di muka).
+        if ($advanceMonths > 1) {
+            $periods = BillingPaymentAllocator::periodsFromStart($data['period'], $advanceMonths);
+        } else {
+            $arrears = $customer
+                ? BillingArrearsHelper::getUnpaidPeriodsSummary(
+                    $customer->customer_name,
+                    (int) $customer->due_day,
+                    $monthlyFee,
+                    (int) $router->id,
+                    $customer->started_at,
+                    $grace
+                )
+                : ['unpaid_periods' => []];
+
+            $unpaid = array_values($arrears['unpaid_periods'] ?? []);
+            if (! in_array($data['period'], $unpaid, true)) {
+                $unpaid[] = $data['period'];
+            }
+            $periods = BillingPaymentAllocator::orderedPeriods($data['period'], $unpaid);
+        }
+
+        $created = BillingPaymentAllocator::allocateManual([
             'tenant_id' => $tenant->id,
             'router_id' => $router->id,
             'customer_name' => $data['customer_name'],
             'display_name' => $customer?->display_name,
             'phone' => $customer?->phone,
-            'amount' => (int) $data['amount'],
-            'remaining_amount' => $remaining,
-            'period' => $data['period'],
             'payment_date' => $data['payment_date'].' '.now()->format('H:i:s'),
             'payment_method' => $data['payment_method'],
             'notes' => $notes !== '' ? $notes : null,
-            'status' => $paymentStatus,
-        ]);
+        ], (int) $data['amount'], $monthlyFee, $periods);
 
-        $payment->invoice_id = BillingStatusHelper::formatInvoiceId($payment->period, (int) $payment->id);
-        $payment->save();
+        if ($created->isEmpty()) {
+            return redirect()->to(panel_route('billing'))
+                ->with('error', 'Pembayaran tidak tercatat — periode mungkin sudah lunas.');
+        }
 
-        $msg = $remaining > 0
-            ? "Pembayaran parsial dicatat ({$payment->invoice_id}). Sisa: Rp ".number_format($remaining, 0, ',', '.')
-            : "Pembayaran berhasil dicatat ({$payment->invoice_id}).";
+        BillingArrearsHelper::clearPromisesForPaidPeriods(
+            (int) $router->id,
+            $data['customer_name'],
+            $monthlyFee,
+            $created->pluck('period')->unique()->values()->all()
+        );
+
+        $totalIn = (int) $created->sum('amount');
+        $invoices = $created->pluck('invoice_id')->filter()->implode(', ');
+        $periodLabels = $created->pluck('period')->unique()->values()->implode(', ');
+        $firstRemaining = (int) ($created->first()->remaining_amount ?? 0);
+        $multi = $created->count() > 1;
+
+        $arrearsAfter = $customer
+            ? BillingArrearsHelper::getUnpaidPeriodsSummary(
+                $customer->customer_name,
+                (int) $customer->due_day,
+                $monthlyFee,
+                (int) $router->id,
+                $customer->started_at,
+                $grace
+            )
+            : ['outstanding_total' => 0];
+        $outstandingAfter = (int) ($arrearsAfter['outstanding_total'] ?? 0);
+
+        if ($advanceMonths > 1) {
+            $msg = "Bayar di muka Rp ".number_format($totalIn, 0, ',', '.')." untuk {$created->count()} periode ({$periodLabels}).";
+            if ($outstandingAfter > 0) {
+                $msg .= ' Sisa tunggakan lain: Rp '.number_format($outstandingAfter, 0, ',', '.');
+            }
+        } elseif ($outstandingAfter > 0) {
+            $msg = $multi
+                ? "Cicilan Rp ".number_format($totalIn, 0, ',', '.')." dialokasikan ke {$created->count()} periode ({$invoices}). Total sisa tunggakan: Rp ".number_format($outstandingAfter, 0, ',', '.')
+                : "Pembayaran parsial dicatat ({$invoices}). Sisa periode: Rp ".number_format($firstRemaining, 0, ',', '.')." · Total sisa: Rp ".number_format($outstandingAfter, 0, ',', '.');
+        } else {
+            $msg = $multi
+                ? "Pembayaran Rp ".number_format($totalIn, 0, ',', '.')." berhasil ({$invoices}). Semua tunggakan lunas."
+                : "Pembayaran berhasil dicatat ({$invoices}).";
+        }
 
         $sync = $autoIsolir->syncCustomerByName($router, $data['customer_name']);
         if (($sync['action'] ?? '') === 'open') {
@@ -318,6 +379,74 @@ class BillingController extends Controller
         }
 
         return back()->with('success', 'Link bayar siap (disalin dari tombol link).');
+    }
+
+    public function storePromise(Request $request): RedirectResponse
+    {
+        $router = $this->requireActiveRouter();
+        if ($router instanceof RedirectResponse) {
+            return $router;
+        }
+
+        $tenant = current_tenant();
+        if (! $tenant?->id) {
+            abort(422, 'Tenant belum tersedia.');
+        }
+
+        $data = $request->validate([
+            'customer_name' => ['required', 'string', 'max:255'],
+            'period' => ['required', 'string', 'size:7', 'regex:/^\d{4}-\d{2}$/'],
+            'promised_pay_date' => ['required', 'date'],
+            'promised_pay_note' => ['nullable', 'string', 'max:255'],
+        ], [], [
+            'customer_name' => 'Username PPP',
+            'period' => 'Periode',
+            'promised_pay_date' => 'Tanggal janji bayar',
+            'promised_pay_note' => 'Catatan',
+        ]);
+
+        BillingPeriodPromise::query()->updateOrCreate(
+            [
+                'router_id' => $router->id,
+                'customer_name' => $data['customer_name'],
+                'period' => $data['period'],
+            ],
+            [
+                'tenant_id' => $tenant->id,
+                'promised_pay_date' => $data['promised_pay_date'],
+                'promised_pay_note' => $data['promised_pay_note'] ?: null,
+            ]
+        );
+
+        $label = \Carbon\Carbon::parse($data['promised_pay_date'])->translatedFormat('d M Y');
+
+        return redirect()->to(panel_route('billing'))
+            ->with('success', "Janji bayar disimpan: {$data['customer_name']} → {$label}. Isolir ditunda sampai tanggal itu lewat.");
+    }
+
+    public function destroyPromise(Request $request): RedirectResponse
+    {
+        $router = $this->requireActiveRouter();
+        if ($router instanceof RedirectResponse) {
+            return $router;
+        }
+
+        $data = $request->validate([
+            'customer_name' => ['required', 'string', 'max:255'],
+            'period' => ['required', 'string', 'size:7', 'regex:/^\d{4}-\d{2}$/'],
+        ]);
+
+        $deleted = BillingPeriodPromise::query()
+            ->where('router_id', $router->id)
+            ->where('customer_name', $data['customer_name'])
+            ->where('period', $data['period'])
+            ->delete();
+
+        return redirect()->to(panel_route('billing'))
+            ->with(
+                $deleted ? 'success' : 'error',
+                $deleted ? 'Janji bayar dihapus.' : 'Janji bayar tidak ditemukan.'
+            );
     }
 
     public function destroyPayment(BillingPayment $payment, AutoIsolirService $autoIsolir): RedirectResponse

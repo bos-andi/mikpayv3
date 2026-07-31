@@ -191,11 +191,22 @@ class SettingsController extends Controller
                 ->with('error', 'Token WaAPI belum diisi.');
         }
 
+        $device = $waapi->deviceStatus($token);
+        $tenant->waapiGatewayStatus(true);
+
+        if (! ($device['connected'] ?? false)) {
+            return redirect()
+                ->to(panel_route('settings').'?tab=whatsapp')
+                ->with('error', 'Perangkat WhatsApp belum terhubung di wa-api.id. Scan/hubungkan device dulu, lalu tes lagi.');
+        }
+
         $result = $waapi->sendText(
             $token,
             $data['test_phone'],
             'Tes WhatsApp Gateway MikPay (WaAPI) — '.now()->format('d/m/Y H:i')
         );
+
+        $tenant->waapiGatewayStatus(true);
 
         return redirect()
             ->to(panel_route('settings').'?tab=whatsapp')

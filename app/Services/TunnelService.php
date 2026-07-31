@@ -110,7 +110,8 @@ class TunnelService
     }
 
     /**
-     * Script OpenVPN client untuk ROS 6/7 (mode=ip, TCP).
+     * Script setup pertama kali MikPay di MikroTik (asumsi belum pernah dikonfig).
+     * Satu kali paste: OVPN + firewall + service + NAT OLT/Router Client.
      *
      * @return array{ros6: string, ros7: string, interface_name: string}
      */
@@ -118,22 +119,23 @@ class TunnelService
     {
         $account->loadMissing(['portMaps', 'node']);
 
+        if (! $account->tunnel_ip) {
+            $account->forceFill(['tunnel_ip' => $this->allocateTunnelIp($account)])->save();
+        }
+
         $iface = 'ovpn-mikpay';
         $user = $account->username;
         $pass = $account->plainPassword();
-        // Prefer IP/connect_host agar MikroTik tidak gagal resolve DNS.
+        $tunnelIp = (string) $account->tunnel_ip;
         $host = (string) (config('mikpay.tunnel.connect_host')
             ?: ($account->node?->hostname ?: $account->server_host));
         $port = (int) ($account->node?->ovpn_port ?: $account->server_port);
 
         $commentParts = $account->portMaps
             ->map(fn (TunnelPortMap $m) => $m->remote_port.'->'.$m->target_port)
-            ->take(3)
             ->implode(',');
-
         $comment = 'mikpay-tunnel '.$commentParts;
 
-        // Cocok dengan default mytunnel-style MikroTik: sha1 + blowfish128.
         $common = ' connect-to='.$this->quote($host)
             .' port='.$port
             .' mode=ip'
@@ -150,12 +152,50 @@ class TunnelService
             .' comment='.$this->quote($comment)
             .' disabled=no';
 
-        $ros6 = '/interface ovpn-client add'.$common;
-
-        // ROS7: verify-server-certificate + tls-version
-        $ros7 = '/interface ovpn-client add'.$common
+        $ovpn6 = '/interface ovpn-client add'.$common;
+        $ovpn7 = '/interface ovpn-client add'.$common
             .' verify-server-certificate=no'
             .' tls-version=any';
+
+        $olt = $account->portMaps->firstWhere('label', 'OLT');
+        $router = $account->portMaps->firstWhere('label', 'Router Client');
+        $oltPort = (int) ($olt?->target_port ?: 25);
+        $routerPort = (int) ($router?->target_port ?: 19);
+
+        // Setup pertama kali — aman diulang (hapus sisa MikPay jika ada).
+        $lines = [
+            '# MikPay — setup pertama kali (belum pernah dikonfig MikPay)',
+            '# 1) OpenVPN ke node MikPay',
+            ':do { /interface ovpn-client remove [find name='.$this->quote($iface).'] } on-error={}',
+            '{OVPN}',
+            '# 2) Izinkan akses dari tunnel + aktifkan service remote',
+            ':do { /ip firewall filter remove [find comment='.$this->quote('allow MikPay tunnel').'] } on-error={}',
+            '/ip firewall filter add chain=input action=accept in-interface='.$iface
+                .' place-before=0 comment='.$this->quote('allow MikPay tunnel'),
+            '/ip service set winbox disabled=no address=0.0.0.0/0',
+            '/ip service set api disabled=no address=0.0.0.0/0',
+            '/ip service set www disabled=no address=0.0.0.0/0',
+            '# 3) NAT remote OLT & Router Client (GANTI to-addresses ke IP LAN perangkat)',
+            ':do { /ip firewall nat remove [find comment~'.$this->quote('MikPay REMOTE').'] } on-error={}',
+            '/ip firewall nat add chain=dstnat dst-address='.$tunnelIp
+                .' protocol=tcp dst-port='.$oltPort
+                .' action=dst-nat to-addresses=192.168.1.2 to-ports=80'
+                .' comment='.$this->quote('MikPay REMOTE OLT — ganti to-addresses'),
+            '/ip firewall nat add chain=dstnat dst-address='.$tunnelIp
+                .' protocol=tcp dst-port='.$routerPort
+                .' action=dst-nat to-addresses=192.168.19.25 to-ports=80'
+                .' comment='.$this->quote('MikPay REMOTE ROUTER CLIENT — ganti to-addresses'),
+            ':put '.$this->quote('MikPay OK. Cek: /interface ovpn-client print (harus R). Lalu ganti IP OLT/Router di NAT.'),
+        ];
+
+        $ros6 = implode("\n", array_map(
+            fn (string $line) => $line === '{OVPN}' ? $ovpn6 : $line,
+            $lines,
+        ));
+        $ros7 = implode("\n", array_map(
+            fn (string $line) => $line === '{OVPN}' ? $ovpn7 : $line,
+            $lines,
+        ));
 
         return [
             'ros6' => $ros6,
@@ -300,7 +340,8 @@ class TunnelService
         return [
             ['label' => 'Winbox', 'target_port' => 8291],
             ['label' => 'API', 'target_port' => 8728],
-            ['label' => 'WebFig', 'target_port' => 80],
+            ['label' => 'OLT', 'target_port' => 25],
+            ['label' => 'Router Client', 'target_port' => 19],
         ];
     }
 

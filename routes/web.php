@@ -4,12 +4,14 @@ use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Auth\RegisterController;
 use App\Http\Controllers\BillingController;
 use App\Http\Controllers\CustomersController;
+use App\Http\Controllers\GisController;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\PanelController;
 use App\Http\Controllers\PublicPayController;
 use App\Http\Controllers\RouterController;
 use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\SuperAdmin\DashboardController as SuperAdminDashboardController;
+use App\Http\Controllers\SuperAdmin\UsersController as SuperAdminUsersController;
 use App\Http\Controllers\Tunnel\TunnelHomeController;
 use App\Http\Controllers\Tunnel\TunnelRegisterController;
 use App\Http\Controllers\XenditWebhookController;
@@ -17,7 +19,13 @@ use Illuminate\Support\Facades\Route;
 
 $registerPanelPages = function (): void {
     Route::get('/dashboard', [PanelController::class, 'dashboard'])->name('dashboard');
-    Route::get('/gis', [PanelController::class, 'gis'])->name('gis');
+    Route::get('/dashboard/bandwidth', [PanelController::class, 'bandwidth'])->name('dashboard.bandwidth');
+    Route::get('/gis', [GisController::class, 'index'])->name('gis');
+    Route::get('/gis/data', [GisController::class, 'data'])->name('gis.data');
+    Route::post('/gis', [GisController::class, 'store'])->name('gis.store');
+    Route::put('/gis/{odp}', [GisController::class, 'update'])->name('gis.update');
+    Route::delete('/gis/{odp}', [GisController::class, 'destroy'])->name('gis.destroy');
+    Route::put('/gis/{odp}/ports', [GisController::class, 'updatePort'])->name('gis.ports.update');
     Route::get('/remote', [PanelController::class, 'remote'])->name('remote');
     Route::get('/customers', [CustomersController::class, 'index'])->name('customers');
     Route::get('/customers/edit', [CustomersController::class, 'edit'])->name('customers.edit');
@@ -33,6 +41,8 @@ $registerPanelPages = function (): void {
     Route::post('/billing/auto-isolir', [BillingController::class, 'runAutoIsolir'])->name('billing.auto-isolir');
     Route::post('/billing/isolir', [BillingController::class, 'isolir'])->name('billing.isolir');
     Route::post('/billing/open', [BillingController::class, 'open'])->name('billing.open');
+    Route::post('/billing/promises', [BillingController::class, 'storePromise'])->name('billing.promises.store');
+    Route::delete('/billing/promises', [BillingController::class, 'destroyPromise'])->name('billing.promises.destroy');
     Route::get('/vouchers', [PanelController::class, 'vouchers'])->name('vouchers');
     Route::get('/finance', [PanelController::class, 'finance'])->name('finance');
     Route::get('/tickets', [PanelController::class, 'tickets'])->name('tickets');
@@ -94,6 +104,12 @@ Route::prefix('superadmin')
     ->middleware(['auth', 'active', 'superadmin'])
     ->group(function () {
         Route::get('/', SuperAdminDashboardController::class)->name('dashboard');
+        Route::get('/users', [SuperAdminUsersController::class, 'index'])->name('users');
+        Route::put('/tenants/{tenant}', [SuperAdminUsersController::class, 'updateTenant'])->name('tenants.update');
+        Route::post('/tenants/{tenant}/toggle', [SuperAdminUsersController::class, 'toggleTenantStatus'])->name('tenants.toggle');
+        Route::post('/tenants/{tenant}/users', [SuperAdminUsersController::class, 'storeTenantUser'])->name('tenants.users.store');
+        Route::put('/users/{user}', [SuperAdminUsersController::class, 'updateUser'])->name('users.update');
+        Route::post('/users/{user}/toggle', [SuperAdminUsersController::class, 'toggleUserActive'])->name('users.toggle');
     });
 
 /*

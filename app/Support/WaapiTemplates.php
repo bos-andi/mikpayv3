@@ -15,37 +15,54 @@ class WaapiTemplates
                 'title' => 'Reminder tunggakan + link bayar',
                 'desc' => 'Dipakai tombol WA di Billing (kirim manual). Selalu tersedia.',
                 'auto' => false,
-                'default' => "Halo *{nama}*, tagihan *{periode}* sebesar *{nominal}* belum lunas.\nBayar di sini (tanpa login):\n{link}\nAbaikan jika sudah bayar.",
+                'default' => "Yth. *{nama}*,\n\n"
+                    ."Berikut informasi tagihan WiFi Anda untuk periode *{periode}* dengan total *{nominal}*.\n"
+                    ."Tanggal jatuh tempo: *{tanggal}*.\n\n"
+                    ."Silakan melakukan pembayaran melalui tautan berikut:\n{link}\n\n"
+                    .'Abaikan pesan ini apabila pembayaran sudah dilakukan. Terima kasih.',
             ],
             'h3' => [
                 'title' => 'Pengingat H-3',
-                'desc' => 'Otomatis 3 hari sebelum jatuh tempo.',
+                'desc' => 'Otomatis 3 hari sebelum jatuh tempo (jam 08:00 WIB).',
                 'auto' => true,
-                'default' => "Yth. *{nama}*,\nTagihan WiFi periode *{periode}* sebesar *{nominal}* akan jatuh tempo 3 hari lagi.\nBayar sekarang agar layanan tetap lancar:\n{link}\nTerima kasih 🙏",
+                'default' => "Yth. *{nama}*,\n\n"
+                    ."Kami mengingatkan bahwa tagihan WiFi periode *{periode}* dengan total *{nominal}* akan jatuh tempo pada *{tanggal}* (dalam *3 hari*).\n\n"
+                    ."Mohon dapat dilakukan pembayaran melalui tautan berikut agar layanan tetap nyaman digunakan:\n{link}\n\n"
+                    .'Terima kasih atas perhatiannya.',
             ],
             'h0' => [
                 'title' => 'Pengingat H-0 (jatuh tempo)',
-                'desc' => 'Otomatis pada hari jatuh tempo.',
+                'desc' => 'Otomatis pada hari jatuh tempo / hari janji bayar (jam 08:00 WIB).',
                 'auto' => true,
-                'default' => "Halo *{nama}*,\nHari ini adalah jatuh tempo tagihan *{periode}* (*{nominal}*).\nSegera bayar agar tidak terisolir:\n{link}",
+                'default' => "Yth. *{nama}*,\n\n"
+                    ."Hari ini (*{tanggal}*) adalah hari terakhir untuk melakukan pembayaran tagihan WiFi periode *{periode}* dengan total *{nominal}*.\n\n"
+                    ."Mohon segera menyelesaikan pembayaran melalui tautan berikut:\n{link}\n\n"
+                    .'Terima kasih atas kerjasamanya.',
             ],
             'overdue' => [
                 'title' => 'Tunggakan / siap isolir',
-                'desc' => 'Otomatis setelah lewat jatuh tempo (masih menunggak).',
+                'desc' => 'Otomatis setelah lewat jatuh tempo (masih menunggak, jam 08:00 WIB).',
                 'auto' => true,
-                'default' => "*PERINGATAN*\nYth. *{nama}*,\nTagihan *{periode}* (*{nominal}*) masih belum lunas. Layanan berisiko *isolir*.\nBayar segera:\n{link}\nHubungi admin jika sudah transfer.",
+                'default' => "Yth. *{nama}*,\n\n"
+                    ."Menurut catatan kami, tagihan WiFi periode *{periode}* dengan total *{nominal}* (jatuh tempo *{tanggal}*) masih belum kami terima.\n\n"
+                    ."Mohon segera melakukan pembayaran melalui tautan berikut agar layanan tidak terganggu:\n{link}\n\n"
+                    .'Apabila sudah transfer, silakan balas pesan ini atau hubungi admin. Terima kasih.',
             ],
             'paid' => [
                 'title' => 'Konfirmasi lunas',
                 'desc' => 'Referensi / notifikasi setelah pembayaran diterima.',
                 'auto' => false,
-                'default' => "Halo *{nama}*,\nPembayaran tagihan *{periode}* sebesar *{nominal}* sudah kami terima. Terima kasih 🙏\nLayanan Anda tetap aktif.",
+                'default' => "Yth. *{nama}*,\n\n"
+                    ."Pembayaran tagihan periode *{periode}* sebesar *{nominal}* sudah kami terima.\n\n"
+                    .'Terima kasih. Layanan Anda tetap aktif.',
             ],
             'isolir_open' => [
                 'title' => 'Isolir dibuka',
                 'desc' => 'Referensi setelah isolir dibuka pasca bayar.',
                 'auto' => false,
-                'default' => "Yth. *{nama}*,\nPembayaran Anda sudah masuk. Isolir untuk akun *{username}* telah *dibuka*.\nSilakan cek koneksi WiFi Anda. Terima kasih.",
+                'default' => "Yth. *{nama}*,\n\n"
+                    ."Pembayaran sudah kami terima. Isolir untuk akun *{username}* telah dibuka kembali.\n\n"
+                    .'Silakan memeriksa koneksi WiFi Anda. Terima kasih.',
             ],
         ];
     }

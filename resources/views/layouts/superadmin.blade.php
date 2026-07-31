@@ -23,9 +23,8 @@
                 <a href="{{ route('superadmin.dashboard') }}" class="flex items-center gap-3 px-3 py-2.5 rounded-xl {{ request()->routeIs('superadmin.dashboard') ? 'bg-indigo-600 text-white' : 'hover:bg-slate-800 text-slate-300' }}">
                     <i class="fa-solid fa-gauge w-5 text-center"></i> Dashboard
                 </a>
-                <a href="#" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-500 cursor-not-allowed" title="Segera hadir">
+                <a href="{{ route('superadmin.users') }}" class="flex items-center gap-3 px-3 py-2.5 rounded-xl {{ request()->routeIs('superadmin.users*') || request()->routeIs('superadmin.tenants*') ? 'bg-indigo-600 text-white' : 'hover:bg-slate-800 text-slate-300' }}">
                     <i class="fa-solid fa-users w-5 text-center"></i> Pengguna & Tenant
-                    <span class="ml-auto text-[9px] bg-slate-800 px-1.5 py-0.5 rounded font-bold">SOON</span>
                 </a>
                 <a href="#" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-500 cursor-not-allowed" title="Segera hadir">
                     <i class="fa-solid fa-newspaper w-5 text-center"></i> Konten Landing

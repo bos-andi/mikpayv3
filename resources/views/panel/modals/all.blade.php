@@ -89,3 +89,27 @@
             </div>
         </div>
     </div>
+
+{{-- Modal konfirmasi custom (ganti window.confirm) --}}
+<div id="mikpayConfirmModal" class="fixed inset-0 z-[6000] hidden items-center justify-center p-4">
+    <div id="mikpayConfirmBackdrop" class="absolute inset-0 bg-slate-900/40 backdrop-blur-[2px]"></div>
+    <div class="relative w-full max-w-sm bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden">
+        <div class="px-5 pt-5 pb-3 flex items-start gap-3">
+            <div id="mikpayConfirmIconWrap" class="h-10 w-10 rounded-2xl bg-violet-100 text-violet-600 flex items-center justify-center shrink-0">
+                <i id="mikpayConfirmIcon" class="fa-solid fa-circle-question text-lg"></i>
+            </div>
+            <div class="min-w-0 pt-0.5">
+                <p id="mikpayConfirmTitle" class="text-sm font-extrabold text-slate-900">Konfirmasi</p>
+                <p id="mikpayConfirmMessage" class="text-[12px] text-slate-500 mt-1 leading-relaxed"></p>
+            </div>
+        </div>
+        <div class="px-5 pb-5 pt-2 flex gap-2">
+            <button type="button" id="mikpayConfirmCancel" class="flex-1 px-3 py-2.5 rounded-2xl border border-slate-200 text-xs font-bold text-slate-600 hover:bg-slate-50 transition">
+                Batal
+            </button>
+            <button type="button" id="mikpayConfirmOk" class="flex-1 px-3 py-2.5 rounded-2xl bg-violet-600 hover:bg-violet-500 text-white text-xs font-bold shadow-md shadow-violet-600/20 transition">
+                Ya, lanjut
+            </button>
+        </div>
+    </div>
+</div>

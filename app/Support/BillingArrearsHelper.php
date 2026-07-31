@@ -3,6 +3,7 @@
 namespace App\Support;
 
 use App\Models\BillingPayment;
+use App\Models\BillingPeriodPromise;
 use Carbon\Carbon;
 
 class BillingArrearsHelper
@@ -72,7 +73,13 @@ class BillingArrearsHelper
      *   days_to_isolir: int|null,
      *   isolir_date: string|null,
      *   isolir_label: string,
-     *   needs_tracking_config_hint: bool
+     *   needs_tracking_config_hint: bool,
+     *   is_promised: bool,
+     *   promised_pay_date: string|null,
+     *   promised_pay_note: string|null,
+     *   promise_period: string|null,
+     *   promise_active: bool,
+     *   promise_overdue: bool
      * }
      */
     public static function getUnpaidPeriodsSummary(
@@ -99,6 +106,12 @@ class BillingArrearsHelper
             'isolir_date' => null,
             'isolir_label' => '',
             'needs_tracking_config_hint' => ! self::hasExplicitTrackingStart(),
+            'is_promised' => false,
+            'promised_pay_date' => null,
+            'promised_pay_note' => null,
+            'promise_period' => null,
+            'promise_active' => false,
+            'promise_overdue' => false,
         ];
 
         if ($dueDay <= 0 || $dueDay > 31) {
@@ -247,6 +260,53 @@ class BillingArrearsHelper
             }
         }
 
+        // Janji bayar: tahan isolir sampai tanggal janji (inklusif).
+        $isPromised = false;
+        $promisedPayDate = null;
+        $promisedPayNote = null;
+        $promisePeriod = null;
+        $promiseActive = false;
+        $promiseOverdue = false;
+
+        if ($count > 0) {
+            $promise = BillingPeriodPromise::query()
+                ->where('router_id', $routerId)
+                ->where('customer_name', $customerName)
+                ->whereIn('period', $unpaid)
+                ->orderByDesc('promised_pay_date')
+                ->first();
+
+            if ($promise?->promised_pay_date) {
+                $isPromised = true;
+                $promisedPayDate = $promise->promised_pay_date->format('Y-m-d');
+                $promisedPayNote = $promise->promised_pay_note;
+                $promisePeriod = $promise->period;
+                $promiseDay = $promise->promised_pay_date->copy()->startOfDay();
+                $today = now()->startOfDay();
+                $promiseLabel = $promiseDay->translatedFormat('d M');
+
+                if ($today->lte($promiseDay)) {
+                    $promiseActive = true;
+                    $shouldIsolir = false;
+                    // Isolir mulai sehari setelah tanggal janji.
+                    $isolirOn = $promiseDay->copy()->addDay();
+                    $daysToIsolir = (int) $today->diffInDays($isolirOn, false);
+                    $isolirDate = $isolirOn->format('Y-m-d');
+                    if ($daysToIsolir > 0) {
+                        $isolirLabel = 'Janji bayar '.$promiseLabel.' · '.$daysToIsolir.' hari lagi';
+                    } else {
+                        $isolirLabel = 'Janji bayar '.$promiseLabel.' · batas hari ini';
+                    }
+                } else {
+                    $promiseOverdue = true;
+                    $shouldIsolir = true;
+                    $daysToIsolir = 0;
+                    $isolirDate = $today->format('Y-m-d');
+                    $isolirLabel = 'Janji lewat '.$promiseLabel.' — siap isolir';
+                }
+            }
+        }
+
         return [
             'unpaid_periods' => $unpaid,
             'unpaid_count' => $count,
@@ -263,6 +323,49 @@ class BillingArrearsHelper
             'isolir_date' => $isolirDate,
             'isolir_label' => $isolirLabel,
             'needs_tracking_config_hint' => ! self::hasExplicitTrackingStart(),
+            'is_promised' => $isPromised,
+            'promised_pay_date' => $promisedPayDate,
+            'promised_pay_note' => $promisedPayNote,
+            'promise_period' => $promisePeriod,
+            'promise_active' => $promiseActive,
+            'promise_overdue' => $promiseOverdue,
         ];
+    }
+
+    /**
+     * Hapus janji untuk periode yang sudah lunas (paid_amount >= monthly_fee).
+     *
+     * @param  list<string>  $periods
+     */
+    public static function clearPromisesForPaidPeriods(
+        int $routerId,
+        string $customerName,
+        int $monthlyFee,
+        array $periods,
+    ): int {
+        if ($periods === [] || $monthlyFee <= 0) {
+            return 0;
+        }
+
+        $cleared = 0;
+        foreach (array_unique($periods) as $period) {
+            $paid = (int) BillingPayment::query()
+                ->where('router_id', $routerId)
+                ->where('customer_name', $customerName)
+                ->where('period', $period)
+                ->sum('amount');
+
+            if ($paid < $monthlyFee) {
+                continue;
+            }
+
+            $cleared += BillingPeriodPromise::query()
+                ->where('router_id', $routerId)
+                ->where('customer_name', $customerName)
+                ->where('period', $period)
+                ->delete();
+        }
+
+        return $cleared;
     }
 }

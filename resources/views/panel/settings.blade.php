@@ -267,7 +267,32 @@
 @elseif ($tab === 'whatsapp')
     @php
         $waDefs = \App\Support\WaapiTemplates::definitions();
+        $waGate = $t?->waapiGatewayStatus(true) ?? ['state' => 'off', 'label' => 'WA Gateway Off', 'detail' => null, 'phone' => null];
     @endphp
+
+    @if (($waGate['state'] ?? '') === 'disconnected')
+        <div class="rounded-xl border border-rose-200 bg-rose-50 text-rose-900 text-xs font-semibold px-4 py-3">
+            <p class="font-bold mb-1"><i class="fa-solid fa-triangle-exclamation mr-1"></i> Perangkat WhatsApp belum terhubung</p>
+            <p class="font-normal text-[11px] leading-relaxed">
+                Token sudah tersimpan, tapi device WaAPI statusnya <strong>DISCONNECTED</strong>
+                @if (! empty($waGate['phone']))
+                    ({{ $waGate['phone'] }})
+                @endif.
+                Reminder otomatis <strong>tidak bisa terkirim</strong> sampai device di-
+                <a href="https://wa-api.id/app" target="_blank" rel="noopener" class="underline font-bold">wa-api.id/app</a>
+                di-scan ulang / dihubungkan kembali.
+            </p>
+        </div>
+    @endif
+    @if (($waGate['state'] ?? '') === 'connected')
+        <div class="rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-900 text-xs font-semibold px-4 py-3">
+            Device terhubung
+            @if (! empty($waGate['phone']))
+                · {{ $waGate['phone'] }}
+            @endif
+            · reminder otomatis siap (jam 08:00 WIB).
+        </div>
+    @endif
 
     <form method="POST" action="{{ panel_route('settings.whatsapp.update') }}" class="space-y-4">
         @csrf
@@ -307,6 +332,7 @@
                 <div class="rounded-xl bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/30 px-3 py-2 text-[10px] text-amber-800 dark:text-amber-200">
                     <strong>Bukan satu template saja.</strong> Di kanan, tiap jenis pesan punya teks sendiri.
                     Toggle = aktifkan <em>reminder otomatis</em> untuk jenis itu (H-3 / H-0 / tunggakan).
+                    Jadwal kirim otomatis: <strong>setiap hari jam 08:00 WIB</strong>.
                     Tombol WA di Billing memakai template “link bayar”.
                 </div>
 
@@ -329,12 +355,13 @@
             <div class="xl:col-span-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm space-y-4">
                 <div>
                     <h3 class="text-sm font-bold text-slate-900 dark:text-white">Template pesan & reminder otomatis</h3>
-                    <p class="text-[11px] text-slate-500 mt-1">Edit isi masing-masing. Nyalakan toggle hanya untuk yang ingin dikirim otomatis.</p>
+                    <p class="text-[11px] text-slate-500 mt-1">Edit isi masing-masing. Nyalakan toggle hanya untuk yang ingin dikirim otomatis (jam 08:00 WIB).</p>
                 </div>
 
                 <div class="rounded-xl bg-indigo-50 dark:bg-indigo-500/10 border border-indigo-100 dark:border-indigo-500/30 px-3 py-2 text-[10px] text-indigo-800 dark:text-indigo-200 space-y-1">
                     <p class="font-bold">Placeholder</p>
-                    <p><code class="font-mono">{nama}</code> · <code class="font-mono">{username}</code> · <code class="font-mono">{periode}</code> · <code class="font-mono">{nominal}</code> · <code class="font-mono">{link}</code></p>
+                    <p><code class="font-mono">{nama}</code> · <code class="font-mono">{username}</code> · <code class="font-mono">{periode}</code> · <code class="font-mono">{nominal}</code> · <code class="font-mono">{tanggal}</code> · <code class="font-mono">{link}</code></p>
+                    <p class="text-slate-500 dark:text-indigo-300/80"><code class="font-mono">{tanggal}</code> = tanggal jatuh tempo (mis. 31 Jul 2026)</p>
                 </div>
 
                 <div class="space-y-3 max-h-[720px] overflow-y-auto pr-1">
@@ -507,7 +534,7 @@
                             <a href="{{ panel_route('settings.routers.edit', $router) }}" class="text-xs font-bold px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-100 transition">
                                 <i class="fa-solid fa-pen mr-1"></i> Edit
                             </a>
-                            <form method="POST" action="{{ panel_route('settings.routers.destroy', $router) }}" onsubmit="return confirm('Hapus router ini?')">
+                            <form method="POST" action="{{ panel_route('settings.routers.destroy', $router) }}" onsubmit="return MikPay.confirmForm(event, 'Hapus router ini? Konfigurasi terkait tidak bisa dikembalikan.', { title: 'Hapus Router', variant: 'danger', confirmText: 'Ya, hapus' })">
                                 @csrf
                                 @method('DELETE')
                                 <button type="submit" class="text-xs font-bold px-3 py-2 rounded-xl border border-rose-200 text-rose-600 hover:bg-rose-50 dark:border-rose-500/30 dark:hover:bg-rose-500/10 transition">

@@ -9,4 +9,5 @@ Artisan::command('inspire', function () {
 })->purpose('Display an inspiring quote');
 
 Schedule::command('billing:auto-isolir')->dailyAt('01:15');
+Schedule::command('billing:wa-reminders')->dailyAt('08:00');
 Schedule::command('tunnel:sync-firewall')->everyFiveMinutes();

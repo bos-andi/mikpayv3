@@ -51,19 +51,35 @@ class TunnelFirewallService
 
         // Jump from PREROUTING / FORWARD into our chains (idempotent).
         if (! $this->hasRule('nat', ['PREROUTING', '-j', self::NAT_CHAIN])) {
-            $this->runIptables(['-t', 'nat', '-A', 'PREROUTING', '-j', self::NAT_CHAIN]);
+            $this->runIptables(['-t', 'nat', '-I', 'PREROUTING', '1', '-j', self::NAT_CHAIN]);
         }
+        // Must be BEFORE UFW forward drops.
         if (! $this->hasRule('filter', ['FORWARD', '-j', self::FWD_CHAIN])) {
-            $this->runIptables(['-A', 'FORWARD', '-j', self::FWD_CHAIN]);
+            $this->runIptables(['-I', 'FORWARD', '1', '-j', self::FWD_CHAIN]);
+        } else {
+            // Keep our jump at the top if UFW reordered chains.
+            $this->runIptables(['-D', 'FORWARD', '-j', self::FWD_CHAIN]);
+            $this->runIptables(['-I', 'FORWARD', '1', '-j', self::FWD_CHAIN]);
         }
 
         $this->seedForwardDefaults();
 
-        // MASQUERADE tunnel clients out to internet (optional; needed if router needs net via tunnel).
         $cidr = (string) config('mikpay.tunnel.vpn_cidr', '10.9.0.0/24');
         $iface = (string) config('mikpay.tunnel.public_iface', 'eth0');
+        $vpnIp = preg_replace('/\.0\/\d+$/', '.1', $cidr) ?: '10.9.0.1';
+
+        // MASQUERADE tunnel clients out to internet.
         if (! $this->hasRule('nat', ['POSTROUTING', '-s', $cidr, '-o', $iface, '-j', 'MASQUERADE'])) {
             $this->runIptables(['-t', 'nat', '-A', 'POSTROUTING', '-s', $cidr, '-o', $iface, '-j', 'MASQUERADE']);
+        }
+
+        // SNAT DNAT traffic so MikroTik replies via tunnel (not its WAN).
+        if (! $this->hasRule('nat', ['POSTROUTING', '-o', 'tun0', '-d', $cidr, '-j', 'SNAT', '--to-source', $vpnIp])) {
+            $this->runIptables([
+                '-t', 'nat', '-A', 'POSTROUTING',
+                '-o', 'tun0', '-d', $cidr,
+                '-j', 'SNAT', '--to-source', $vpnIp,
+            ]);
         }
     }
 
