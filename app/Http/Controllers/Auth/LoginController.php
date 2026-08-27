@@ -59,14 +59,45 @@ class LoginController extends Controller
             return redirect()->intended(route('tunnel.dashboard'));
         }
 
+        $tenant = $user->tenant;
+        if (
+            $tenant
+            && $tenant->subscriptionEndsAt() !== null
+            && ! $tenant->subscriptionIsActive()
+        ) {
+            if ($tenant->subdomain) {
+                return redirect()
+                    ->away(tenant_panel_url($tenant, '/langganan'))
+                    ->with('error', 'Trial/langganan sudah berakhir. Perpanjang di halaman ini untuk membuka panel kembali.');
+            }
+
+            return redirect()
+                ->route('panel.subscription')
+                ->with('error', 'Trial/langganan sudah berakhir. Perpanjang di halaman ini untuk membuka panel kembali.');
+        }
+
+        // Selalu arahkan ke subdomain tenant agar UI panel sama persis.
+        if ($tenant?->subdomain) {
+            return redirect()->away(tenant_panel_url($tenant, '/dashboard'));
+        }
+
         return redirect()->intended(route('panel.dashboard'));
     }
 
     public function destroy(Request $request): RedirectResponse
     {
+        $host = $request->getHost();
+        $base = (string) config('mikpay.tenant_base_domain', 'mikpay.link');
+        $isTenantHost = str_ends_with($host, '.'.$base)
+            && ! in_array(explode('.', $host)[0], ['www', 'tunnel'], true);
+
         Auth::logout();
         $request->session()->invalidate();
         $request->session()->regenerateToken();
+
+        if ($isTenantHost) {
+            return redirect()->away((parse_url((string) config('app.url'), PHP_URL_SCHEME) ?: 'https').'://'.$host.'/login');
+        }
 
         return redirect()->route('login');
     }

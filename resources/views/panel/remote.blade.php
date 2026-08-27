@@ -182,8 +182,8 @@
     <div class="rounded-xl border border-amber-200 dark:border-amber-500/30 bg-amber-50/80 dark:bg-amber-500/10 px-3 py-2.5 text-[11px] text-amber-950 dark:text-amber-100">
         <p class="font-bold mb-1">Syarat agar remote dari luar jalan:</p>
         <ol class="list-decimal ml-4 space-y-0.5 text-amber-900/80 dark:text-amber-100/80">
-            <li>Pastikan script berisi <span class="font-mono font-semibold">ovpn-client</span> (bukan sstp/wireguard).</li>
-            <li>Paste → di MikroTik: <span class="font-mono">/interface ovpn-client print</span> harus <strong class="text-emerald-700 dark:text-emerald-400">R</strong>.</li>
+            <li>Pastikan script berisi komentar <span class="font-mono font-semibold">MikPay</span> dan <span class="font-mono font-semibold">ovpn-client</span> (bukan sstp/wireguard).</li>
+            <li>Salin semua → paste di Terminal MikroTik → cek: <span class="font-mono">/interface ovpn-client print</span> harus <strong class="text-emerald-700 dark:text-emerald-400">R</strong>.</li>
             <li>Baru buka Winbox ke URL remote (port 1000+) / isi host API di Settings.</li>
         </ol>
     </div>

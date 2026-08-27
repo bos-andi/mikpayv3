@@ -4,13 +4,19 @@ use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Auth\RegisterController;
 use App\Http\Controllers\BillingController;
 use App\Http\Controllers\CustomersController;
+use App\Http\Controllers\FinanceController;
 use App\Http\Controllers\GisController;
 use App\Http\Controllers\HomeController;
+use App\Http\Controllers\HotspotController;
 use App\Http\Controllers\PanelController;
 use App\Http\Controllers\PublicPayController;
 use App\Http\Controllers\RouterController;
 use App\Http\Controllers\SettingsController;
+use App\Http\Controllers\SubscriptionController;
 use App\Http\Controllers\SuperAdmin\DashboardController as SuperAdminDashboardController;
+use App\Http\Controllers\SuperAdmin\LandingController as SuperAdminLandingController;
+use App\Http\Controllers\SuperAdmin\PaymentsController as SuperAdminPaymentsController;
+use App\Http\Controllers\SuperAdmin\SubscriptionPricingController as SuperAdminSubscriptionPricingController;
 use App\Http\Controllers\SuperAdmin\UsersController as SuperAdminUsersController;
 use App\Http\Controllers\Tunnel\TunnelHomeController;
 use App\Http\Controllers\Tunnel\TunnelRegisterController;
@@ -43,14 +49,43 @@ $registerPanelPages = function (): void {
     Route::post('/billing/open', [BillingController::class, 'open'])->name('billing.open');
     Route::post('/billing/promises', [BillingController::class, 'storePromise'])->name('billing.promises.store');
     Route::delete('/billing/promises', [BillingController::class, 'destroyPromise'])->name('billing.promises.destroy');
-    Route::get('/vouchers', [PanelController::class, 'vouchers'])->name('vouchers');
-    Route::get('/finance', [PanelController::class, 'finance'])->name('finance');
+    Route::post('/billing/period-fees', [BillingController::class, 'storePeriodFee'])->name('billing.period-fees.store');
+    Route::delete('/billing/period-fees', [BillingController::class, 'destroyPeriodFee'])->name('billing.period-fees.destroy');
+    Route::get('/vouchers', [HotspotController::class, 'index'])->name('vouchers');
+    Route::get('/vouchers/print', [HotspotController::class, 'print'])->name('vouchers.print');
+    Route::post('/vouchers/generate', [HotspotController::class, 'storeGenerate'])->name('vouchers.generate');
+    Route::post('/vouchers/profiles', [HotspotController::class, 'storeProfile'])->name('vouchers.profiles.store');
+    Route::post('/vouchers/users', [HotspotController::class, 'storeUser'])->name('vouchers.users.store');
+    Route::post('/vouchers/users/remove-by-comment', [HotspotController::class, 'removeByComment'])->name('vouchers.users.remove-by-comment');
+    Route::post('/vouchers/users/remove-expired', [HotspotController::class, 'removeExpired'])->name('vouchers.users.remove-expired');
+    Route::post('/vouchers/users/{id}/{action}', [HotspotController::class, 'userAction'])
+        ->whereIn('action', ['enable', 'disable', 'remove'])
+        ->name('vouchers.users.action');
+    Route::post('/vouchers/template', [HotspotController::class, 'saveTemplate'])->name('vouchers.template.save');
+    Route::post('/vouchers/template/preview', [HotspotController::class, 'previewTemplate'])->name('vouchers.template.preview');
+    Route::get('/finance', [FinanceController::class, 'index'])->name('finance');
+    Route::post('/finance/cash', [FinanceController::class, 'storeCash'])->name('finance.cash.store');
+    Route::post('/finance/assets', [FinanceController::class, 'storeAsset'])->name('finance.assets.store');
+    Route::delete('/finance/cash/{cash}', [FinanceController::class, 'destroyCash'])->name('finance.cash.destroy');
+    Route::post('/finance/settings', [FinanceController::class, 'updateSettings'])->name('finance.settings.update');
+    Route::post('/finance/debts', [FinanceController::class, 'storeDebt'])->name('finance.debts.store');
+    Route::post('/finance/debts/{debt}/paid', [FinanceController::class, 'markDebtPaid'])->name('finance.debts.paid');
+    Route::delete('/finance/debts/{debt}', [FinanceController::class, 'destroyDebt'])->name('finance.debts.destroy');
+    Route::get('/finance/export/csv', [FinanceController::class, 'exportCsv'])->name('finance.export.csv');
+    Route::get('/finance/export/pdf', [FinanceController::class, 'exportPdf'])->name('finance.export.pdf');
     Route::get('/tickets', [PanelController::class, 'tickets'])->name('tickets');
     Route::get('/settings', [PanelController::class, 'settings'])->name('settings');
     Route::post('/settings/xendit', [SettingsController::class, 'updateXendit'])->name('settings.xendit.update');
     Route::post('/settings/whatsapp', [SettingsController::class, 'updateWhatsapp'])->name('settings.whatsapp.update');
     Route::post('/settings/whatsapp/test', [SettingsController::class, 'testWhatsapp'])->name('settings.whatsapp.test');
     Route::post('/settings/billing', [SettingsController::class, 'updateBilling'])->name('settings.billing.update');
+
+    Route::get('/langganan', [SubscriptionController::class, 'index'])->name('subscription');
+    Route::post('/langganan/pilih', [SubscriptionController::class, 'selectPackage'])->name('subscription.select');
+    Route::get('/langganan/pembayaran', [SubscriptionController::class, 'checkout'])->name('subscription.checkout');
+    Route::post('/langganan/batal', [SubscriptionController::class, 'cancelCheckout'])->name('subscription.cancel');
+    Route::post('/langganan/batalkan-pending', [SubscriptionController::class, 'cancelPending'])->name('subscription.cancel-pending');
+    Route::post('/langganan/unggah', [SubscriptionController::class, 'requestPayment'])->name('subscription.pay');
 
     Route::get('/settings/routers/create', [RouterController::class, 'create'])->name('settings.routers.create');
     Route::post('/settings/routers', [RouterController::class, 'store'])->name('settings.routers.store');
@@ -90,6 +125,7 @@ Route::middleware('guest')->group(function () {
     Route::post('/login', [LoginController::class, 'store'])->name('login.store');
     Route::get('/daftar', [RegisterController::class, 'create'])->name('register');
     Route::post('/daftar', [RegisterController::class, 'store'])->name('register.store');
+    Route::get('/daftar/cek-subdomain', [RegisterController::class, 'checkSubdomain'])->name('register.check-subdomain');
 });
 
 Route::post('/logout', [LoginController::class, 'destroy'])
@@ -110,12 +146,22 @@ Route::prefix('superadmin')
         Route::post('/tenants/{tenant}/users', [SuperAdminUsersController::class, 'storeTenantUser'])->name('tenants.users.store');
         Route::put('/users/{user}', [SuperAdminUsersController::class, 'updateUser'])->name('users.update');
         Route::post('/users/{user}/toggle', [SuperAdminUsersController::class, 'toggleUserActive'])->name('users.toggle');
+
+        Route::get('/landing', [SuperAdminLandingController::class, 'edit'])->name('landing');
+        Route::post('/landing', [SuperAdminLandingController::class, 'update'])->name('landing.update');
+
+        Route::get('/paket', [SuperAdminSubscriptionPricingController::class, 'edit'])->name('subscription-pricing');
+        Route::post('/paket', [SuperAdminSubscriptionPricingController::class, 'update'])->name('subscription-pricing.update');
+
+        Route::get('/pembayaran', [SuperAdminPaymentsController::class, 'index'])->name('payments');
+        Route::post('/pembayaran/{payment}/approve', [SuperAdminPaymentsController::class, 'approve'])->name('payments.approve');
+        Route::post('/pembayaran/{payment}/reject', [SuperAdminPaymentsController::class, 'reject'])->name('payments.reject');
     });
 
 /*
 | ISP Panel
 */
-Route::middleware(['auth', 'active', 'tenant'])
+Route::middleware(['auth', 'active', 'tenant', 'tenant.host', 'tenant.subscription'])
     ->name('panel.')
     ->group($registerPanelPages);
 
@@ -166,7 +212,7 @@ Route::domain('{tenant}.'.config('mikpay.tenant_base_domain'))
 */
 Route::domain('{tenant}.'.config('mikpay.tenant_base_domain'))
     ->where(['tenant' => $tenantSubPattern])
-    ->middleware(['auth', 'active', 'tenant'])
+    ->middleware(['auth', 'active', 'tenant', 'tenant.subscription'])
     ->name('tenant.')
     ->group(function () use ($registerPanelPages) {
         Route::redirect('/', '/dashboard');

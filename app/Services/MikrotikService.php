@@ -660,6 +660,343 @@ class MikrotikService
         return in_array($v, ['yes', 'true', '1'], true);
     }
 
+    /**
+     * @return array{ok: bool, message: string, users: list<array<string, mixed>>, profiles: list<array<string, mixed>>, servers: list<array<string, mixed>>}
+     */
+    public function fetchHotspotUsers(Router $router, array $filters = []): array
+    {
+        $empty = ['ok' => false, 'message' => '', 'users' => [], 'profiles' => [], 'servers' => []];
+
+        try {
+            if (! $this->connectRouter($router)) {
+                return array_merge($empty, ['message' => $this->api->error_str ?: 'Tidak bisa connect ke router.']);
+            }
+
+            $query = [];
+            if (! empty($filters['exp'])) {
+                $query['?limit-uptime'] = '1s';
+            } elseif (! empty($filters['comment'])) {
+                $query['?comment'] = (string) $filters['comment'];
+            } elseif (! empty($filters['profile']) && $filters['profile'] !== 'all') {
+                $query['?profile'] = (string) $filters['profile'];
+            }
+
+            $users = $this->normalizeHotspotList($query === []
+                ? $this->comm('/ip/hotspot/user/print')
+                : $this->comm('/ip/hotspot/user/print', $query));
+            $profiles = $this->normalizeHotspotList($this->comm('/ip/hotspot/user/profile/print'));
+            $servers = $this->normalizeHotspotList($this->comm('/ip/hotspot/print'));
+            $this->disconnect();
+
+            return [
+                'ok' => true,
+                'message' => '',
+                'users' => $users,
+                'profiles' => $profiles,
+                'servers' => $servers,
+            ];
+        } catch (\Throwable $e) {
+            $this->disconnect();
+
+            return array_merge($empty, ['message' => $e->getMessage()]);
+        }
+    }
+
+    /**
+     * @return array{ok: bool, message: string, profiles: list<array<string, mixed>>, pools: list<array<string, mixed>>, queues: list<array<string, mixed>>}
+     */
+    public function fetchHotspotProfiles(Router $router): array
+    {
+        $empty = ['ok' => false, 'message' => '', 'profiles' => [], 'pools' => [], 'queues' => []];
+
+        try {
+            if (! $this->connectRouter($router)) {
+                return array_merge($empty, ['message' => $this->api->error_str ?: 'Tidak bisa connect ke router.']);
+            }
+
+            $profiles = $this->normalizeHotspotList($this->comm('/ip/hotspot/user/profile/print'));
+            $pools = $this->normalizeHotspotList($this->comm('/ip/pool/print'));
+            $queues = $this->normalizeHotspotList($this->comm('/queue/simple/print', ['?dynamic' => 'false']));
+            $this->disconnect();
+
+            return [
+                'ok' => true,
+                'message' => '',
+                'profiles' => $profiles,
+                'pools' => $pools,
+                'queues' => $queues,
+            ];
+        } catch (\Throwable $e) {
+            $this->disconnect();
+
+            return array_merge($empty, ['message' => $e->getMessage()]);
+        }
+    }
+
+    /**
+     * @return array{ok: bool, message: string, active: list<array<string, mixed>>}
+     */
+    public function fetchHotspotActive(Router $router): array
+    {
+        $empty = ['ok' => false, 'message' => '', 'active' => []];
+
+        try {
+            if (! $this->connectRouter($router)) {
+                return array_merge($empty, ['message' => $this->api->error_str ?: 'Tidak bisa connect ke router.']);
+            }
+
+            $active = $this->normalizeHotspotList($this->comm('/ip/hotspot/active/print'));
+            $this->disconnect();
+
+            return ['ok' => true, 'message' => '', 'active' => $active];
+        } catch (\Throwable $e) {
+            $this->disconnect();
+
+            return array_merge($empty, ['message' => $e->getMessage()]);
+        }
+    }
+
+    /**
+     * @return array{ok: bool, message: string, rows: list<array<string, mixed>>, total: int, owner?: string}
+     */
+    public function fetchHotspotSelling(Router $router, ?string $owner = null): array
+    {
+        $empty = ['ok' => false, 'message' => '', 'rows' => [], 'total' => 0];
+
+        try {
+            if (! $this->connectRouter($router)) {
+                return array_merge($empty, ['message' => $this->api->error_str ?: 'Tidak bisa connect ke router.']);
+            }
+
+            $ownerKey = $owner ?: (strtolower(now()->format('M')).now()->format('Y'));
+            $scripts = $this->normalizeHotspotList($this->comm('/system/script/print', [
+                '?owner' => $ownerKey,
+            ]));
+
+            $rows = [];
+            $total = 0;
+            foreach ($scripts as $s) {
+                $name = (string) ($s['name'] ?? '');
+                $parts = explode('-|-', $name);
+                if (count($parts) < 4) {
+                    continue;
+                }
+                $price = (int) preg_replace('/\D/', '', $parts[3] ?? '0');
+                $total += $price;
+                $rows[] = [
+                    'date' => $parts[0] ?? '',
+                    'time' => $parts[1] ?? '',
+                    'user' => $parts[2] ?? '',
+                    'price' => $price,
+                    'mac' => $parts[5] ?? '',
+                    'validity' => $parts[6] ?? '',
+                    'profile' => $parts[7] ?? '',
+                ];
+            }
+
+            $this->disconnect();
+
+            return ['ok' => true, 'message' => '', 'rows' => $rows, 'total' => $total, 'owner' => $ownerKey];
+        } catch (\Throwable $e) {
+            $this->disconnect();
+
+            return array_merge($empty, ['message' => $e->getMessage()]);
+        }
+    }
+
+    /**
+     * @param  array<string, mixed>  $params
+     * @return array{ok: bool, message: string}
+     */
+    public function addHotspotUser(Router $router, array $params): array
+    {
+        try {
+            if (! $this->connectRouter($router)) {
+                return ['ok' => false, 'message' => $this->api->error_str ?: 'Tidak bisa connect ke router.'];
+            }
+            $this->comm('/ip/hotspot/user/add', $params);
+            $this->disconnect();
+
+            return ['ok' => true, 'message' => 'User hotspot ditambahkan.'];
+        } catch (\Throwable $e) {
+            $this->disconnect();
+
+            return ['ok' => false, 'message' => $e->getMessage()];
+        }
+    }
+
+    /**
+     * @return array{ok: bool, message: string}
+     */
+    public function hotspotUserAction(Router $router, string $action, string $id): array
+    {
+        if (! in_array($action, ['remove', 'enable', 'disable'], true)) {
+            return ['ok' => false, 'message' => 'Aksi tidak valid.'];
+        }
+
+        try {
+            if (! $this->connectRouter($router)) {
+                return ['ok' => false, 'message' => $this->api->error_str ?: 'Tidak bisa connect ke router.'];
+            }
+            $this->comm('/ip/hotspot/user/'.$action, ['.id' => $id]);
+            $this->disconnect();
+
+            return ['ok' => true, 'message' => 'Berhasil.'];
+        } catch (\Throwable $e) {
+            $this->disconnect();
+
+            return ['ok' => false, 'message' => $e->getMessage()];
+        }
+    }
+
+    /**
+     * @param  array<string, mixed>  $profile
+     * @param  array{scheduler_name?: string, scheduler_event?: string, start_time?: string, interval?: string}|null  $monitor
+     * @return array{ok: bool, message: string}
+     */
+    public function addHotspotProfile(Router $router, array $profile, ?array $monitor = null): array
+    {
+        try {
+            if (! $this->connectRouter($router)) {
+                return ['ok' => false, 'message' => $this->api->error_str ?: 'Tidak bisa connect ke router.'];
+            }
+
+            $this->comm('/ip/hotspot/user/profile/add', $profile);
+
+            if ($monitor && ! empty($monitor['scheduler_name']) && ! empty($monitor['scheduler_event'])) {
+                $name = (string) $monitor['scheduler_name'];
+                $existing = $this->normalizeHotspotList($this->comm('/system/scheduler/print', ['?name' => $name]));
+                $payload = [
+                    'name' => $name,
+                    'start-time' => $monitor['start_time'] ?? ('0'.random_int(1, 5).':'.random_int(10, 59).':'.random_int(10, 59)),
+                    'interval' => $monitor['interval'] ?? ('00:02:'.random_int(10, 59)),
+                    'on-event' => $monitor['scheduler_event'],
+                    'disabled' => 'no',
+                    'comment' => 'MikPay Monitor Profile '.$name,
+                ];
+                if (! empty($existing[0]['.id'])) {
+                    $payload['.id'] = $existing[0]['.id'];
+                    $this->comm('/system/scheduler/set', $payload);
+                } else {
+                    $this->comm('/system/scheduler/add', $payload);
+                }
+            }
+
+            $this->disconnect();
+
+            return ['ok' => true, 'message' => 'Profile hotspot ditambahkan.'];
+        } catch (\Throwable $e) {
+            $this->disconnect();
+
+            return ['ok' => false, 'message' => $e->getMessage()];
+        }
+    }
+
+    public function hotspotUserExists(Router $router, string $name): bool
+    {
+        try {
+            if (! $this->isConnected() && ! $this->connectRouter($router)) {
+                return false;
+            }
+            $rows = $this->normalizeHotspotList($this->comm('/ip/hotspot/user/print', ['?name' => $name]));
+
+            return $rows !== [];
+        } catch (\Throwable) {
+            return false;
+        }
+    }
+
+    /**
+     * Batch add hotspot users (satu koneksi).
+     *
+     * @param  list<array<string, mixed>>  $users
+     * @return array{ok: bool, message: string, created: int}
+     */
+    public function addHotspotUsersBatch(Router $router, array $users): array
+    {
+        try {
+            if (! $this->connectRouter($router)) {
+                return ['ok' => false, 'message' => $this->api->error_str ?: 'Tidak bisa connect ke router.', 'created' => 0];
+            }
+
+            $created = 0;
+            foreach ($users as $params) {
+                $name = (string) ($params['name'] ?? '');
+                if ($name === '') {
+                    continue;
+                }
+                $exists = $this->normalizeHotspotList($this->comm('/ip/hotspot/user/print', ['?name' => $name]));
+                if ($exists !== []) {
+                    continue;
+                }
+                $this->comm('/ip/hotspot/user/add', $params);
+                $created++;
+            }
+
+            $this->disconnect();
+
+            return ['ok' => true, 'message' => "Berhasil membuat {$created} voucher.", 'created' => $created];
+        } catch (\Throwable $e) {
+            $this->disconnect();
+
+            return ['ok' => false, 'message' => $e->getMessage(), 'created' => 0];
+        }
+    }
+
+    /**
+     * Hapus banyak user by comment atau expired (limit-uptime=1s).
+     *
+     * @return array{ok: bool, message: string, removed: int}
+     */
+    public function removeHotspotUsers(Router $router, array $query): array
+    {
+        try {
+            if (! $this->connectRouter($router)) {
+                return ['ok' => false, 'message' => $this->api->error_str ?: 'Tidak bisa connect ke router.', 'removed' => 0];
+            }
+
+            $users = $this->normalizeHotspotList($this->comm('/ip/hotspot/user/print', $query));
+            $removed = 0;
+            foreach ($users as $u) {
+                if (empty($u['.id'])) {
+                    continue;
+                }
+                $this->comm('/ip/hotspot/user/remove', ['.id' => $u['.id']]);
+                $removed++;
+            }
+            $this->disconnect();
+
+            return ['ok' => true, 'message' => "{$removed} user dihapus.", 'removed' => $removed];
+        } catch (\Throwable $e) {
+            $this->disconnect();
+
+            return ['ok' => false, 'message' => $e->getMessage(), 'removed' => 0];
+        }
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    protected function normalizeHotspotList(mixed $rows): array
+    {
+        if (! is_array($rows)) {
+            return [];
+        }
+
+        $out = [];
+        foreach ($rows as $row) {
+            if (! is_array($row)) {
+                continue;
+            }
+            if (isset($row['!trap']) || isset($row['!fatal'])) {
+                continue;
+            }
+            $out[] = $row;
+        }
+
+        return $out;
+    }
+
     public function disconnect(): void
     {
         if ($this->api) {

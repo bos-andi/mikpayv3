@@ -13,7 +13,11 @@
             ->exists();
     }
 
-    $nav = [
+    $subscriptionLocked = $tenant
+        && ($tenant->plan ?? '') !== 'tunnel'
+        && ! $tenant->subscriptionIsActive();
+
+    $navAll = [
         ['key' => 'dashboard', 'route' => 'dashboard', 'label' => 'Dashboard', 'icon' => 'fa-chart-pie', 'iconColor' => ''],
         ['key' => 'gis', 'route' => 'gis', 'label' => 'Peta GIS & ODP', 'icon' => 'fa-map-location-dot', 'iconColor' => 'text-cyan-600 dark:text-cyan-400', 'badge' => 'MAP', 'badgeClass' => 'bg-cyan-500/10 dark:bg-cyan-500/20 text-cyan-700 dark:text-cyan-300'],
         ['key' => 'remote', 'route' => 'remote', 'label' => 'Remote & OpenVPN', 'icon' => 'fa-server', 'iconColor' => 'text-amber-500 dark:text-amber-400', 'badge' => 'SETUP', 'badgeClass' => 'bg-violet-500/10 dark:bg-violet-500/20 text-violet-700 dark:text-violet-300'],
@@ -22,6 +26,7 @@
         ['key' => 'vouchers', 'route' => 'vouchers', 'label' => 'Hotspot & Voucher', 'icon' => 'fa-ticket', 'iconColor' => 'text-purple-600 dark:text-purple-400'],
         ['key' => 'finance', 'route' => 'finance', 'label' => 'Laporan Keuangan', 'icon' => 'fa-wallet', 'iconColor' => 'text-emerald-600 dark:text-emerald-400'],
         ['key' => 'tickets', 'route' => 'tickets', 'label' => 'Tiket Gangguan', 'icon' => 'fa-headset', 'iconColor' => 'text-orange-500 dark:text-orange-400', 'badge' => '2 Baru', 'badgeClass' => 'bg-orange-500/10 dark:bg-orange-500/20 text-orange-700 dark:text-orange-300'],
+        ['key' => 'subscription', 'route' => 'subscription', 'label' => 'Langganan MikPay', 'icon' => 'fa-crown', 'iconColor' => 'text-violet-600 dark:text-violet-400'],
         [
             'key' => 'settings',
             'route' => 'settings',
@@ -34,25 +39,35 @@
                 : 'bg-amber-500/10 dark:bg-amber-500/20 text-amber-700 dark:text-amber-300',
         ],
     ];
+
+    // Saat trial/langganan habis: hanya menu pembayaran yang tersedia.
+    $nav = $subscriptionLocked
+        ? array_values(array_filter($navAll, fn ($item) => ($item['key'] ?? '') === 'subscription'))
+        : $navAll;
 @endphp
 
-<aside class="w-64 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 flex flex-col justify-between shrink-0 z-20 transition-all duration-300 shadow-sm">
-    <div>
-        <div class="h-16 flex items-center px-6 gap-3 border-b border-slate-200 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-900/50">
+<div id="panelSidebarBackdrop" class="fixed inset-0 bg-slate-900/50 backdrop-blur-[1px] z-40 hidden lg:hidden" aria-hidden="true"></div>
+
+<aside id="panelSidebar" class="fixed inset-y-0 left-0 w-64 max-w-[85vw] bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 flex flex-col justify-between z-50 shadow-xl transition-transform duration-300 ease-out -translate-x-full lg:translate-x-0 lg:static lg:shrink-0 lg:shadow-sm lg:max-w-none">
+    <div class="min-h-0 flex-1 flex flex-col overflow-y-auto">
+        <div class="h-16 flex items-center px-4 sm:px-6 gap-3 border-b border-slate-200 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-900/50 shrink-0">
             @php
                 $logoUrl = asset($brand['logo'] ?? 'logo-mikpay.png');
                 $domain = (string) ($brand['domain'] ?? 'mikpay.link');
                 $tld = str_contains($domain, '.') ? substr($domain, strpos($domain, '.')) : '.link';
             @endphp
             <img src="{{ $logoUrl }}?v=2" alt="{{ $brand['name'] }}" class="w-9 h-9 object-contain shrink-0">
-            <div>
-                <h1 class="font-extrabold text-lg tracking-wider text-slate-900 dark:text-white leading-tight">
+            <div class="min-w-0 flex-1">
+                <h1 class="font-extrabold text-lg tracking-wider text-slate-900 dark:text-white leading-tight truncate">
                     {{ $brand['name'] }}<span class="text-violet-600 dark:text-violet-400">{{ $tld }}</span>
                 </h1>
-                <p class="text-[10px] text-slate-500 dark:text-slate-400 tracking-wider uppercase font-semibold">
+                <p class="text-[10px] text-slate-500 dark:text-slate-400 tracking-wider uppercase font-semibold truncate">
                     {{ $tenant?->name ?? 'ISP & OLT Manager' }}
                 </p>
             </div>
+            <button type="button" id="panelSidebarClose" class="lg:hidden w-9 h-9 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center justify-center shrink-0" aria-label="Tutup menu">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
         </div>
 
         <div class="px-4 py-3">

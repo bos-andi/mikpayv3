@@ -4,12 +4,14 @@ namespace App\Http\Controllers;
 
 use App\Models\BillingCustomer;
 use App\Models\BillingPayment;
+use App\Models\BillingPeriodFee;
 use App\Models\BillingPeriodPromise;
 use App\Services\AutoIsolirService;
 use App\Services\MikrotikService;
 use App\Services\PaymentLinkService;
 use App\Support\ActiveRouter;
 use App\Support\BillingArrearsHelper;
+use App\Support\BillingFeeHelper;
 use App\Support\BillingPaymentAllocator;
 use App\Support\BillingStatusHelper;
 use Illuminate\Http\JsonResponse;
@@ -42,7 +44,10 @@ class BillingController extends Controller
             $billing = $billingMap->get(strtolower($c['name']));
             $dueDay = (int) ($billing?->due_day ?? 0);
             $fee = (int) ($billing?->monthly_fee ?? 0);
-            $status = BillingStatusHelper::getStatus($c['name'], $dueDay, $router->id, $fee);
+            $feeOverrides = BillingFeeHelper::overridesMap((int) $router->id, $c['name']);
+            $periodFee = BillingFeeHelper::feeForPeriod((int) $router->id, $c['name'], $period, $fee, $feeOverrides);
+            $hasPeriodDiscount = array_key_exists($period, $feeOverrides);
+            $status = BillingStatusHelper::getStatus($c['name'], $dueDay, $router->id, $periodFee);
             $arrears = BillingArrearsHelper::getUnpaidPeriodsSummary(
                 $c['name'],
                 $dueDay,
@@ -51,6 +56,7 @@ class BillingController extends Controller
                 $billing?->started_at,
                 $grace
             );
+            $feeByPeriod = array_merge($feeOverrides, $arrears['fee_by_period'] ?? []);
 
             return [
                 'id' => $c['id'] ?? '',
@@ -60,6 +66,10 @@ class BillingController extends Controller
                 'zone' => $billing?->zone,
                 'package_label' => $billing?->package_label ?: ($c['profile'] ?? null),
                 'monthly_fee' => $fee,
+                'period_fee' => $periodFee,
+                'has_period_discount' => $hasPeriodDiscount,
+                'period_fee_override' => $hasPeriodDiscount ? $periodFee : null,
+                'fee_by_period' => $feeByPeriod,
                 'due_day' => $dueDay,
                 'online' => $c['online'] ?? false,
                 'isolir' => $c['isolir'] ?? false,
@@ -70,7 +80,7 @@ class BillingController extends Controller
                 'due_date' => $status['due_date'],
                 'due_date_label' => BillingStatusHelper::formatDueDate($status['due_date']),
                 'paid_amount' => $status['paid_amount'],
-                'remaining' => max(0, $fee - (int) $status['paid_amount']),
+                'remaining' => max(0, $periodFee - (int) $status['paid_amount']),
                 'billing_configured' => $billing?->isBillingConfigured() ?? false,
                 'arrears_label' => $arrears['label'],
                 'arrears_tooltip' => $arrears['tooltip'],
@@ -446,6 +456,72 @@ class BillingController extends Controller
             ->with(
                 $deleted ? 'success' : 'error',
                 $deleted ? 'Janji bayar dihapus.' : 'Janji bayar tidak ditemukan.'
+            );
+    }
+
+    public function storePeriodFee(Request $request): RedirectResponse
+    {
+        $router = $this->requireActiveRouter();
+        if ($router instanceof RedirectResponse) {
+            return $router;
+        }
+
+        $tenant = current_tenant();
+        if (! $tenant?->id) {
+            abort(422, 'Tenant belum tersedia.');
+        }
+
+        $data = $request->validate([
+            'customer_name' => ['required', 'string', 'max:255'],
+            'period' => ['required', 'string', 'size:7', 'regex:/^\d{4}-\d{2}$/'],
+            'amount' => ['required', 'integer', 'min:0', 'max:999999999'],
+        ], [], [
+            'customer_name' => 'Username PPP',
+            'period' => 'Periode',
+            'amount' => 'Harga akhir',
+        ]);
+
+        BillingPeriodFee::query()->updateOrCreate(
+            [
+                'router_id' => $router->id,
+                'customer_name' => $data['customer_name'],
+                'period' => $data['period'],
+            ],
+            [
+                'tenant_id' => $tenant->id,
+                'amount' => (int) $data['amount'],
+            ]
+        );
+
+        $periodLabel = \Carbon\Carbon::createFromFormat('Y-m', $data['period'])->translatedFormat('M Y');
+        $amountLabel = 'Rp '.number_format((int) $data['amount'], 0, ',', '.');
+
+        return redirect()->to(panel_route('billing'))
+            ->with('success', "Harga akhir {$data['customer_name']} · {$periodLabel}: {$amountLabel}. Bulan lain tetap tarif normal.");
+    }
+
+    public function destroyPeriodFee(Request $request): RedirectResponse
+    {
+        $router = $this->requireActiveRouter();
+        if ($router instanceof RedirectResponse) {
+            return $router;
+        }
+
+        $data = $request->validate([
+            'customer_name' => ['required', 'string', 'max:255'],
+            'period' => ['required', 'string', 'size:7', 'regex:/^\d{4}-\d{2}$/'],
+        ]);
+
+        $deleted = BillingPeriodFee::query()
+            ->where('router_id', $router->id)
+            ->where('customer_name', $data['customer_name'])
+            ->where('period', $data['period'])
+            ->delete();
+
+        return redirect()->to(panel_route('billing'))
+            ->with(
+                $deleted ? 'success' : 'error',
+                $deleted ? 'Harga khusus dihapus — kembali ke tarif normal.' : 'Harga khusus tidak ditemukan.'
             );
     }
 

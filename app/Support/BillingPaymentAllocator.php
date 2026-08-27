@@ -34,10 +34,24 @@ class BillingPaymentAllocator
             return $created;
         }
 
+        $feeOverrides = BillingFeeHelper::overridesMap(
+            (int) $base['router_id'],
+            (string) $base['customer_name'],
+            $periodsOrdered
+        );
+
         foreach ($periodsOrdered as $period) {
             if ($budget <= 0) {
                 break;
             }
+
+            $periodFee = BillingFeeHelper::feeForPeriod(
+                (int) $base['router_id'],
+                (string) $base['customer_name'],
+                (string) $period,
+                $monthlyFee,
+                $feeOverrides
+            );
 
             $already = (int) BillingPayment::query()
                 ->where('router_id', $base['router_id'])
@@ -45,15 +59,15 @@ class BillingPaymentAllocator
                 ->where('period', $period)
                 ->sum('amount');
 
-            $need = $monthlyFee > 0 ? max(0, $monthlyFee - $already) : $budget;
+            $need = $periodFee > 0 ? max(0, $periodFee - $already) : $budget;
             if ($need <= 0) {
                 continue;
             }
 
             $pay = min($need, $budget);
             $after = $already + $pay;
-            $status = ($monthlyFee > 0 && $after < $monthlyFee) ? 'partial' : 'paid';
-            $remaining = $monthlyFee > 0 ? max(0, $monthlyFee - $after) : 0;
+            $status = ($periodFee > 0 && $after < $periodFee) ? 'partial' : 'paid';
+            $remaining = $periodFee > 0 ? max(0, $periodFee - $after) : 0;
 
             $notes = $userNotes;
             if ($remaining > 0) {
@@ -86,14 +100,21 @@ class BillingPaymentAllocator
         // Kelebihan setelah semua periode terisi → catat di periode pertama (overpay)
         if ($budget > 0) {
             $period = $periodsOrdered[0];
+            $periodFee = BillingFeeHelper::feeForPeriod(
+                (int) $base['router_id'],
+                (string) $base['customer_name'],
+                (string) $period,
+                $monthlyFee,
+                $feeOverrides
+            );
             $already = (int) BillingPayment::query()
                 ->where('router_id', $base['router_id'])
                 ->where('customer_name', $base['customer_name'])
                 ->where('period', $period)
                 ->sum('amount');
             $after = $already + $budget;
-            $status = ($monthlyFee > 0 && $after < $monthlyFee) ? 'partial' : 'paid';
-            $remaining = $monthlyFee > 0 ? max(0, $monthlyFee - $after) : 0;
+            $status = ($periodFee > 0 && $after < $periodFee) ? 'partial' : 'paid';
+            $remaining = $periodFee > 0 ? max(0, $periodFee - $after) : 0;
 
             $notes = $userNotes !== '' ? ($userNotes.' | Kelebihan bayar') : 'Kelebihan bayar';
 

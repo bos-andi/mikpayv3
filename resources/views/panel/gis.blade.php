@@ -30,13 +30,22 @@
     </div>
 </div>
 
-<div id="gisModeBanner" class="hidden rounded-xl border border-indigo-200 bg-indigo-50 text-indigo-900 text-xs font-semibold px-4 py-3">
-    Mode penempatan aktif — klik lokasi di peta.
+<div id="gisModeBanner" class="hidden rounded-xl border border-indigo-200 bg-indigo-50 text-indigo-900 text-xs font-semibold px-4 py-3 flex flex-wrap items-center justify-between gap-2">
+    <span id="gisModeBannerText">Mode penempatan aktif — klik lokasi di peta, geser pin untuk akurasi.</span>
+    <div class="flex flex-wrap items-center gap-2">
+        <span id="gisPlaceCoords" class="font-mono text-[10px] font-normal text-indigo-800/80">—</span>
+        <button type="button" id="gisBtnConfirmPlace" class="hidden bg-indigo-600 hover:bg-indigo-500 text-white text-[11px] px-3 py-1.5 rounded-lg font-bold shadow-sm">
+            Gunakan titik ini
+        </button>
+    </div>
 </div>
 
 <div class="grid grid-cols-1 lg:grid-cols-4 gap-4 h-[650px]">
     <div class="lg:col-span-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden relative shadow-sm">
-        <div id="gisMap" class="w-full h-full"></div>
+        <div id="gisMap" class="w-full h-full touch-none"></div>
+        <div id="gisCursorHud" class="hidden absolute bottom-4 right-4 z-[1000] bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border border-slate-200 dark:border-slate-800 px-3 py-1.5 rounded-xl text-[10px] font-mono font-semibold text-slate-700 dark:text-slate-200 shadow-md pointer-events-none">
+            —
+        </div>
 
         <div class="absolute bottom-4 left-4 z-[1000] bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border border-slate-200 dark:border-slate-800 p-3 rounded-xl text-[11px] space-y-1.5 shadow-xl">
             <p class="font-bold text-slate-800 dark:text-slate-200 mb-1">Legenda:</p>
@@ -66,9 +75,17 @@
             Memuat peta…
         </div>
 
-        <button type="button" id="gisBtnLocate" title="Lokasi GPS saya" class="absolute top-4 right-4 z-[1000] bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 w-10 h-10 rounded-xl shadow-md flex items-center justify-center text-indigo-600 dark:text-indigo-400 transition">
-            <i class="fa-solid fa-location-crosshairs"></i>
-        </button>
+        <div class="absolute top-4 right-4 z-[1000] flex flex-col gap-2">
+            <button type="button" id="gisBtnLocate" title="Lokasi GPS saya" class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 w-10 h-10 rounded-xl shadow-md flex items-center justify-center text-indigo-600 dark:text-indigo-400 transition">
+                <i class="fa-solid fa-location-crosshairs"></i>
+            </button>
+            <button type="button" id="gisBtnBasemap" title="Ganti basemap (jalan / satelit)" class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 w-10 h-10 rounded-xl shadow-md flex items-center justify-center text-slate-600 dark:text-slate-300 transition">
+                <i class="fa-solid fa-layer-group"></i>
+            </button>
+            <button type="button" id="gisBtnZoomPlace" title="Perbesar untuk penempatan akurat" class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 w-10 h-10 rounded-xl shadow-md flex items-center justify-center text-slate-600 dark:text-slate-300 transition">
+                <i class="fa-solid fa-magnifying-glass-plus"></i>
+            </button>
+        </div>
     </div>
 
     <div id="gisInspector" class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 flex flex-col overflow-y-auto shadow-sm">
@@ -121,6 +138,9 @@
             </div>
 
             <div class="mt-auto pt-2 space-y-2 border-t border-slate-100 dark:border-slate-800">
+                <button type="button" id="gisBtnMoveNode" class="w-full bg-cyan-50 dark:bg-cyan-500/10 hover:bg-cyan-100 dark:hover:bg-cyan-500/20 text-xs py-2 rounded-xl font-medium border border-cyan-200 dark:border-cyan-500/20 transition text-cyan-800 dark:text-cyan-300">
+                    <i class="fa-solid fa-up-down-left-right mr-1"></i> Pindahkan di peta
+                </button>
                 <button type="button" id="gisBtnEditNode" class="w-full bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-xs py-2 rounded-xl font-medium border border-slate-200 dark:border-slate-700 transition text-slate-800 dark:text-slate-200">
                     <i class="fa-solid fa-pen mr-1"></i> Edit detail
                 </button>
@@ -227,5 +247,5 @@
 <script>
 window.__gisConfig = @json($gisConfig ?? []);
 </script>
-<script src="{{ asset('js/panel-gis.js') }}?v=4" defer></script>
+<script src="{{ asset('js/panel-gis.js') }}?v=7" defer></script>
 @endpush

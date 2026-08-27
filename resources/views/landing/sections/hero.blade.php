@@ -1,6 +1,7 @@
 @php
     $wa = config('mikpay.whatsapp');
     $waUrl = 'https://wa.me/'.$wa['number'].'?text='.rawurlencode($wa['trial_message']);
+    $landing = $landing ?? [];
 @endphp
 
 <section class="pt-32 pb-20 relative overflow-hidden hero-glow-light bg-gradient-to-b from-indigo-50/60 via-slate-50 to-white">
@@ -8,26 +9,27 @@
         <div class="text-center max-w-3xl mx-auto space-y-6">
             <div class="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-indigo-100/80 border border-indigo-200 text-indigo-700 text-xs font-bold shadow-sm">
                 <span class="flex h-2 w-2 rounded-full bg-indigo-600 animate-ping"></span>
-                <span>Software All-in-One ISP & RTRW Net Terlengkap</span>
+                <span>{{ $landing['hero_badge'] ?? 'Software All-in-One ISP & RTRW Net Terlengkap' }}</span>
                 <i class="fa-solid fa-arrow-right text-[10px]"></i>
             </div>
 
             <h1 class="text-3xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight text-slate-900 leading-tight">
-                Kelola Bisnis WiFi, Remote OLT & Auto Isolir <span class="gradient-text">Tanpa Pusing.</span>
+                {{ $landing['hero_title'] ?? 'Kelola Bisnis WiFi, Remote OLT & Auto Isolir' }}
+                <span class="gradient-text">{{ $landing['hero_title_highlight'] ?? 'Tanpa Pusing.' }}</span>
             </h1>
 
             <p class="text-sm sm:text-base text-slate-600 leading-relaxed max-w-2xl mx-auto font-medium">
-                Aplikasi manajemen terpadu untuk pengusaha RTRW Net & ISP. Dilengkapi <strong class="text-slate-900">Auto Isolir WhatsApp</strong>, <strong class="text-slate-900">Peta ODP Interaktif</strong>, <strong class="text-slate-900">Cetak Voucher</strong>, dan <strong class="text-indigo-600">Bonus VPN Remote Tunneling Gratis</strong> tanpa perlu IP Public Statis.
+                {{ $landing['hero_subtitle'] ?? 'Aplikasi manajemen terpadu untuk pengusaha RTRW Net & ISP.' }}
             </p>
 
             <div class="flex flex-col sm:flex-row items-center justify-center gap-4 pt-2">
                 <a href="{{ route('register') }}" class="w-full sm:w-auto flex items-center justify-center gap-2 text-sm font-bold text-white gradient-bg px-8 py-4 rounded-xl transition shadow-xl shadow-indigo-600/25 hover:scale-105">
                     <i class="fa-solid fa-rocket text-lg"></i>
-                    <span>Mulai Coba Gratis 14 Hari</span>
+                    <span>{{ $landing['hero_cta_primary'] ?? ('Mulai Coba Gratis '.(int) config('mikpay.trial_days', 3).' Hari') }}</span>
                 </a>
                 <a href="#remote-vpn" class="w-full sm:w-auto flex items-center justify-center gap-2 text-sm font-bold text-slate-700 hover:text-slate-900 px-8 py-4 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 transition shadow-sm">
                     <i class="fa-solid fa-shield-halved text-indigo-600"></i>
-                    <span>Pelajari Remote VPN Gratis</span>
+                    <span>{{ $landing['hero_cta_secondary'] ?? 'Pelajari Remote VPN Gratis' }}</span>
                 </a>
             </div>
 

@@ -24,7 +24,7 @@ return [
         'number' => env('MIKPAY_WA_NUMBER', '6281234567890'),
         'trial_message' => env(
             'MIKPAY_WA_TRIAL_MESSAGE',
-            'Halo Admin MikPay, saya ingin coba gratis 14 hari'
+            'Halo Admin MikPay, saya ingin coba gratis 3 hari'
         ),
         'consult_message' => env(
             'MIKPAY_WA_CONSULT_MESSAGE',
@@ -33,6 +33,32 @@ return [
         // WaAPI — https://wa-api.id/docs
         'waapi_base_url' => env('WAAPI_BASE_URL', 'https://wa-api.id/api/v1'),
     ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Trial platform (hari) — dihitung pakai tanggal & jam WIB
+    |--------------------------------------------------------------------------
+    */
+    'trial_days' => max(1, (int) env('MIKPAY_TRIAL_DAYS', 3)),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Superadmin (email yang diizinkan saja)
+    |--------------------------------------------------------------------------
+    | Customer daftar → tenant_admin di subdomain-nya.
+    | Superadmin panel hanya untuk email di daftar ini.
+    */
+    'superadmin_emails' => array_values(array_filter(array_map(
+        static fn (string $email): string => strtolower(trim($email)),
+        explode(',', (string) env('MIKPAY_SUPERADMIN_EMAILS', 'me@andidev.id'))
+    ))),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Zona waktu bisnis (WIB)
+    |--------------------------------------------------------------------------
+    */
+    'timezone' => env('APP_TIMEZONE', 'Asia/Jakarta'),
 
     /*
     |--------------------------------------------------------------------------
@@ -149,6 +175,28 @@ return [
         'title' => 'MikPay - Software Manajemen ISP, RTRW Net, OLT & Remote VPN Tunnel',
         'description' => 'Aplikasi manajemen terpadu untuk pengusaha RTRW Net & ISP. Auto Isolir WhatsApp, Peta ODP, Cetak Voucher, dan Bonus VPN Remote Tunneling Gratis.',
     ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Platform SaaS subscription packages (limits; harga di PlatformSetting)
+    |--------------------------------------------------------------------------
+    */
+    'subscription_packages' => [
+        'starter' => [
+            'max_customers' => 100,
+            'max_routers' => 1,
+        ],
+        'pro' => [
+            'max_customers' => 500,
+            'max_routers' => 3,
+        ],
+        'enterprise' => [
+            'max_customers' => null,
+            'max_routers' => null,
+        ],
+    ],
+
+    'subscription_verification_whatsapp' => env('MIKPAY_SUBSCRIPTION_VERIFY_WHATSAPP'),
 
 ];
 

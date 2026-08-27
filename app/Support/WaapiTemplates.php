@@ -41,7 +41,7 @@ class WaapiTemplates
             ],
             'overdue' => [
                 'title' => 'Tunggakan / siap isolir',
-                'desc' => 'Otomatis setelah lewat jatuh tempo (masih menunggak, jam 08:00 WIB).',
+                'desc' => 'Otomatis sekali saat menunggak / siap isolir (bukan tiap hari). Dicek jam 08:00 WIB.',
                 'auto' => true,
                 'default' => "Yth. *{nama}*,\n\n"
                     ."Menurut catatan kami, tagihan WiFi periode *{periode}* dengan total *{nominal}* (jatuh tempo *{tanggal}*) masih belum kami terima.\n\n"

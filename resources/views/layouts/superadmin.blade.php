@@ -23,12 +23,17 @@
                 <a href="{{ route('superadmin.dashboard') }}" class="flex items-center gap-3 px-3 py-2.5 rounded-xl {{ request()->routeIs('superadmin.dashboard') ? 'bg-indigo-600 text-white' : 'hover:bg-slate-800 text-slate-300' }}">
                     <i class="fa-solid fa-gauge w-5 text-center"></i> Dashboard
                 </a>
+                <a href="{{ route('superadmin.payments') }}" class="flex items-center gap-3 px-3 py-2.5 rounded-xl {{ request()->routeIs('superadmin.payments*') ? 'bg-indigo-600 text-white' : 'hover:bg-slate-800 text-slate-300' }}">
+                    <i class="fa-solid fa-credit-card w-5 text-center"></i> Pembayaran
+                </a>
                 <a href="{{ route('superadmin.users') }}" class="flex items-center gap-3 px-3 py-2.5 rounded-xl {{ request()->routeIs('superadmin.users*') || request()->routeIs('superadmin.tenants*') ? 'bg-indigo-600 text-white' : 'hover:bg-slate-800 text-slate-300' }}">
                     <i class="fa-solid fa-users w-5 text-center"></i> Pengguna & Tenant
                 </a>
-                <a href="#" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-500 cursor-not-allowed" title="Segera hadir">
+                <a href="{{ route('superadmin.subscription-pricing') }}" class="flex items-center gap-3 px-3 py-2.5 rounded-xl {{ request()->routeIs('superadmin.subscription-pricing*') ? 'bg-indigo-600 text-white' : 'hover:bg-slate-800 text-slate-300' }}">
+                    <i class="fa-solid fa-tags w-5 text-center"></i> Paket Langganan
+                </a>
+                <a href="{{ route('superadmin.landing') }}" class="flex items-center gap-3 px-3 py-2.5 rounded-xl {{ request()->routeIs('superadmin.landing*') ? 'bg-indigo-600 text-white' : 'hover:bg-slate-800 text-slate-300' }}">
                     <i class="fa-solid fa-newspaper w-5 text-center"></i> Konten Landing
-                    <span class="ml-auto text-[9px] bg-slate-800 px-1.5 py-0.5 rounded font-bold">SOON</span>
                 </a>
                 <a href="{{ route('panel.dashboard') }}" class="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-slate-800 text-slate-300">
                     <i class="fa-solid fa-display w-5 text-center"></i> Buka Panel ISP
@@ -52,6 +57,25 @@
                 <a href="{{ route('home') }}" class="text-xs font-semibold text-slate-500 hover:text-indigo-600">Lihat Landing</a>
             </header>
             <div class="p-6">
+                @if (session('success'))
+                    <div class="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-800 text-xs font-semibold px-4 py-3">
+                        {{ session('success') }}
+                    </div>
+                @endif
+                @if (session('error'))
+                    <div class="mb-4 rounded-xl border border-rose-200 bg-rose-50 text-rose-800 text-xs font-semibold px-4 py-3">
+                        {{ session('error') }}
+                    </div>
+                @endif
+                @if ($errors->any())
+                    <div class="mb-4 rounded-xl border border-rose-200 bg-rose-50 text-rose-800 text-xs font-semibold px-4 py-3">
+                        <ul class="list-disc pl-4 space-y-1">
+                            @foreach ($errors->all() as $error)
+                                <li>{{ $error }}</li>
+                            @endforeach
+                        </ul>
+                    </div>
+                @endif
                 @yield('content')
             </div>
         </main>

@@ -134,7 +134,7 @@ class TunnelService
         $commentParts = $account->portMaps
             ->map(fn (TunnelPortMap $m) => $m->remote_port.'->'.$m->target_port)
             ->implode(',');
-        $comment = 'mikpay-tunnel '.$commentParts;
+        $ifaceComment = 'MikPay tunnel '.$commentParts;
 
         $common = ' connect-to='.$this->quote($host)
             .' port='.$port
@@ -149,7 +149,7 @@ class TunnelService
             .' use-peer-dns=no'
             .' add-default-route=no'
             .' name='.$this->quote($iface)
-            .' comment='.$this->quote($comment)
+            .' comment='.$this->quote($ifaceComment)
             .' disabled=no';
 
         $ovpn6 = '/interface ovpn-client add'.$common;
@@ -162,21 +162,30 @@ class TunnelService
         $oltPort = (int) ($olt?->target_port ?: 25);
         $routerPort = (int) ($router?->target_port ?: 19);
 
-        // Setup pertama kali — aman diulang (hapus sisa MikPay jika ada).
+        // Setup pertama kali — aman diulang (hapus rule MikPay lama dulu).
         $lines = [
-            '# MikPay — setup pertama kali (belum pernah dikonfig MikPay)',
-            '# 1) OpenVPN ke node MikPay',
+            '# ==========================================================',
+            '# MikPay — Script setup OpenVPN (salin-tempel ke Terminal MikroTik)',
+            '# Aman dijalankan ulang: rule MikPay lama diganti otomatis',
+            '# ==========================================================',
+            '',
+            '# --- MikPay 1) OpenVPN Client ---',
             ':do { /interface ovpn-client remove [find name='.$this->quote($iface).'] } on-error={}',
             '{OVPN}',
-            '# 2) Izinkan akses dari tunnel + aktifkan service remote',
-            ':do { /ip firewall filter remove [find comment='.$this->quote('allow MikPay tunnel').'] } on-error={}',
+            '',
+            '# --- MikPay 2) Firewall izinkan akses dari tunnel ---',
+            ':do { /ip firewall filter remove [find comment~'.$this->quote('MikPay').'] } on-error={}',
             '/ip firewall filter add chain=input action=accept in-interface='.$iface
-                .' place-before=0 comment='.$this->quote('allow MikPay tunnel'),
+                .' place-before=0 comment='.$this->quote('MikPay allow tunnel'),
+            '',
+            '# --- MikPay 3) Aktifkan service remote (Winbox / API / WWW) ---',
             '/ip service set winbox disabled=no address=0.0.0.0/0',
             '/ip service set api disabled=no address=0.0.0.0/0',
             '/ip service set www disabled=no address=0.0.0.0/0',
-            '# 3) NAT remote OLT & Router Client (GANTI to-addresses ke IP LAN perangkat)',
-            ':do { /ip firewall nat remove [find comment~'.$this->quote('MikPay REMOTE').'] } on-error={}',
+            '',
+            '# --- MikPay 4) NAT remote OLT & Router Client ---',
+            '# PENTING: ganti to-addresses ke IP LAN perangkat Anda',
+            ':do { /ip firewall nat remove [find comment~'.$this->quote('MikPay').'] } on-error={}',
             '/ip firewall nat add chain=dstnat dst-address='.$tunnelIp
                 .' protocol=tcp dst-port='.$oltPort
                 .' action=dst-nat to-addresses=192.168.1.2 to-ports=80'
@@ -185,6 +194,8 @@ class TunnelService
                 .' protocol=tcp dst-port='.$routerPort
                 .' action=dst-nat to-addresses=192.168.19.25 to-ports=80'
                 .' comment='.$this->quote('MikPay REMOTE ROUTER CLIENT — ganti to-addresses'),
+            '',
+            '# --- MikPay selesai ---',
             ':put '.$this->quote('MikPay OK. Cek: /interface ovpn-client print (harus R). Lalu ganti IP OLT/Router di NAT.'),
         ];
 

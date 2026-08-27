@@ -122,8 +122,10 @@ class WaapiBillingReminderService
         $name = $customer->customer_name;
         $dueDay = (int) $customer->due_day;
         $fee = (int) $customer->monthly_fee;
+        $period = now()->format('Y-m');
+        $periodFee = \App\Support\BillingFeeHelper::feeForPeriod((int) $router->id, $name, $period, $fee);
 
-        $status = BillingStatusHelper::getStatus($name, $dueDay, (int) $router->id, $fee);
+        $status = BillingStatusHelper::getStatus($name, $dueDay, (int) $router->id, $periodFee);
         $arrears = BillingArrearsHelper::getUnpaidPeriodsSummary(
             $name,
             $dueDay,
@@ -144,12 +146,29 @@ class WaapiBillingReminderService
         }
 
         foreach ($kinds as $kind) {
-            $exists = WaapiReminderDispatch::query()
-                ->where('router_id', $router->id)
-                ->where('customer_name', $name)
-                ->where('kind', $kind)
-                ->whereDate('dispatch_date', $today)
-                ->exists();
+            // H-3 / H-0: sekali per hari (sudah spesifik ke tanggal).
+            // Tunggakan/overdue: sekali per episode tunggakan (bukan tiap hari).
+            if ($kind === WaapiReminderDispatch::KIND_OVERDUE) {
+                $firstUnpaid = $arrears['unpaid_periods'][0] ?? now()->format('Y-m');
+                try {
+                    $episodeStart = \Carbon\Carbon::createFromFormat('Y-m', $firstUnpaid)->startOfMonth()->toDateString();
+                } catch (\Throwable) {
+                    $episodeStart = now()->startOfMonth()->toDateString();
+                }
+                $exists = WaapiReminderDispatch::query()
+                    ->where('router_id', $router->id)
+                    ->where('customer_name', $name)
+                    ->where('kind', $kind)
+                    ->whereDate('dispatch_date', '>=', $episodeStart)
+                    ->exists();
+            } else {
+                $exists = WaapiReminderDispatch::query()
+                    ->where('router_id', $router->id)
+                    ->where('customer_name', $name)
+                    ->where('kind', $kind)
+                    ->whereDate('dispatch_date', $today)
+                    ->exists();
+            }
 
             if ($exists) {
                 $skipped++;
@@ -174,10 +193,10 @@ class WaapiBillingReminderService
 
             $period = $status['current_period'] ?? now()->format('Y-m');
             $nominal = $kind === WaapiReminderDispatch::KIND_OVERDUE
-                ? (int) ($arrears['outstanding_total'] ?? $fee)
-                : $fee;
+                ? (int) ($arrears['outstanding_total'] ?? $periodFee)
+                : $periodFee;
             if ($nominal <= 0) {
-                $nominal = $fee;
+                $nominal = $periodFee > 0 ? $periodFee : $fee;
             }
 
             $message = strtr($tpl, [

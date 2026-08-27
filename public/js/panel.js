@@ -235,6 +235,52 @@ MikPay.confirmForm = function (event, message, options) {
 window.mikpayConfirm = MikPay.confirm;
 window.mikpayConfirmForm = MikPay.confirmForm;
 
+MikPay.initSidebar = function () {
+    const sidebar = document.getElementById('panelSidebar');
+    const backdrop = document.getElementById('panelSidebarBackdrop');
+    const openBtn = document.getElementById('panelSidebarOpen');
+    const closeBtn = document.getElementById('panelSidebarClose');
+    if (!sidebar) return;
+
+    const mq = window.matchMedia('(min-width: 1024px)');
+
+    const setOpen = (open) => {
+        if (mq.matches) {
+            sidebar.classList.remove('translate-x-0');
+            sidebar.classList.add('-translate-x-full');
+            backdrop?.classList.add('hidden');
+            openBtn?.setAttribute('aria-expanded', 'false');
+            return;
+        }
+
+        sidebar.classList.toggle('translate-x-0', open);
+        sidebar.classList.toggle('-translate-x-full', !open);
+        backdrop?.classList.toggle('hidden', !open);
+        openBtn?.setAttribute('aria-expanded', open ? 'true' : 'false');
+    };
+
+    openBtn?.addEventListener('click', () => setOpen(true));
+    closeBtn?.addEventListener('click', () => setOpen(false));
+    backdrop?.addEventListener('click', () => setOpen(false));
+
+    sidebar.querySelectorAll('a[href]').forEach((link) => {
+        link.addEventListener('click', () => {
+            if (!mq.matches) setOpen(false);
+        });
+    });
+
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') setOpen(false);
+    });
+
+    const onViewportChange = () => setOpen(false);
+    if (typeof mq.addEventListener === 'function') {
+        mq.addEventListener('change', onViewportChange);
+    } else if (typeof mq.addListener === 'function') {
+        mq.addListener(onViewportChange);
+    }
+};
+
 // Global aliases for inline onclick handlers from template
 window.toggleTheme = MikPay.toggleTheme;
 window.copyText = MikPay.copyText;
@@ -249,4 +295,7 @@ window.closeOltWebview = MikPay.closeOltWebview;
 window.sendWaBlast = MikPay.sendWaBlast;
 window.generateVouchers = MikPay.generateVouchers;
 
-document.addEventListener('DOMContentLoaded', MikPay.applySavedTheme);
+document.addEventListener('DOMContentLoaded', () => {
+    MikPay.applySavedTheme();
+    MikPay.initSidebar();
+});

@@ -16,6 +16,8 @@ return Application::configure(basePath: dirname(__DIR__))
             'tenant' => \App\Http\Middleware\IdentifyTenant::class,
             'superadmin' => \App\Http\Middleware\EnsureSuperAdmin::class,
             'active' => \App\Http\Middleware\EnsureUserIsActive::class,
+            'tenant.subscription' => \App\Http\Middleware\EnsureTenantSubscription::class,
+            'tenant.host' => \App\Http\Middleware\RedirectTenantToOwnHost::class,
         ]);
 
         $middleware->validateCsrfTokens(except: [

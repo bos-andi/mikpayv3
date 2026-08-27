@@ -29,10 +29,10 @@
 <div class="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
     <div>
         <h2 class="text-lg font-bold text-slate-900 dark:text-white">Billing & Tagihan</h2>
-        <p class="text-xs text-slate-500 dark:text-slate-400">
+        <p class="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
             Periode <span class="font-semibold text-slate-700 dark:text-slate-200">{{ \Carbon\Carbon::createFromFormat('Y-m', $period)->translatedFormat('F Y') }}</span>
-            · Router <span class="font-semibold text-indigo-600">{{ $router->displayName() }}</span>
-            · Tunggakan multi-bulan + auto isolir
+            <span class="hidden sm:inline"> · Router <span class="font-semibold text-indigo-600">{{ $router->displayName() }}</span></span>
+            <span class="block sm:inline"> · Tunggakan multi-bulan + auto isolir</span>
         </p>
     </div>
     <div class="flex flex-wrap items-center gap-2">
@@ -69,30 +69,30 @@
     </div>
 @endif
 
-<div class="grid grid-cols-2 lg:grid-cols-6 gap-3">
-    <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-sm">
+<div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5 sm:gap-3">
+    <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-3 sm:p-4 shadow-sm min-w-0">
         <p class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Total</p>
-        <p class="text-2xl font-extrabold text-slate-900 dark:text-white mt-1">{{ $stats['total'] }}</p>
+        <p class="text-xl sm:text-2xl font-extrabold text-slate-900 dark:text-white mt-1 tabular-nums">{{ $stats['total'] }}</p>
     </div>
-    <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-sm">
+    <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-3 sm:p-4 shadow-sm min-w-0">
         <p class="text-[10px] font-bold uppercase tracking-wider text-rose-500">Menunggak</p>
-        <p class="text-2xl font-extrabold text-rose-600 mt-1">{{ $stats['menunggak'] }}</p>
+        <p class="text-xl sm:text-2xl font-extrabold text-rose-600 mt-1 tabular-nums">{{ $stats['menunggak'] }}</p>
     </div>
-    <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-sm">
+    <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-3 sm:p-4 shadow-sm min-w-0">
         <p class="text-[10px] font-bold uppercase tracking-wider text-amber-500">Hari ini</p>
-        <p class="text-2xl font-extrabold text-amber-600 mt-1">{{ $stats['due_today'] }}</p>
+        <p class="text-xl sm:text-2xl font-extrabold text-amber-600 mt-1 tabular-nums">{{ $stats['due_today'] }}</p>
     </div>
-    <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-sm">
+    <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-3 sm:p-4 shadow-sm min-w-0">
         <p class="text-[10px] font-bold uppercase tracking-wider text-emerald-500">Lunas</p>
-        <p class="text-2xl font-extrabold text-emerald-600 mt-1">{{ $stats['paid'] }}</p>
+        <p class="text-xl sm:text-2xl font-extrabold text-emerald-600 mt-1 tabular-nums">{{ $stats['paid'] }}</p>
     </div>
-    <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-sm">
+    <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-3 sm:p-4 shadow-sm min-w-0 col-span-2 sm:col-span-1">
         <p class="text-[10px] font-bold uppercase tracking-wider text-rose-400">Outstanding</p>
-        <p class="text-sm font-extrabold text-rose-600 mt-1">Rp {{ number_format($stats['outstanding_total'], 0, ',', '.') }}</p>
+        <p class="text-sm sm:text-base font-extrabold text-rose-600 mt-1 tabular-nums leading-snug break-words">Rp {{ number_format($stats['outstanding_total'], 0, ',', '.') }}</p>
     </div>
-    <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-sm">
+    <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-3 sm:p-4 shadow-sm min-w-0 col-span-2 sm:col-span-1">
         <p class="text-[10px] font-bold uppercase tracking-wider text-indigo-500">Pemasukan periode</p>
-        <p class="text-sm font-extrabold text-indigo-600 mt-1">Rp {{ number_format($stats['period_income'], 0, ',', '.') }}</p>
+        <p class="text-sm sm:text-base font-extrabold text-indigo-600 mt-1 tabular-nums leading-snug break-words">Rp {{ number_format($stats['period_income'], 0, ',', '.') }}</p>
     </div>
 </div>
 
@@ -159,7 +159,15 @@
                                     {{ $r['package_label'] ?: '-' }}
                                 </span>
                                 <p class="font-mono text-[10px] mt-1">
-                                    @if ($r['monthly_fee'] > 0)
+                                    @if (!empty($r['has_period_discount']))
+                                        <span class="text-amber-700 dark:text-amber-400 font-bold" title="Harga akhir periode {{ $period }}">
+                                            Rp {{ number_format($r['period_fee'], 0, ',', '.') }}
+                                        </span>
+                                        @if (($r['monthly_fee'] ?? 0) > 0 && (int) $r['period_fee'] !== (int) $r['monthly_fee'])
+                                            <span class="block text-slate-400 line-through">Rp {{ number_format($r['monthly_fee'], 0, ',', '.') }}</span>
+                                        @endif
+                                        <span class="block text-[9px] font-bold text-amber-600 mt-0.5">DISKON BLN INI</span>
+                                    @elseif (($r['monthly_fee'] ?? 0) > 0)
                                         Rp {{ number_format($r['monthly_fee'], 0, ',', '.') }}
                                     @else
                                         —
@@ -249,6 +257,14 @@
                                             </button>
                                         @endif
                                     @endif
+                                    <button
+                                        type="button"
+                                        class="p-1.5 {{ !empty($r['has_period_discount']) ? 'bg-amber-500/20 text-amber-700' : 'bg-amber-500/10 text-amber-600' }} hover:bg-amber-500/20 rounded"
+                                        title="{{ !empty($r['has_period_discount']) ? 'Harga akhir bulan ini: Rp '.number_format($r['period_fee'], 0, ',', '.') : 'Set harga akhir untuk bulan tertentu' }}"
+                                        onclick="openPeriodFeeModal(@js($r))"
+                                    >
+                                        <i class="fa-solid fa-tags"></i>
+                                    </button>
                                     @if ($r['isolir'] || $r['disabled'])
                                         <form method="POST" action="{{ panel_route('billing.open') }}" onsubmit="return MikPay.confirmForm(event, 'Buka isolir {{ $r['name'] }}?', { title: 'Buka Isolir', confirmText: 'Ya, buka' })">
                                             @csrf
@@ -476,6 +492,50 @@
         </form>
     </div>
 </div>
+
+{{-- Modal Harga Akhir Periode --}}
+<div id="periodFeeModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/50 p-4">
+    <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl w-full max-w-md p-5 space-y-4">
+        <div class="flex items-center justify-between">
+            <h3 class="text-sm font-bold text-slate-900 dark:text-white">Harga Akhir Bulan Ini</h3>
+            <button type="button" onclick="closePeriodFeeModal()" class="text-slate-400 hover:text-slate-700"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <p class="text-[11px] text-slate-500 leading-relaxed">
+            Isi harga yang ditagihkan untuk <strong>satu periode saja</strong>. Bulan berikutnya otomatis kembali ke tarif normal pelanggan.
+        </p>
+        <form id="periodFeeForm" method="POST" action="{{ panel_route('billing.period-fees.store') }}" class="space-y-3" autocomplete="off">
+            @csrf
+            <input type="hidden" name="customer_name" id="period_fee_customer_name">
+            <div>
+                <p class="text-[11px] font-bold text-slate-500 mb-1">Pelanggan</p>
+                <p id="period_fee_customer_label" class="text-sm font-bold text-slate-900 dark:text-white"></p>
+                <p id="period_fee_normal" class="text-[10px] text-slate-400 mt-0.5"></p>
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="block text-[11px] font-bold text-slate-600 mb-1">Periode</label>
+                    <input type="month" name="period" id="period_fee_period" required class="w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 px-3 py-2 text-xs">
+                </div>
+                <div>
+                    <label class="block text-[11px] font-bold text-slate-600 mb-1">Harga akhir (Rp)</label>
+                    <input type="number" name="amount" id="period_fee_amount" required min="0" step="1000" class="w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 px-3 py-2 text-xs font-mono" placeholder="150000">
+                </div>
+            </div>
+            <p id="period_fee_hint" class="text-[10px] text-slate-500"></p>
+            <div class="flex flex-wrap gap-2 pt-1">
+                <button type="submit" class="flex-1 bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold py-2.5 rounded-xl">Simpan Harga</button>
+                <button type="button" id="period_fee_clear_btn" onclick="clearPeriodFee()" class="hidden px-3 py-2.5 rounded-xl border border-rose-200 text-rose-600 text-xs font-bold hover:bg-rose-50">Hapus diskon</button>
+                <button type="button" onclick="closePeriodFeeModal()" class="px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-600">Batal</button>
+            </div>
+        </form>
+        <form id="periodFeeClearForm" method="POST" action="{{ panel_route('billing.period-fees.destroy') }}" class="hidden">
+            @csrf
+            @method('DELETE')
+            <input type="hidden" name="customer_name" id="period_fee_clear_customer">
+            <input type="hidden" name="period" id="period_fee_clear_period">
+        </form>
+    </div>
+</div>
 @endsection
 
 @push('scripts')
@@ -591,8 +651,17 @@ function formatPeriodLabel(ym) {
     }
 }
 
+function periodFee(row, period) {
+    const map = row?.fee_by_period || {};
+    if (period && map[period] != null) return Math.max(0, Number(map[period]));
+    if (period && row?.has_period_discount && period === '{{ $period }}') {
+        return Math.max(0, Number(row?.period_fee ?? row?.monthly_fee ?? 0));
+    }
+    return Math.max(0, Number(row?.monthly_fee || 0));
+}
+
 function periodRemain(row, period) {
-    const fee = Number(row?.monthly_fee || 0);
+    const fee = periodFee(row, period);
     const map = row?.shortfall_by_period || {};
     if (period && map[period] != null) return Math.max(0, Number(map[period]));
     if (period && (row?.arrears_periods || []).includes(period)) return fee;
@@ -600,7 +669,7 @@ function periodRemain(row, period) {
     if (period && period === (row?.first_unpaid_period)) {
         return Math.max(0, Number(row?.remaining ?? fee));
     }
-    // Periode depan (belum terbit otomatis) → tarif penuh
+    // Periode depan (belum terbit otomatis) → tarif periode / normal
     return fee > 0 ? fee : 0;
 }
 
@@ -610,17 +679,18 @@ function getAdvanceMonths() {
 
 function refreshPaySummary() {
     const row = __payRow || {};
-    const fee = Number(row.monthly_fee || 0);
     const period = document.getElementById('pay_period')?.value || '';
+    const fee = periodFee(row, period);
     const advance = getAdvanceMonths();
     const periods = advancePeriodList(period, advance);
     const remainOne = periodRemain(row, period);
     const remainTotal = periods.reduce((s, p) => s + periodRemain(row, p), 0);
     const paid = fee > 0 ? Math.max(0, fee - remainOne) : 0;
     const set = (id, text) => { const el = document.getElementById(id); if (el) el.textContent = text; };
+    const feeTotal = periods.reduce((s, p) => s + periodFee(row, p), 0);
 
     if (advance > 1) {
-        set('pay_sum_fee', fee > 0 ? (formatRp(fee) + ' × ' + advance) : '—');
+        set('pay_sum_fee', feeTotal > 0 ? formatRp(feeTotal) : '—');
         set('pay_sum_paid', 'Di muka');
         set('pay_sum_remain', remainTotal > 0 ? formatRp(remainTotal) : '—');
     } else {
@@ -777,5 +847,73 @@ document.getElementById('promiseModal')?.addEventListener('click', function (e) 
 document.getElementById('promise_period')?.addEventListener('change', function () {
     document.getElementById('promise_clear_period').value = this.value;
 });
+
+let __periodFeeRow = null;
+
+function openPeriodFeeModal(row) {
+    __periodFeeRow = row;
+    document.getElementById('period_fee_customer_name').value = row.name;
+    document.getElementById('period_fee_customer_label').textContent = (row.display_name || row.name) + ' (' + row.name + ')';
+    const normal = Number(row.monthly_fee || 0);
+    document.getElementById('period_fee_normal').textContent = normal > 0
+        ? ('Tarif normal: ' + formatRp(normal))
+        : 'Tarif normal belum diisi di data pelanggan.';
+    const period = '{{ $period }}';
+    document.getElementById('period_fee_period').value = period;
+    const override = row.fee_by_period && row.fee_by_period[period] != null
+        ? Number(row.fee_by_period[period])
+        : (row.has_period_discount ? Number(row.period_fee) : '');
+    document.getElementById('period_fee_amount').value = override !== '' ? override : (normal || '');
+    document.getElementById('period_fee_clear_customer').value = row.name;
+    document.getElementById('period_fee_clear_period').value = period;
+    const hasOverride = !!(row.fee_by_period && row.fee_by_period[period] != null) || !!row.has_period_discount;
+    document.getElementById('period_fee_clear_btn')?.classList.toggle('hidden', !hasOverride);
+    const hint = document.getElementById('period_fee_hint');
+    if (hint) {
+        hint.textContent = hasOverride
+            ? 'Diskon aktif untuk periode ini. Hapus untuk kembali ke tarif normal.'
+            : 'Contoh: tarif 170.000 → isi 150.000. Hanya berlaku di bulan yang dipilih.';
+    }
+    syncPeriodFeeUi();
+    const modal = document.getElementById('periodFeeModal');
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+}
+
+function syncPeriodFeeUi() {
+    const row = __periodFeeRow || {};
+    const period = document.getElementById('period_fee_period')?.value || '';
+    const map = row.fee_by_period || {};
+    const hasOverride = period && map[period] != null;
+    document.getElementById('period_fee_clear_btn')?.classList.toggle('hidden', !hasOverride);
+    document.getElementById('period_fee_clear_period').value = period;
+    if (hasOverride) {
+        document.getElementById('period_fee_amount').value = Number(map[period]);
+    }
+}
+
+function closePeriodFeeModal() {
+    const modal = document.getElementById('periodFeeModal');
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
+    __periodFeeRow = null;
+}
+
+async function clearPeriodFee() {
+    const ok = await MikPay.confirm({
+        title: 'Hapus Diskon Periode',
+        message: 'Hapus harga khusus periode ini? Tagihan kembali ke tarif normal.',
+        variant: 'danger',
+        confirmText: 'Ya, hapus',
+    });
+    if (!ok) return;
+    document.getElementById('period_fee_clear_period').value = document.getElementById('period_fee_period').value;
+    document.getElementById('periodFeeClearForm').submit();
+}
+
+document.getElementById('periodFeeModal')?.addEventListener('click', function (e) {
+    if (e.target === this) closePeriodFeeModal();
+});
+document.getElementById('period_fee_period')?.addEventListener('change', syncPeriodFeeUi);
 </script>
 @endpush

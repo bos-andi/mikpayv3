@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Facades\Crypt;
@@ -39,6 +40,61 @@ class Tenant extends Model
     public function tunnelAccounts(): HasMany
     {
         return $this->hasMany(TunnelAccount::class);
+    }
+
+    public function platformPayments(): HasMany
+    {
+        return $this->hasMany(PlatformPendingPayment::class);
+    }
+
+    public function subscriptionEndsAt(): ?Carbon
+    {
+        $raw = $this->metaGet('subscription_ends_at') ?: $this->metaGet('trial_ends_at');
+        if (! is_string($raw) || trim($raw) === '') {
+            return null;
+        }
+
+        try {
+            // Selalu hitung & bandingkan dalam WIB (Asia/Jakarta).
+            return Carbon::parse($raw)->timezone(app_timezone());
+        } catch (\Throwable) {
+            return null;
+        }
+    }
+
+    public function subscriptionIsActive(): bool
+    {
+        if ($this->status === 'suspended' || $this->status === 'inactive') {
+            return false;
+        }
+
+        $end = $this->subscriptionEndsAt();
+        if ($end === null) {
+            // Legacy tanpa tanggal berakhir — tetap diizinkan.
+            return $this->status === 'active' || $this->status === 'trial';
+        }
+
+        // Habis tepat pada tanggal & jam WIB (bukan sampai akhir hari kalender).
+        return $end->greaterThan(wib_now());
+    }
+
+    /**
+     * Perpanjang masa aktif langganan platform (dari approve pembayaran).
+     */
+    public function extendPlatformSubscription(string $package, int $durationDays): void
+    {
+        $now = wib_now();
+        $currentEnd = $this->subscriptionEndsAt();
+        $base = ($currentEnd && $currentEnd->greaterThan($now)) ? $currentEnd : $now;
+        $newEnd = $base->copy()->timezone(app_timezone())->addDays(max(1, $durationDays));
+
+        $this->plan = $package;
+        $this->status = 'active';
+        $this->metaSet('subscription_package', $package);
+        $this->metaSet('subscription_status', 'active');
+        $this->metaSet('subscription_starts_at', $now->toIso8601String());
+        $this->metaSet('subscription_ends_at', $newEnd->toIso8601String());
+        $this->save();
     }
 
     public function panelHost(): string

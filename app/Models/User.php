@@ -39,11 +39,31 @@ class User extends Authenticatable
 
     public function isSuperAdmin(): bool
     {
-        return $this->role === self::ROLE_SUPERADMIN;
+        if ($this->role !== self::ROLE_SUPERADMIN) {
+            return false;
+        }
+
+        // Hanya email yang di-allowlist yang boleh akses superadmin.
+        $allowed = config('mikpay.superadmin_emails', ['me@andidev.id']);
+        if (! is_array($allowed) || $allowed === []) {
+            $allowed = ['me@andidev.id'];
+        }
+
+        return in_array(strtolower(trim((string) $this->email)), $allowed, true);
     }
 
     public function isTenantAdmin(): bool
     {
         return $this->role === self::ROLE_TENANT_ADMIN;
+    }
+
+    public static function isAllowedSuperAdminEmail(string $email): bool
+    {
+        $allowed = config('mikpay.superadmin_emails', ['me@andidev.id']);
+        if (! is_array($allowed) || $allowed === []) {
+            $allowed = ['me@andidev.id'];
+        }
+
+        return in_array(strtolower(trim($email)), $allowed, true);
     }
 }

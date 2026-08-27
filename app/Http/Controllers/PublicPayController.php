@@ -325,9 +325,29 @@ class PublicPayController extends Controller
         ]);
     }
 
-    public function status(string $token): JsonResponse
+    public function status(string $token, XenditService $xendit, PaymentLinkService $links): JsonResponse
     {
         $link = $this->findLink($token);
+        $checkout = is_array($link->payment_checkout) ? $link->payment_checkout : [];
+
+        // Fallback: jika webhook Xendit belum masuk, cek status VA langsung ke API.
+        if ($link->status === 'pending' && ($checkout['method'] ?? '') === 'va') {
+            $xenditId = (string) ($checkout['xendit_id'] ?? $link->xendit_invoice_id ?? '');
+            $tenant = $link->tenant;
+            if ($tenant && $xenditId !== '') {
+                $va = $xendit->fetchVirtualAccount($tenant, $xenditId);
+                if ($xendit->virtualAccountLooksPaid($va)) {
+                    $payload = is_array($va['raw'] ?? null) ? $va['raw'] : [];
+                    $payload['external_id'] = $payload['external_id'] ?? $link->xendit_external_id;
+                    $payload['amount'] = $payload['expected_amount'] ?? $payload['amount'] ?? $link->amount;
+                    $payload['paid_amount'] = $payload['amount'];
+                    $payload['id'] = $payload['id'] ?? $xenditId;
+                    $links->markPaidFromXendit($link, $payload);
+                    $link->refresh();
+                }
+            }
+        }
+
         $checkout = is_array($link->payment_checkout) ? $link->payment_checkout : [];
         $expiredCheckout = false;
         if (! empty($checkout['expires_at'])) {

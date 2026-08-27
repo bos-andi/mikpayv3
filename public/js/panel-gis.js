@@ -12,7 +12,7 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     const state = {
-        mode: 'view', // view | add-odp | add-odc | add-olt | place-port
+        mode: 'view', // view | add-odp | add-odc | add-olt | place-port | move-node
         nodes: [],
         customers: [],
         selectedId: null,
@@ -20,21 +20,100 @@ document.addEventListener('DOMContentLoaded', () => {
         placePort: null,
         layer: null,
         gpsLayer: null,
+        placeLayer: null,
+        placeMarker: null,
+        placeLatLng: null,
+        basemap: 'street',
         locatedOnce: false,
     };
 
-    const map = L.map('gisMap', { zoomControl: true }).setView([-2.5, 118], 5);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        maxZoom: 19,
-        attribution: '&copy; OpenStreetMap',
-    }).addTo(map);
+    const map = L.map('gisMap', {
+        zoomControl: true,
+        maxZoom: 22,
+        worldCopyJump: true,
+        preferCanvas: false,
+        // Kurangi offset klik di perangkat touch
+        tapTolerance: 15,
+        bounceAtZoomLimits: false,
+    }).setView([-2.5, 118], 5);
+
+    // tile.openstreetmap.org sering memblokir (header x-blocked) → peta putih.
+    // Pakai Carto Voyager (data OSM) + cadangan Esri Street.
+    const streetLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+        subdomains: 'abcd',
+        maxZoom: 22,
+        maxNativeZoom: 20,
+        detectRetina: true,
+        updateWhenIdle: true,
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/">CARTO</a>',
+    });
+    const streetFallbackLayer = L.tileLayer(
+        'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',
+        {
+            maxZoom: 20,
+            maxNativeZoom: 19,
+            updateWhenIdle: true,
+            attribution: 'Tiles &copy; Esri',
+        }
+    );
+    const satelliteLayer = L.tileLayer(
+        'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+        {
+            maxZoom: 18,
+            maxNativeZoom: 17,
+            detectRetina: false,
+            updateWhenIdle: true,
+            errorTileUrl: 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7',
+            attribution: 'Tiles &copy; Esri',
+        }
+    );
+    let satelliteTileErrors = 0;
+    let streetTileErrors = 0;
+    satelliteLayer.on('tileerror', () => {
+        satelliteTileErrors += 1;
+        if (state.basemap === 'satellite' && satelliteTileErrors >= 6) {
+            satelliteTileErrors = 0;
+            setBasemap('street');
+            toast('Citra satelit tidak tersedia di area/zoom ini — kembali ke peta jalan.');
+        }
+    });
+    satelliteLayer.on('load', () => {
+        satelliteTileErrors = 0;
+    });
+    streetLayer.on('tileerror', () => {
+        streetTileErrors += 1;
+        if (state.basemap === 'street' && streetTileErrors >= 4) {
+            streetTileErrors = 0;
+            if (map.hasLayer(streetLayer)) map.removeLayer(streetLayer);
+            if (!map.hasLayer(streetFallbackLayer)) streetFallbackLayer.addTo(map);
+            toast('Cadangan peta jalan (Esri) diaktifkan.');
+        }
+    });
+    streetLayer.on('load', () => {
+        streetTileErrors = 0;
+    });
+    streetLayer.addTo(map);
     state.layer = L.layerGroup().addTo(map);
     state.gpsLayer = L.layerGroup().addTo(map);
+    state.placeLayer = L.layerGroup().addTo(map);
+
+    const placePinIcon = L.divIcon({
+        className: 'gis-place-pin',
+        html: '<div style="width:22px;height:22px;border-radius:9999px;background:#4f46e5;border:3px solid #fff;box-shadow:0 2px 10px rgba(15,23,42,.45);transform:translate(-50%,-50%);"></div>',
+        iconSize: [0, 0],
+        iconAnchor: [0, 0],
+    });
 
     const els = {
         banner: document.getElementById('gisModeBanner'),
+        bannerText: document.getElementById('gisModeBannerText'),
+        placeCoords: document.getElementById('gisPlaceCoords'),
+        btnConfirmPlace: document.getElementById('gisBtnConfirmPlace'),
+        cursorHud: document.getElementById('gisCursorHud'),
         stats: document.getElementById('gisStatsChip'),
         btnLocate: document.getElementById('gisBtnLocate'),
+        btnBasemap: document.getElementById('gisBtnBasemap'),
+        btnZoomPlace: document.getElementById('gisBtnZoomPlace'),
         btnAddOdp: document.getElementById('gisBtnAddOdp'),
         btnAddOdc: document.getElementById('gisBtnAddOdc'),
         btnAddOlt: document.getElementById('gisBtnAddOlt'),
@@ -52,6 +131,7 @@ document.addEventListener('DOMContentLoaded', () => {
         portsWrap: document.getElementById('gisPortsWrap'),
         portsTitle: document.getElementById('gisPortsTitle'),
         portsGrid: document.getElementById('gisPortsGrid'),
+        btnMove: document.getElementById('gisBtnMoveNode'),
         btnEdit: document.getElementById('gisBtnEditNode'),
         btnDelete: document.getElementById('gisBtnDeleteNode'),
         nodeModal: document.getElementById('gisNodeModal'),
@@ -81,6 +161,105 @@ document.addEventListener('DOMContentLoaded', () => {
         btnPickPortLoc: document.getElementById('gisBtnPickPortLoc'),
         btnClearPort: document.getElementById('gisBtnClearPort'),
     };
+
+    function refreshMapSize() {
+        map.invalidateSize({ pan: false });
+    }
+
+    function fmtCoord(lat, lng) {
+        return `${Number(lat).toFixed(7)}, ${Number(lng).toFixed(7)}`;
+    }
+
+    function normalizeLatLng(latlng) {
+        const wrapped = map.wrapLatLng(latlng);
+        return L.latLng(
+            Math.max(-90, Math.min(90, wrapped.lat)),
+            wrapped.lng
+        );
+    }
+
+    function clearPlacePin() {
+        state.placeLayer.clearLayers();
+        state.placeMarker = null;
+        state.placeLatLng = null;
+        if (els.placeCoords) els.placeCoords.textContent = '—';
+        els.btnConfirmPlace?.classList.add('hidden');
+    }
+
+    function updatePlaceCoordUi(latlng) {
+        if (!latlng) return;
+        const text = fmtCoord(latlng.lat, latlng.lng);
+        if (els.placeCoords) els.placeCoords.textContent = text;
+        els.btnConfirmPlace?.classList.remove('hidden');
+    }
+
+    function setPlacePin(latlng, opts = {}) {
+        const ll = normalizeLatLng(latlng);
+        state.placeLatLng = ll;
+        if (!state.placeMarker) {
+            state.placeMarker = L.marker(ll, {
+                draggable: true,
+                autoPan: true,
+                autoPanPadding: [48, 48],
+                icon: placePinIcon,
+                zIndexOffset: 1000,
+            }).addTo(state.placeLayer);
+            state.placeMarker.on('drag', (ev) => {
+                state.placeLatLng = normalizeLatLng(ev.latlng);
+                updatePlaceCoordUi(state.placeLatLng);
+            });
+            state.placeMarker.on('dragend', (ev) => {
+                state.placeLatLng = normalizeLatLng(ev.target.getLatLng());
+                updatePlaceCoordUi(state.placeLatLng);
+                // Snap visual ke latlng yang sudah di-normalize
+                state.placeMarker.setLatLng(state.placeLatLng);
+            });
+        } else {
+            state.placeMarker.setLatLng(ll);
+        }
+        updatePlaceCoordUi(ll);
+        const target = placeZoomTarget();
+        if (opts.zoomIn && map.getZoom() < target) {
+            map.setView(ll, target, { animate: true });
+        }
+    }
+
+    function ensurePlaceZoom() {
+        const target = placeZoomTarget();
+        const z = map.getZoom();
+        if (z < target) {
+            map.setZoom(target, { animate: true });
+        } else if (state.basemap !== 'satellite' && z < 21) {
+            map.setZoom(Math.min(21, z + 1), { animate: true });
+        }
+        setTimeout(refreshMapSize, 120);
+    }
+
+    function setBasemap(kind) {
+        state.basemap = kind === 'satellite' ? 'satellite' : 'street';
+        satelliteTileErrors = 0;
+        streetTileErrors = 0;
+        if (state.basemap === 'satellite') {
+            if (map.hasLayer(streetFallbackLayer)) map.removeLayer(streetFallbackLayer);
+            if (!map.hasLayer(streetLayer)) streetLayer.addTo(map);
+            if (!map.hasLayer(satelliteLayer)) satelliteLayer.addTo(map);
+            if (map.getZoom() > 18) {
+                map.setZoom(18, { animate: false });
+            }
+        } else {
+            if (map.hasLayer(satelliteLayer)) map.removeLayer(satelliteLayer);
+            if (map.hasLayer(streetFallbackLayer)) map.removeLayer(streetFallbackLayer);
+            if (!map.hasLayer(streetLayer)) streetLayer.addTo(map);
+        }
+        state.layer.bringToFront?.();
+        state.gpsLayer.bringToFront?.();
+        state.placeLayer.bringToFront?.();
+    }
+
+    function placeZoomTarget() {
+        // Satelit Esri maksimal efektif ~17–18; OSM boleh lebih dekat.
+        return state.basemap === 'satellite' ? 18 : 19;
+    }
 
     function toast(msg) {
         if (typeof showToast === 'function') showToast(msg);
@@ -126,13 +305,81 @@ document.addEventListener('DOMContentLoaded', () => {
         const placing = mode !== 'view';
         els.btnCancel.classList.toggle('hidden', !placing);
         els.banner.classList.toggle('hidden', !placing);
-        if (placing && message) els.banner.textContent = message;
+        if (placing && message) {
+            if (els.bannerText) els.bannerText.textContent = message;
+            else els.banner.textContent = message;
+        }
         mapEl.style.cursor = placing ? 'crosshair' : '';
+        els.cursorHud?.classList.toggle('hidden', !placing);
+        if (!placing) {
+            clearPlacePin();
+        } else {
+            refreshMapSize();
+            const target = placeZoomTarget();
+            if (map.getZoom() < target) {
+                map.setZoom(target, { animate: true });
+            } else if (state.basemap === 'satellite' && map.getZoom() > 18) {
+                map.setZoom(18, { animate: false });
+            }
+        }
     }
 
     function cancelMode() {
         state.placePort = null;
+        clearPlacePin();
         setMode('view');
+    }
+
+    function confirmPlacePin() {
+        if (!state.placeLatLng) {
+            toast('Klik peta dulu untuk menaruh pin, lalu geser jika perlu.');
+            return;
+        }
+        const lat = Number(state.placeLatLng.lat.toFixed(7));
+        const lng = Number(state.placeLatLng.lng.toFixed(7));
+
+        if (state.mode === 'place-port' && state.placePort) {
+            els.portLat.value = lat.toFixed(7);
+            els.portLng.value = lng.toFixed(7);
+            clearPlacePin();
+            setMode('view');
+            els.portModal.classList.remove('hidden');
+            els.portModal.classList.add('flex');
+            toast('Koordinat port diambil dari pin peta.');
+            return;
+        }
+
+        if (state.mode === 'move-node') {
+            const node = selectedNode();
+            if (!node) {
+                cancelMode();
+                return;
+            }
+            // Simpan langsung koordinat baru
+            (async () => {
+                const { data } = await api(node.update_url, {
+                    method: 'PUT',
+                    body: { latitude: lat, longitude: lng },
+                });
+                if (!data.ok) {
+                    toast(data.message || 'Gagal memindahkan titik.');
+                    return;
+                }
+                toast(data.message || 'Titik dipindahkan.');
+                clearPlacePin();
+                cancelMode();
+                await loadData(node.id);
+            })();
+            return;
+        }
+
+        if (state.mode === 'add-odp' || state.mode === 'add-odc' || state.mode === 'add-olt') {
+            openNodeModal({
+                type: state.mode.replace('add-', ''),
+                lat,
+                lng,
+            });
+        }
     }
 
     function selectedNode() {
@@ -213,8 +460,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
             marker.bindPopup(popup);
             marker.on('click', (e) => {
+                // Saat mode penempatan: taruh pin di titik yang diklik (jangan blok map click)
+                if (state.mode !== 'view') {
+                    L.DomEvent.stopPropagation(e);
+                    setPlacePin(e.latlng);
+                    return;
+                }
                 L.DomEvent.stopPropagation(e);
-                if (state.mode !== 'view') return;
                 selectNode(node.id);
             });
             marker.addTo(state.layer);
@@ -236,8 +488,12 @@ document.addEventListener('DOMContentLoaded', () => {
                         : port.customer_name;
                     cm.bindPopup(`<b>${escapeHtml(label)}</b><br>Port ${port.port_number} · ${port.state}`);
                     cm.on('click', (e) => {
+                        if (state.mode !== 'view') {
+                            L.DomEvent.stopPropagation(e);
+                            setPlacePin(e.latlng);
+                            return;
+                        }
                         L.DomEvent.stopPropagation(e);
-                        if (state.mode !== 'view') return;
                         selectNode(node.id);
                     });
                     cm.addTo(state.layer);
@@ -255,10 +511,11 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         if (fit && bounds.length === 1) {
-            map.setView(bounds[0], 16);
+            map.setView(bounds[0], 18);
         } else if (fit && bounds.length > 1) {
-            map.fitBounds(bounds, { padding: [40, 40], maxZoom: 17 });
+            map.fitBounds(bounds, { padding: [40, 40], maxZoom: 18 });
         }
+        setTimeout(refreshMapSize, 80);
     }
 
     function selectNode(id) {
@@ -439,9 +696,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     const lat = pos.coords.latitude;
                     const lng = pos.coords.longitude;
                     showGpsPosition(lat, lng, pos.coords.accuracy);
-                    if (fly) map.setView([lat, lng], Math.max(map.getZoom(), 16));
+                    if (fly) map.setView([lat, lng], Math.max(map.getZoom(), placeZoomTarget()));
                     state.locatedOnce = true;
                     if (!silent) toast(`GPS aktif (±${Math.round(pos.coords.accuracy)} m)`);
+                    // Jika sedang menaruh titik, tawarkan pin di lokasi GPS
+                    if (state.mode !== 'view') {
+                        setPlacePin({ lat, lng });
+                    }
                     resolve({ lat, lng, accuracy: pos.coords.accuracy });
                 },
                 (err) => {
@@ -456,7 +717,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                     resolve(null);
                 },
-                { enableHighAccuracy: true, timeout: 12000, maximumAge: 30000 }
+                { enableHighAccuracy: true, timeout: 15000, maximumAge: 5000 }
             );
         });
     }
@@ -501,9 +762,9 @@ document.addEventListener('DOMContentLoaded', () => {
         };
         els.nodeTitle.textContent = titles[type] || 'Tambah';
         els.nodeType.value = type;
-        els.nodeLat.value = opts.lat;
-        els.nodeLng.value = opts.lng;
-        els.nodeCoordHint.textContent = `Lat/Lng: ${Number(opts.lat).toFixed(6)}, ${Number(opts.lng).toFixed(6)}`;
+        els.nodeLat.value = Number(opts.lat).toFixed(7);
+        els.nodeLng.value = Number(opts.lng).toFixed(7);
+        els.nodeCoordHint.textContent = `Lat/Lng: ${fmtCoord(opts.lat, opts.lng)}`;
         els.nodeCode.value = isEdit ? opts.node.code : '';
         els.nodeName.value = isEdit ? (opts.node.name || '') : '';
         els.nodePon.value = isEdit ? (opts.node.pon_label || '') : '';
@@ -553,33 +814,48 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Events
     els.btnLocate?.addEventListener('click', () => locateMe({ silent: false }));
+    els.btnBasemap?.addEventListener('click', () => {
+        setBasemap(state.basemap === 'street' ? 'satellite' : 'street');
+        toast(
+            state.basemap === 'satellite'
+                ? 'Basemap satelit (zoom maks. 18).'
+                : 'Basemap jalan (Carto/OSM).'
+        );
+    });
+    els.btnZoomPlace?.addEventListener('click', () => ensurePlaceZoom());
+    els.btnConfirmPlace?.addEventListener('click', confirmPlacePin);
     els.btnAddOlt?.addEventListener('click', () => {
-        setMode('add-olt', 'Mode Tambah OLT — klik lokasi di peta.');
+        clearPlacePin();
+        setMode('add-olt', 'Tambah OLT — klik peta, geser pin biru, lalu “Gunakan titik ini”.');
     });
     els.btnAddOdc?.addEventListener('click', () => {
-        setMode('add-odc', 'Mode Tambah ODC — klik lokasi di peta, lalu pilih parent OLT & rasio.');
+        clearPlacePin();
+        setMode('add-odc', 'Tambah ODC — klik peta, geser pin biru, lalu “Gunakan titik ini”.');
     });
     els.btnAddOdp?.addEventListener('click', () => {
-        setMode('add-odp', 'Mode Tambah ODP — klik lokasi di peta, lalu pilih parent & rasio splitter.');
+        clearPlacePin();
+        setMode('add-odp', 'Tambah ODP — klik peta, geser pin biru, lalu “Gunakan titik ini”.');
     });
     els.btnCancel?.addEventListener('click', cancelMode);
 
     map.on('click', (e) => {
-        if (state.mode === 'add-odp' || state.mode === 'add-odc' || state.mode === 'add-olt') {
-            openNodeModal({
-                type: state.mode.replace('add-', ''),
-                lat: e.latlng.lat,
-                lng: e.latlng.lng,
-            });
-            return;
-        }
-        if (state.mode === 'place-port' && state.placePort) {
-            els.portLat.value = e.latlng.lat.toFixed(7);
-            els.portLng.value = e.latlng.lng.toFixed(7);
-            setMode('view');
-            els.portModal.classList.remove('hidden');
-            els.portModal.classList.add('flex');
-            toast('Koordinat port diambil dari peta.');
+        if (state.mode === 'view') return;
+        // Container size kadang meleset — refresh sebelum hitung latlng
+        refreshMapSize();
+        const ll = normalizeLatLng(e.latlng);
+        setPlacePin(ll);
+    });
+
+    map.on('mousemove', (e) => {
+        if (state.mode === 'view' || !els.cursorHud) return;
+        const ll = normalizeLatLng(e.latlng);
+        els.cursorHud.textContent = `${fmtCoord(ll.lat, ll.lng)} · z${map.getZoom()}`;
+    });
+
+    map.on('zoomend moveend', () => {
+        if (state.placeMarker && state.placeLatLng) {
+            // Pastikan pin tetap di koordinat tersimpan (bukan offset visual)
+            state.placeMarker.setLatLng(state.placeLatLng);
         }
     });
 
@@ -685,7 +961,20 @@ document.addEventListener('DOMContentLoaded', () => {
 
     els.btnPickPortLoc?.addEventListener('click', () => {
         closePortModal();
-        setMode('place-port', `Klik lokasi rumah pelanggan untuk Port ${els.portNumber.value}.`);
+        clearPlacePin();
+        setMode('place-port', `Port ${els.portNumber.value} — klik peta, geser pin, lalu “Gunakan titik ini”.`);
+        if (els.portLat.value && els.portLng.value) {
+            setPlacePin({ lat: Number(els.portLat.value), lng: Number(els.portLng.value) });
+        }
+    });
+
+    els.btnMove?.addEventListener('click', () => {
+        const node = selectedNode();
+        if (!node) return;
+        clearPlacePin();
+        setMode('move-node', `Pindahkan ${node.type_label || node.type} “${node.code}” — geser pin, lalu “Gunakan titik ini”.`);
+        setPlacePin({ lat: node.latitude, lng: node.longitude }, { zoomIn: true });
+        map.setView([node.latitude, node.longitude], Math.max(map.getZoom(), placeZoomTarget()));
     });
 
     els.btnEdit?.addEventListener('click', () => {
@@ -723,6 +1012,18 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    loadData(null, true).then(() => setTimeout(() => map.invalidateSize(), 200));
-    window.addEventListener('resize', () => map.invalidateSize());
+    loadData(null, true).then(() => {
+        refreshMapSize();
+        setTimeout(refreshMapSize, 200);
+        setTimeout(refreshMapSize, 600);
+    });
+    window.addEventListener('resize', refreshMapSize);
+    if (typeof ResizeObserver !== 'undefined') {
+        const ro = new ResizeObserver(() => refreshMapSize());
+        ro.observe(mapEl);
+        const wrap = mapEl.parentElement;
+        if (wrap) ro.observe(wrap);
+    }
+    // Sidebar / layout shift setelah font & panel siap
+    document.fonts?.ready?.then(() => setTimeout(refreshMapSize, 50));
 });

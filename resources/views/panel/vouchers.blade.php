@@ -4,53 +4,73 @@
 @section('page', 'vouchers')
 
 @section('content')
-<div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                    <div>
-                        <h2 class="text-lg font-bold text-slate-900 dark:text-white">Hotspot & Voucher Generator</h2>
-                        <p class="text-xs text-slate-500 dark:text-slate-400">Generate kode voucher massal untuk jualan internet koin / harian.</p>
-                    </div>
-                </div>
+@php
+    $voucherUrl = function (string $section, array $extra = []) use ($filters) {
+        $params = array_merge([
+            'section' => $section,
+            'profile' => $filters['profile'] ?? 'all',
+            'comment' => $filters['comment'] ?? '',
+            'exp' => ! empty($filters['exp']) ? 1 : null,
+        ], $extra);
+        $params = array_filter($params, fn ($v) => $v !== null && $v !== '');
 
-                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                    <!-- Form Generator -->
-                    <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 space-y-4">
-                        <h3 class="font-bold text-sm text-slate-900 dark:text-slate-100">Buat Voucher Baru</h3>
-                        <div class="space-y-3 text-xs">
-                            <div>
-                                <label class="block text-slate-500 dark:text-slate-400 mb-1">Pilih Paket Profile</label>
-                                <select id="vProfile" class="w-full bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-2 text-slate-800 dark:text-slate-200">
-                                    <option value="5000">1 Hari / Rp 5.000 (Speed 5 Mbps)</option>
-                                    <option value="10000">3 Hari / Rp 10.000 (Speed 5 Mbps)</option>
-                                    <option value="50000">30 Hari / Rp 50.000 (Speed 10 Mbps)</option>
-                                </select>
-                            </div>
-                            <div>
-                                <label class="block text-slate-500 dark:text-slate-400 mb-1">Jumlah Voucher</label>
-                                <input type="number" id="vQty" value="6" class="w-full bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-2 text-slate-800 dark:text-slate-200">
-                            </div>
-                            <button onclick="generateVouchers()" class="w-full bg-indigo-600 hover:bg-indigo-500 text-slate-900 dark:text-white font-bold py-2.5 rounded-xl transition">
-                                <i class="fa-solid fa-bolt mr-1"></i> Generate Voucher Massal
-                            </button>
-                        </div>
-                    </div>
+        return panel_route('vouchers').'?'.http_build_query($params);
+    };
+    $sections = [
+        'users' => ['label' => 'Voucher / User', 'icon' => 'fa-users'],
+        'generate' => ['label' => 'Generate', 'icon' => 'fa-bolt'],
+        'profiles' => ['label' => 'Profile', 'icon' => 'fa-layer-group'],
+        'active' => ['label' => 'Aktif', 'icon' => 'fa-signal'],
+        'report' => ['label' => 'Laporan', 'icon' => 'fa-chart-column'],
+        'template' => ['label' => 'Template', 'icon' => 'fa-pen-to-square'],
+    ];
+@endphp
 
-                    <!-- Voucher Card Preview Area (2 Cols) -->
-                    <div class="lg:col-span-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 space-y-4">
-                        <div class="flex items-center justify-between">
-                            <h3 class="font-bold text-sm text-slate-900 dark:text-slate-100">Preview Layout Cetak Voucher</h3>
-                            <button onclick="window.print()" class="bg-slate-100 dark:bg-slate-800 hover:bg-slate-700 text-xs px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200">
-                                <i class="fa-solid fa-print mr-1"></i> Cetak Ke Paper/Printer
-                            </button>
-                        </div>
+<div class="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
+    <div>
+        <h2 class="text-lg font-bold text-slate-900 dark:text-white">Hotspot & Voucher</h2>
+        <p class="text-xs text-slate-500 dark:text-slate-400">
+            @if ($router)
+                Router <span class="font-semibold text-indigo-600">{{ $router->displayName() }}</span>
+                · Data langsung dari MikroTik (prepaid hotspot)
+            @else
+                Editor template voucher (tanpa koneksi router)
+            @endif
+        </p>
+    </div>
+</div>
 
-                        <!-- Dynamic Vouchers Container -->
-                        <div id="voucherContainer" class="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                            <!-- Voucher item preview generated via JS -->
-                        </div>
-                    </div>
-                </div>
+@if (session('success'))
+    <div class="rounded-xl border border-emerald-200 bg-emerald-50 dark:bg-emerald-500/10 dark:border-emerald-500/30 px-4 py-3 text-xs font-semibold text-emerald-700 dark:text-emerald-300">{{ session('success') }}</div>
+@endif
+@if (session('error'))
+    <div class="rounded-xl border border-rose-200 bg-rose-50 dark:bg-rose-500/10 dark:border-rose-500/30 px-4 py-3 text-xs font-semibold text-rose-700 dark:text-rose-300">{{ session('error') }}</div>
+@endif
+@if (! $fetchOk && $fetchMessage)
+    <div class="rounded-xl border border-amber-200 bg-amber-50 dark:bg-amber-500/10 dark:border-amber-500/30 px-4 py-3 text-xs font-semibold text-amber-800 dark:text-amber-200">{{ $fetchMessage }}</div>
+@endif
+
+<div class="flex flex-wrap gap-1.5 p-1 rounded-2xl bg-slate-100/80 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800">
+    @foreach ($sections as $key => $meta)
+        <a href="{{ $voucherUrl($key, ['profile' => 'all', 'comment' => '', 'exp' => null]) }}"
+           class="inline-flex items-center gap-2 text-xs font-bold px-3.5 py-2 rounded-xl transition {{ $section === $key ? 'bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-300 shadow-sm' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200' }}">
+            <i class="fa-solid {{ $meta['icon'] }}"></i>
+            <span>{{ $meta['label'] }}</span>
+        </a>
+    @endforeach
+</div>
+
+@if ($section === 'users')
+    @include('panel.vouchers.partials.users')
+@elseif ($section === 'generate')
+    @include('panel.vouchers.partials.generate')
+@elseif ($section === 'profiles')
+    @include('panel.vouchers.partials.profiles')
+@elseif ($section === 'active')
+    @include('panel.vouchers.partials.active')
+@elseif ($section === 'template')
+    @include('panel.vouchers.partials.template')
+@else
+    @include('panel.vouchers.partials.report')
+@endif
 @endsection
-
-@push('scripts')
-<script>document.addEventListener('DOMContentLoaded', () => { if (typeof generateVouchers === 'function') generateVouchers(); });</script>
-@endpush

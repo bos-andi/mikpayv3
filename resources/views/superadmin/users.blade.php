@@ -5,7 +5,7 @@
 
 @section('content')
 @php
-    $planOptions = ['trial' => 'Trial', 'pro' => 'Pro', 'basic' => 'Basic', 'enterprise' => 'Enterprise'];
+    $planOptions = ['trial' => 'Trial', 'starter' => 'Starter', 'pro' => 'Pro', 'enterprise' => 'Enterprise'];
     $statusOptions = ['active' => 'Aktif', 'suspended' => 'Suspended', 'trial' => 'Trial', 'inactive' => 'Inactive'];
     $roleLabel = [
         'superadmin' => 'Superadmin',

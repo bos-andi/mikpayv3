@@ -332,7 +332,8 @@
                 <div class="rounded-xl bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/30 px-3 py-2 text-[10px] text-amber-800 dark:text-amber-200">
                     <strong>Bukan satu template saja.</strong> Di kanan, tiap jenis pesan punya teks sendiri.
                     Toggle = aktifkan <em>reminder otomatis</em> untuk jenis itu (H-3 / H-0 / tunggakan).
-                    Jadwal kirim otomatis: <strong>setiap hari jam 08:00 WIB</strong>.
+                    Jadwal cek otomatis: <strong>setiap hari jam 08:00 WIB</strong>.
+                    H-3/H-0 sekali di hari itu; <strong>tunggakan/siap isolir hanya sekali</strong> per episode tunggakan (tidak diulang tiap hari).
                     Tombol WA di Billing memakai template “link bayar”.
                 </div>
 

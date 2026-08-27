@@ -1,6 +1,16 @@
-<header class="h-16 border-b border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/70 backdrop-blur-md px-6 flex items-center justify-between gap-4 shrink-0 z-20 shadow-sm">
-    <div class="flex items-center gap-3 flex-1 max-w-md">
-        <div class="relative w-full">
+<header class="h-16 border-b border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/70 backdrop-blur-md px-3 sm:px-6 flex items-center justify-between gap-2 sm:gap-4 shrink-0 z-20 shadow-sm">
+    <div class="flex items-center gap-2 sm:gap-3 flex-1 min-w-0 max-w-md">
+        <button
+            type="button"
+            id="panelSidebarOpen"
+            class="lg:hidden flex items-center justify-center w-10 h-10 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 shrink-0"
+            aria-label="Buka menu"
+            aria-controls="panelSidebar"
+            aria-expanded="false"
+        >
+            <i class="fa-solid fa-bars text-sm"></i>
+        </button>
+        <div class="relative w-full min-w-0 hidden sm:block">
             <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
             <input
                 type="text"
@@ -10,7 +20,7 @@
         </div>
     </div>
 
-    <div class="flex items-center gap-3 sm:gap-4">
+    <div class="flex items-center gap-2 sm:gap-4 shrink-0">
         <button
             type="button"
             onclick="toggleTheme()"

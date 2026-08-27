@@ -186,16 +186,6 @@ class PanelController extends Controller
         ]);
     }
 
-    public function vouchers(): View
-    {
-        return view('panel.vouchers');
-    }
-
-    public function finance(): View
-    {
-        return view('panel.finance');
-    }
-
     public function tickets(): View
     {
         return view('panel.tickets');

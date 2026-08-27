@@ -101,7 +101,6 @@ class UsersController extends Controller
             'role' => ['required', 'string', Rule::in([
                 User::ROLE_TENANT_ADMIN,
                 User::ROLE_TENANT_USER,
-                User::ROLE_SUPERADMIN,
             ])],
             'is_active' => ['nullable', 'boolean'],
             'password' => ['nullable', 'confirmed', Password::min(8)],
@@ -112,15 +111,18 @@ class UsersController extends Controller
             'password' => 'Password',
         ]);
 
-        // Jangan turunkan role diri sendiri dari superadmin.
-        if ((int) $user->id === (int) auth()->id() && $data['role'] !== User::ROLE_SUPERADMIN) {
-            return back()->with('error', 'Anda tidak bisa menurunkan role akun sendiri.');
+        // Superadmin tidak bisa diubah / diturunkan dari form ini.
+        if ($user->role === User::ROLE_SUPERADMIN || User::isAllowedSuperAdminEmail($user->email)) {
+            return back()->with('error', 'Akun superadmin tidak bisa diubah dari sini.');
         }
 
-        if ($data['role'] === User::ROLE_SUPERADMIN) {
-            $user->tenant_id = null;
-        } elseif (! $user->tenant_id && $data['role'] !== User::ROLE_SUPERADMIN) {
-            return back()->with('error', 'User tanpa tenant hanya boleh role superadmin, atau buat user lewat tenant.');
+        // Jangan pernah promote customer jadi superadmin.
+        if ($data['role'] === User::ROLE_SUPERADMIN || User::isAllowedSuperAdminEmail($data['email'])) {
+            return back()->with('error', 'Tidak bisa menjadikan user ini superadmin.');
+        }
+
+        if (! $user->tenant_id) {
+            return back()->with('error', 'User tanpa tenant hanya boleh dikelola khusus, bukan dari form tenant.');
         }
 
         $user->name = $data['name'];
@@ -168,6 +170,10 @@ class UsersController extends Controller
             'password' => 'Password',
             'role' => 'Role',
         ]);
+
+        if (User::isAllowedSuperAdminEmail($data['email'])) {
+            return back()->with('error', 'Email ini khusus superadmin dan tidak bisa dijadikan user tenant.');
+        }
 
         User::query()->create([
             'name' => $data['name'],

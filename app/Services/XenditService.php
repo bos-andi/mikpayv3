@@ -3,7 +3,9 @@
 namespace App\Services;
 
 use App\Models\BillingPaymentLink;
+use App\Models\PlatformPendingPayment;
 use App\Models\Tenant;
+use App\Support\PaymentGateway;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -18,6 +20,112 @@ class XenditService
 
     /** @var list<string> Bank VA yang umum aktif di akun Xendit Indonesia */
     public const VA_BANKS = ['BNI', 'BRI', 'MANDIRI'];
+
+    /**
+     * Invoice langganan SaaS MikPay — selalu memakai Xendit platform (.env), bukan gateway tenant.
+     *
+     * @param  array<string, mixed>  $package
+     * @param  array{success_url?: string, failure_url?: string, duration?: int}  $options
+     * @return array{ok: bool, message: string, invoice_id?: string, invoice_url?: string, external_id?: string, raw?: array}
+     */
+    public function createPlatformSubscriptionInvoice(
+        Tenant $tenant,
+        PlatformPendingPayment $payment,
+        array $package,
+        array $options = []
+    ): array {
+        $secret = PaymentGateway::platformXenditSecretKey();
+        if ($secret === '' || ! PaymentGateway::platformXenditEnabled()) {
+            return ['ok' => false, 'message' => 'Xendit platform belum dikonfigurasi di .env.'];
+        }
+
+        $externalId = $payment->xendit_external_id
+            ?: ('mps_'.$tenant->id.'_'.$payment->id.'_'.substr(md5($payment->payment_id.microtime(true)), 0, 8));
+
+        $amount = (int) $payment->amount;
+        if ($amount < 1) {
+            return ['ok' => false, 'message' => 'Nominal pembayaran tidak valid.'];
+        }
+
+        $packageName = (string) ($package['name'] ?? $payment->package);
+        $successUrl = (string) ($options['success_url'] ?? url('/langganan?status=success'));
+        $failureUrl = (string) ($options['failure_url'] ?? url('/langganan?status=failed'));
+
+        $payload = [
+            'external_id' => $externalId,
+            'amount' => $amount,
+            'description' => 'Langganan MikPay '.$packageName.' — '.$tenant->name,
+            'invoice_duration' => (int) ($options['duration'] ?? 86400),
+            'currency' => 'IDR',
+            'success_redirect_url' => $successUrl,
+            'failure_redirect_url' => $failureUrl,
+            'metadata' => [
+                'type' => 'platform_subscription',
+                'tenant_id' => $tenant->id,
+                'payment_id' => $payment->payment_id,
+                'package' => $payment->package,
+            ],
+        ];
+
+        try {
+            $response = Http::timeout(45)
+                ->withBasicAuth($secret, '')
+                ->acceptJson()
+                ->post(self::INVOICE_URL, $payload);
+        } catch (\Throwable $e) {
+            Log::warning('xendit.platform_sub.http_error', ['message' => $e->getMessage()]);
+
+            return ['ok' => false, 'message' => 'Gagal menghubungi Xendit: '.$e->getMessage()];
+        }
+
+        $data = $response->json() ?? [];
+        if (! $response->successful()) {
+            $msg = (string) ($data['message'] ?? $response->body() ?: 'Xendit menolak permintaan.');
+            Log::warning('xendit.platform_sub.failed', ['status' => $response->status(), 'body' => $data]);
+
+            return ['ok' => false, 'message' => $msg, 'raw' => $data];
+        }
+
+        $invoiceId = (string) ($data['id'] ?? '');
+        $invoiceUrl = (string) ($data['invoice_url'] ?? '');
+        if ($invoiceId === '' || $invoiceUrl === '') {
+            return ['ok' => false, 'message' => 'Respons Xendit tidak lengkap.', 'raw' => $data];
+        }
+
+        $payment->forceFill([
+            'xendit_invoice_id' => $invoiceId,
+            'xendit_external_id' => $externalId,
+            'xendit_invoice_url' => $invoiceUrl,
+            'payment_channel' => 'xendit',
+        ])->save();
+
+        return [
+            'ok' => true,
+            'message' => 'Invoice Xendit dibuat.',
+            'invoice_id' => $invoiceId,
+            'invoice_url' => $invoiceUrl,
+            'external_id' => $externalId,
+            'raw' => $data,
+        ];
+    }
+
+    /**
+     * Verifikasi callback khusus pembayaran platform (langganan SaaS).
+     */
+    public function verifyPlatformCallbackToken(?string $headerToken): bool
+    {
+        if (! is_string($headerToken) || $headerToken === '') {
+            return false;
+        }
+
+        $platform = PaymentGateway::platformXenditCallbackToken();
+        if ($platform !== '' && hash_equals($platform, $headerToken)) {
+            return true;
+        }
+
+        // Tanpa token di .env: izinkan (dev), production sebaiknya selalu diisi.
+        return $platform === '';
+    }
 
     /**
      * @return array{ok: bool, message: string, invoice_id?: string, invoice_url?: string, external_id?: string, raw?: array}
@@ -130,6 +238,8 @@ class XenditService
             return ['ok' => false, 'message' => 'Link pembayaran tidak berlaku.'];
         }
 
+        $this->ensureWebhookUrls($tenant, $callbackUrl);
+
         $externalId = $this->makeExternalId($link, true);
         $expiresAt = now()->addHours(24);
         // API QR Xendit (api-version 2022-07-31): reference_id + currency IDR (tanpa channel_code).
@@ -208,6 +318,8 @@ class XenditService
         if (! $link->isPayable()) {
             return ['ok' => false, 'message' => 'Link pembayaran tidak berlaku.'];
         }
+
+        $this->ensureWebhookUrls($tenant, $callbackUrl);
 
         $externalId = $this->makeExternalId($link, true);
         $expiresAt = now()->addHours(24);
@@ -334,6 +446,121 @@ class XenditService
         }
 
         return mb_substr($name, 0, 50);
+    }
+
+    /**
+     * Pastikan webhook URL Xendit mengarah ke MikPay (sekali per secret, di-cache).
+     * Tanpa ini, VA/QRIS bisa terbayar tapi status di aplikasi tidak update.
+     */
+    public function ensureWebhookUrls(?Tenant $tenant = null, ?string $callbackUrl = null): void
+    {
+        $secret = $tenant
+            ? PaymentGateway::resolveXenditSecretKey($tenant)
+            : PaymentGateway::platformXenditSecretKey();
+        if ($secret === '') {
+            return;
+        }
+
+        $url = $callbackUrl ?: url('/webhooks/xendit');
+        $cacheKey = 'xendit.webhook_urls.'.substr(hash('sha256', $secret.'|'.$url), 0, 24);
+
+        if (cache()->get($cacheKey)) {
+            return;
+        }
+
+        $ok = true;
+        foreach (['fva_paid', 'fva_status', 'invoice', 'qr_code'] as $type) {
+            try {
+                $response = Http::timeout(20)
+                    ->withBasicAuth($secret, '')
+                    ->acceptJson()
+                    ->post('https://api.xendit.co/callback_urls/'.$type, ['url' => $url]);
+                if (! $response->successful()) {
+                    $ok = false;
+                    Log::warning('xendit.webhook_url.failed', [
+                        'type' => $type,
+                        'status' => $response->status(),
+                        'body' => $response->json() ?? $response->body(),
+                    ]);
+                }
+            } catch (\Throwable $e) {
+                $ok = false;
+                Log::warning('xendit.webhook_url.error', [
+                    'type' => $type,
+                    'message' => $e->getMessage(),
+                ]);
+            }
+        }
+
+        if ($ok) {
+            cache()->put($cacheKey, true, now()->addDays(7));
+        }
+    }
+
+    /**
+     * Ambil status Fixed VA dari Xendit (untuk fallback jika webhook belum masuk).
+     *
+     * @return array{ok: bool, status?: string, expired?: bool, raw?: array, message?: string}
+     */
+    public function fetchVirtualAccount(Tenant $tenant, string $xenditId): array
+    {
+        $secret = PaymentGateway::resolveXenditSecretKey($tenant);
+        if ($secret === '' || $xenditId === '') {
+            return ['ok' => false, 'message' => 'Xendit belum siap.'];
+        }
+
+        try {
+            $response = Http::timeout(20)
+                ->withBasicAuth($secret, '')
+                ->acceptJson()
+                ->get(self::VA_URL.'/'.$xenditId);
+        } catch (\Throwable $e) {
+            return ['ok' => false, 'message' => $e->getMessage()];
+        }
+
+        $data = $response->json() ?? [];
+        if (! $response->successful()) {
+            return ['ok' => false, 'message' => $this->extractErrorMessage($data, $response->body()), 'raw' => $data];
+        }
+
+        $status = strtoupper((string) ($data['status'] ?? ''));
+        $expired = false;
+        if (! empty($data['expiration_date'])) {
+            try {
+                $expired = now()->greaterThan(Carbon::parse($data['expiration_date']));
+            } catch (\Throwable) {
+                $expired = false;
+            }
+        }
+
+        return [
+            'ok' => true,
+            'status' => $status,
+            'expired' => $expired,
+            'raw' => $data,
+        ];
+    }
+
+    /**
+     * Deteksi VA closed/single-use yang sudah dibayar tapi webhook belum sampai.
+     * Heuristik: status INACTIVE sebelum tanggal kedaluwarsa → hampir pasti sudah dibayar.
+     */
+    public function virtualAccountLooksPaid(array $vaFetch): bool
+    {
+        if (! ($vaFetch['ok'] ?? false)) {
+            return false;
+        }
+
+        $status = strtoupper((string) ($vaFetch['status'] ?? ''));
+        if ($status === 'PENDING' || $status === 'ACTIVE') {
+            return false;
+        }
+
+        if ($status === 'INACTIVE' && ! ($vaFetch['expired'] ?? false)) {
+            return true;
+        }
+
+        return false;
     }
 
     protected function extractErrorMessage(array $data, string $body): string

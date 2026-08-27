@@ -1,0 +1,63 @@
+Override template Blade (default / thermal / small) disimpan per akun login di folder:
+storage/app/voucher-templates/user-{user_id}/
+
+Logo aplikasi (fixed / bawaan `mikpay/img/logo.png`):
+{{ $logo }}
+
+Logo khusus session router saat ini (tanpa cache-buster):
+{{ $logo_session }}
+
+Logo fallback global (jika logo session tidak ada):
+{{ $logo_default }}
+
+Nama file logo yang sedang dipakai (contoh: logo-ROUTER1.png):
+{{ $logo_file }}
+
+Session router aktif saat render voucher:
+{{ $session_name }}
+
+Hotspotname:
+{{ $hotspotname }}
+
+Username:
+{{ $username }}
+
+Password:
+{{ $password }}
+
+Validity (bisa berisi HTML setelah format di template, gunakan {!! $validity !!} di Blade):
+{!! $validity !!}
+
+Time limit:
+{!! $timelimit !!}
+
+Data limit:
+{{ $datalimit }}
+
+Price (contoh: "Rp 5.000"):
+{{ $price }}
+
+Profile (nama profil):
+{{ $profile }}
+
+Comment:
+{{ $comment }}
+
+DNS hotspot:
+{{ $dnsname }}
+
+QR Code (HTML canvas + script, gunakan {!! $qrcode !!}):
+{!! $qrcode !!}
+
+Nomor urut voucher:
+{{ $num }}
+<span id="num"> [{{ $num }}]</span>
+
+Mode user:
+$usermode == "vc" → voucher username = password
+$usermode == "up" → username dan password terpisah
+
+Variabel tambahan dari router:
+$getsprice, $getprice, $getdatalimit, $currency, $urilogin, $v_opsi
+
+Catatan: Simpan template sebagai sintaks Blade. HTML dari variabel yang mengandung tag/script pakai {!! !!}; teks biasa pakai {{ }}.

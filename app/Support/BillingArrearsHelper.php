@@ -16,31 +16,34 @@ class BillingArrearsHelper
     }
 
     /**
-     * Bulan pertama yang masuk hitungan tunggakan (global).
-     * Fallback: bulan berjalan (aman, tidak menjejak tahun lama).
+     * Lantai global go-live billing (opsional).
+     * null = tidak memaksa lantai; dipakai started_at pelanggan / bulan berjalan.
      */
-    public static function resolveTrackingStartMonth(): Carbon
+    public static function resolveTrackingStartMonth(): ?Carbon
     {
+        static $resolved = false;
         static $cached = null;
-        if ($cached instanceof Carbon) {
-            return $cached->copy();
+
+        if ($resolved) {
+            return $cached instanceof Carbon ? $cached->copy() : null;
         }
+        $resolved = true;
 
         $end = now()->startOfMonth();
         $raw = config('mikpay.billing.tracking_start_date');
 
         if ($raw === null || $raw === '') {
-            $cached = $end->copy();
+            $cached = null;
 
-            return $cached->copy();
+            return null;
         }
 
         try {
             $start = Carbon::parse((string) $raw)->startOfMonth();
         } catch (\Throwable) {
-            $cached = $end->copy();
+            $cached = null;
 
-            return $cached->copy();
+            return null;
         }
 
         if ($start->gt($end)) {
@@ -65,6 +68,7 @@ class BillingArrearsHelper
      *   unpaid_current: bool,
      *   outstanding_total: int,
      *   shortfall_by_period: array<string, int>,
+     *   fee_by_period: array<string, int>,
      *   label: string,
      *   tooltip: string,
      *   period_labels: list<string>,
@@ -97,6 +101,7 @@ class BillingArrearsHelper
             'unpaid_current' => false,
             'outstanding_total' => 0,
             'shortfall_by_period' => [],
+            'fee_by_period' => [],
             'label' => '—',
             'tooltip' => '',
             'period_labels' => [],
@@ -123,7 +128,7 @@ class BillingArrearsHelper
 
         // Tagihan dimulai dari bulan daftar pelanggan (started_at).
         // Tanpa started_at → hanya bulan berjalan (pelanggan baru tidak kena tunggakan mundur).
-        // Global tracking_start hanya sebagai lantai sistem (tidak boleh lebih awal dari go-live).
+        // Global tracking_start (opsional) = lantai go-live agar tidak menagih mundur bertahun-tahun.
         $start = $end->copy();
         if ($startedAt) {
             try {
@@ -134,42 +139,64 @@ class BillingArrearsHelper
         }
 
         $trackingFloor = self::resolveTrackingStartMonth();
-        if ($start->lt($trackingFloor)) {
-            $start = $trackingFloor;
+        if ($trackingFloor instanceof Carbon && $start->lt($trackingFloor)) {
+            $start = $trackingFloor->copy();
         }
         if ($start->gt($end)) {
             $start = $end->copy();
         }
 
+        // Batas aman: maksimal 59 bulan ke belakang.
+        $minStart = $end->copy()->subMonthsNoOverflow(59);
+        if ($start->lt($minStart)) {
+            $start = $minStart->copy();
+        }
+
         $unpaid = [];
         $shortfallByPeriod = [];
+        $feeByPeriod = [];
         $outstandingTotal = 0;
         $cursor = $start->copy();
+        $feeOverrides = BillingFeeHelper::overridesMap($routerId, $customerName);
 
         while ($cursor->lte($end)) {
             $period = $cursor->format('Y-m');
+            $periodFee = BillingFeeHelper::feeForPeriod(
+                $routerId,
+                $customerName,
+                $period,
+                $monthlyFee,
+                $feeOverrides
+            );
+            $feeByPeriod[$period] = $periodFee;
+
             $paidAmount = (int) BillingPayment::query()
                 ->where('router_id', $routerId)
                 ->where('customer_name', $customerName)
                 ->where('period', $period)
                 ->sum('amount');
 
-            if ($monthlyFee > 0) {
-                if ($paidAmount < $monthlyFee) {
-                    $shortfall = $monthlyFee - $paidAmount;
+            if ($periodFee > 0) {
+                if ($paidAmount < $periodFee) {
+                    $shortfall = $periodFee - $paidAmount;
                     $unpaid[] = $period;
                     $shortfallByPeriod[$period] = $shortfall;
                     $outstandingTotal += $shortfall;
                 }
             } else {
-                $paid = BillingPayment::query()
-                    ->where('router_id', $routerId)
-                    ->where('customer_name', $customerName)
-                    ->where('period', $period)
-                    ->where('status', 'paid')
-                    ->exists();
-                if (! $paid) {
-                    $unpaid[] = $period;
+                // Harga akhir 0 = gratis periode ini (anggap lunas). Tanpa override & tarif 0 → cek status paid lama.
+                if (array_key_exists($period, $feeOverrides)) {
+                    // gratis — skip
+                } else {
+                    $paid = BillingPayment::query()
+                        ->where('router_id', $routerId)
+                        ->where('customer_name', $customerName)
+                        ->where('period', $period)
+                        ->where('status', 'paid')
+                        ->exists();
+                    if (! $paid) {
+                        $unpaid[] = $period;
+                    }
                 }
             }
 
@@ -199,7 +226,7 @@ class BillingArrearsHelper
 
         if ($count === 0) {
             $label = 'Lunas';
-        } elseif ($monthlyFee > 0 && $outstandingTotal > 0) {
+        } elseif ($outstandingTotal > 0) {
             $label = $pastCount > 0
                 ? $pastCount.' bln · Rp '.number_format($outstandingTotal, 0, ',', '.')
                 : 'Kurang Rp '.number_format($outstandingTotal, 0, ',', '.');
@@ -314,6 +341,7 @@ class BillingArrearsHelper
             'unpaid_current' => $unpaidCurrent,
             'outstanding_total' => $outstandingTotal,
             'shortfall_by_period' => $shortfallByPeriod,
+            'fee_by_period' => $feeByPeriod,
             'label' => $label,
             'tooltip' => $tooltip,
             'period_labels' => $periodLabels,
@@ -343,19 +371,31 @@ class BillingArrearsHelper
         int $monthlyFee,
         array $periods,
     ): int {
-        if ($periods === [] || $monthlyFee <= 0) {
+        if ($periods === []) {
             return 0;
         }
 
+        $overrides = BillingFeeHelper::overridesMap($routerId, $customerName, array_values(array_unique($periods)));
         $cleared = 0;
         foreach (array_unique($periods) as $period) {
+            $fee = BillingFeeHelper::feeForPeriod($routerId, $customerName, (string) $period, $monthlyFee, $overrides);
+            if ($fee <= 0) {
+                // Periode gratis / tanpa tarif → hapus janji jika ada
+                $cleared += BillingPeriodPromise::query()
+                    ->where('router_id', $routerId)
+                    ->where('customer_name', $customerName)
+                    ->where('period', $period)
+                    ->delete();
+                continue;
+            }
+
             $paid = (int) BillingPayment::query()
                 ->where('router_id', $routerId)
                 ->where('customer_name', $customerName)
                 ->where('period', $period)
                 ->sum('amount');
 
-            if ($paid < $monthlyFee) {
+            if ($paid < $fee) {
                 continue;
             }
 

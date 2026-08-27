@@ -235,11 +235,24 @@ class PaymentLinkService
         $periods = is_array($link->periods) ? $link->periods : [];
         $remainingBudget = $amountPaid;
         $created = [];
+        $feeOverrides = \App\Support\BillingFeeHelper::overridesMap(
+            (int) $link->router_id,
+            (string) $link->customer_name,
+            $periods
+        );
 
         foreach ($periods as $period) {
             if ($remainingBudget <= 0) {
                 break;
             }
+
+            $periodFee = \App\Support\BillingFeeHelper::feeForPeriod(
+                (int) $link->router_id,
+                (string) $link->customer_name,
+                (string) $period,
+                $monthlyFee,
+                $feeOverrides
+            );
 
             $already = (int) BillingPayment::query()
                 ->where('router_id', $link->router_id)
@@ -247,15 +260,15 @@ class PaymentLinkService
                 ->where('period', $period)
                 ->sum('amount');
 
-            $need = $monthlyFee > 0 ? max(0, $monthlyFee - $already) : $remainingBudget;
+            $need = $periodFee > 0 ? max(0, $periodFee - $already) : $remainingBudget;
             if ($need <= 0) {
                 continue;
             }
 
             $pay = min($need, $remainingBudget);
             $after = $already + $pay;
-            $paymentStatus = ($monthlyFee > 0 && $after < $monthlyFee) ? 'partial' : 'paid';
-            $remaining = max(0, $monthlyFee - $after);
+            $paymentStatus = ($periodFee > 0 && $after < $periodFee) ? 'partial' : 'paid';
+            $remaining = max(0, $periodFee - $after);
 
             $payment = BillingPayment::query()->create([
                 'tenant_id' => $link->tenant_id,
@@ -285,14 +298,21 @@ class PaymentLinkService
         // Sisa budget yang tidak teralokasi → periode pertama / current
         if ($remainingBudget > 0) {
             $period = $periods[0] ?? now()->format('Y-m');
+            $periodFee = \App\Support\BillingFeeHelper::feeForPeriod(
+                (int) $link->router_id,
+                (string) $link->customer_name,
+                (string) $period,
+                $monthlyFee,
+                $feeOverrides
+            );
             $already = (int) BillingPayment::query()
                 ->where('router_id', $link->router_id)
                 ->where('customer_name', $link->customer_name)
                 ->where('period', $period)
                 ->sum('amount');
             $after = $already + $remainingBudget;
-            $paymentStatus = ($monthlyFee > 0 && $after < $monthlyFee) ? 'partial' : 'paid';
-            $remaining = max(0, $monthlyFee - $after);
+            $paymentStatus = ($periodFee > 0 && $after < $periodFee) ? 'partial' : 'paid';
+            $remaining = max(0, $periodFee - $after);
 
             $payment = BillingPayment::query()->create([
                 'tenant_id' => $link->tenant_id,
@@ -316,7 +336,7 @@ class PaymentLinkService
             $created[] = $payment;
         }
 
-        if ($created !== [] && $monthlyFee > 0) {
+        if ($created !== []) {
             BillingArrearsHelper::clearPromisesForPaidPeriods(
                 (int) $link->router_id,
                 $link->customer_name,
