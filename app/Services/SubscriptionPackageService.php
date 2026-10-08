@@ -4,87 +4,82 @@ namespace App\Services;
 
 use App\Models\PlatformSetting;
 
+/**
+ * Satu paket MikPay (unlimited pelanggan, 1 router, 1 VPN remote) dengan pilihan durasi.
+ * Setiap durasi disimpan sebagai "paket" tersendiri supaya alur saldo/approve tetap sama.
+ */
 class SubscriptionPackageService
 {
+    /** @var array<string, string> */
+    protected const LEGACY_LABELS = [
+        'trial' => 'Trial',
+        'starter' => 'Starter (lama)',
+        'pro' => 'Pro ISP (lama)',
+        'enterprise' => 'Ultimate ISP (lama)',
+        'tunnel' => 'Tunnel',
+    ];
+
+    /**
+     * @return list<string>
+     */
+    public static function defaultFeatures(): array
+    {
+        return [
+            'Unlimited Pelanggan',
+            '1 Router MikroTik',
+            '1 Akun VPN Remote (OpenVPN) Gratis',
+            'Remote Winbox',
+            'Remote API MikroTik',
+            'Remote Web OLT',
+            'Remote Web Router / Modem Client',
+            'Auto Isolir & Pengingat WhatsApp',
+            'Hotspot Voucher Generator',
+            'Peta ODP & GIS',
+            'Laporan Keuangan',
+        ];
+    }
+
     /**
      * @return array<string, array<string, mixed>>
      */
     public static function defaultPackageMeta(): array
     {
+        $features = self::defaultFeatures();
+        $trialLabel = 'Mulai Coba Gratis '.(int) config('mikpay.trial_days', 4).' Hari';
+
         return [
-            'starter' => [
-                'key' => 'starter',
-                'name' => 'Starter',
-                'badge' => 'STARTER',
-                'price' => 99000,
-                'duration' => 30,
-                'duration_label' => '/ bulan',
-                'subtitle' => 'Cocok untuk pemula RTRW Net koin / voucheran.',
-                'original_price' => null,
-                'discount_badge' => null,
+            'bulan1' => [
+                'key' => 'bulan1',
+                'name' => '1 Bulan',
+                'months' => 1,
+                'price' => 35000,
+                'subtitle' => 'Fleksibel, bayar per bulan.',
                 'featured' => false,
                 'featured_ribbon' => null,
-                'button_label' => 'Mulai Trial — Starter',
-                'cta_type' => 'register',
-                'max_customers' => 100,
-                'max_routers' => 1,
-                'features' => [
-                    'Hingga 100 Pelanggan',
-                    '1 Router MikroTik',
-                    'Auto Isolir & WA Gateway',
-                    'Hotspot Voucher Generator',
-                    '1 Dedicated Remote VPN Tunnel',
-                ],
+                'button_label' => $trialLabel,
+                'features' => $features,
             ],
-            'pro' => [
-                'key' => 'pro',
-                'name' => 'Pro ISP',
-                'badge' => 'PRO ISP',
-                'price' => 199000,
-                'duration' => 30,
-                'duration_label' => '/ bulan',
-                'subtitle' => 'Solusi lengkap bisnis jaringan menengah & OLT.',
-                'original_price' => null,
-                'discount_badge' => null,
+            'bulan3' => [
+                'key' => 'bulan3',
+                'name' => '3 Bulan',
+                'months' => 3,
+                'price' => 80000,
+                'subtitle' => 'Pilihan favorit pengguna MikPay.',
                 'featured' => true,
                 'featured_ribbon' => 'PALING POPULER',
-                'button_label' => 'Mulai Coba Gratis '.(int) config('mikpay.trial_days', 3).' Hari',
-                'cta_type' => 'register',
-                'max_customers' => 500,
-                'max_routers' => 3,
-                'features' => [
-                    'Hingga 500 Pelanggan',
-                    '3 Router MikroTik',
-                    'Pemetaan ODP & Peta GIS',
-                    'Remote OLT & TR-069 Modem',
-                    'Auto Isolir & WA Gateway',
-                    '3 Dedicated Remote VPN Tunnel',
-                ],
+                'button_label' => $trialLabel,
+                'features' => $features,
             ],
-            'enterprise' => [
-                'key' => 'enterprise',
-                'name' => 'Ultimate ISP',
-                'badge' => 'ULTIMATE ISP',
-                'price' => 399000,
-                'duration' => 30,
-                'duration_label' => '/ bulan',
-                'subtitle' => 'Kapasitas unlimited untuk ISP skala besar.',
-                'original_price' => null,
-                'discount_badge' => null,
+            'bulan6' => [
+                'key' => 'bulan6',
+                'name' => '6 Bulan',
+                'months' => 6,
+                'price' => 155000,
+                'subtitle' => 'Paling hemat untuk jangka panjang.',
                 'featured' => false,
-                'featured_ribbon' => null,
-                'button_label' => 'Hubungi Tim Sales',
-                'cta_type' => 'whatsapp',
-                'wa_message' => 'Halo Admin, saya tertarik paket Enterprise',
-                'max_customers' => null,
-                'max_routers' => null,
-                'features' => [
-                    'Unlimited Pelanggan',
-                    'Unlimited Router & OLT',
-                    'Peta ODP & Network Infrastructure',
-                    'Tiket Gangguan & Management Teknisi',
-                    'Priority VIP Support 24/7',
-                ],
+                'featured_ribbon' => 'PALING HEMAT',
+                'button_label' => $trialLabel,
+                'features' => $features,
             ],
         ];
     }
@@ -95,20 +90,18 @@ class SubscriptionPackageService
     public static function defaultLandingHeadlines(): array
     {
         return [
-            'pricing_eyebrow' => 'Investasi Terjangkau',
-            'pricing_title' => 'Paket Berlangganan Tanpa Biaya Tersembunyi.',
-            'pricing_subtitle' => 'Pilih paket yang sesuai dengan jumlah pelanggan bisnis jaringan Anda saat ini.',
+            'pricing_eyebrow' => 'Harga Simpel',
+            'pricing_title' => 'Satu Paket, Semua Fitur, Unlimited Pelanggan.',
+            'pricing_subtitle' => 'Tanpa batas jumlah pelanggan. Pilih durasi langganan — makin panjang makin hemat.',
         ];
     }
 
     /**
-     * Paket yang bisa dibayar lewat unggah bukti (bukan WA sales).
-     *
      * @return list<string>
      */
     public static function paidCheckoutKeys(): array
     {
-        return ['starter', 'pro', 'enterprise'];
+        return array_keys(self::defaultPackageMeta());
     }
 
     /**
@@ -142,47 +135,82 @@ class SubscriptionPackageService
             $meta = [];
         }
 
-        $out = [];
+        $editable = ['name', 'price', 'subtitle', 'featured', 'featured_ribbon', 'button_label', 'features'];
+        $rows = [];
         foreach (self::defaultPackageMeta() as $key => $base) {
             $row = $base;
             if (isset($meta[$key]) && is_array($meta[$key])) {
-                $row = array_merge($row, array_intersect_key($meta[$key], array_flip(array_keys($base))));
+                $row = array_merge($row, array_intersect_key($meta[$key], array_flip($editable)));
             }
 
-            $cfg = config('mikpay.subscription_packages.'.$key, []);
-            if (is_array($cfg)) {
-                foreach (['max_customers', 'max_routers', 'price', 'duration'] as $k) {
-                    if (array_key_exists($k, $cfg) && $cfg[$k] !== null && $cfg[$k] !== '') {
-                        $row[$k] = $cfg[$k];
-                    }
-                }
-            }
-
-            if (! is_array($row['features'] ?? null) || $row['features'] === []) {
-                $row['features'] = $base['features'];
-            } else {
-                $row['features'] = array_values(array_filter(
+            $features = is_array($row['features'] ?? null)
+                ? array_values(array_filter(
                     array_map(static fn ($l) => is_string($l) ? trim($l) : '', $row['features']),
                     static fn ($l) => $l !== ''
-                ));
-            }
-
-            $price = (int) ($row['price'] ?? 0);
-            $orig = isset($row['original_price']) && $row['original_price'] !== null && $row['original_price'] !== ''
-                ? (int) $row['original_price']
-                : null;
-            $row['discount'] = ($orig !== null && $orig > $price) ? ($orig - $price) : null;
-            $row['key'] = $key;
-            $out[$key] = $row;
+                ))
+                : [];
+            $row['features'] = $features !== [] ? $features : $base['features'];
+            $row['price'] = max(0, (int) ($row['price'] ?? 0));
+            $rows[$key] = $row;
         }
 
-        return $out;
+        $baseMonthly = (int) ($rows['bulan1']['price'] ?? 0);
+        foreach ($rows as $key => $row) {
+            $rows[$key] = self::withComputedPricing($row, $baseMonthly);
+        }
+
+        return $rows;
     }
 
     public static function get(string $key): ?array
     {
-        $all = self::all();
+        return self::all()[$key] ?? null;
+    }
 
-        return $all[$key] ?? null;
+    /**
+     * Fitur yang sama untuk semua durasi (diambil dari paket 1 bulan).
+     *
+     * @return list<string>
+     */
+    public static function sharedFeatures(): array
+    {
+        return self::all()['bulan1']['features'] ?? self::defaultFeatures();
+    }
+
+    public static function planLabel(?string $plan): string
+    {
+        $plan = (string) $plan;
+        if ($plan === '') {
+            return '—';
+        }
+
+        $pkg = self::get($plan);
+        if ($pkg) {
+            return 'MikPay '.$pkg['name'];
+        }
+
+        return self::LEGACY_LABELS[$plan] ?? ucfirst($plan);
+    }
+
+    /**
+     * @param  array<string, mixed>  $row
+     * @return array<string, mixed>
+     */
+    protected static function withComputedPricing(array $row, int $baseMonthly): array
+    {
+        $months = max(1, (int) ($row['months'] ?? 1));
+        $price = (int) $row['price'];
+        $normal = $baseMonthly * $months;
+        $savings = ($months > 1 && $normal > $price) ? $normal - $price : 0;
+
+        $row['months'] = $months;
+        $row['duration'] = $months * 30;
+        $row['duration_label'] = $months === 1 ? '/ bulan' : "/ {$months} bulan";
+        $row['monthly_equivalent'] = (int) round($price / $months);
+        $row['normal_price'] = $savings > 0 ? $normal : null;
+        $row['savings'] = $savings;
+        $row['savings_percent'] = $savings > 0 ? (int) round($savings / $normal * 100) : 0;
+
+        return $row;
     }
 }

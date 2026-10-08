@@ -43,6 +43,13 @@
 
         <footer class="text-center text-[10px] text-slate-400 py-5">
             Powered by {{ config('mikpay.brand.domain', 'mikpay.link') }}
+            <span class="block mt-1.5 space-x-2">
+                <a href="{{ central_url('/syarat-ketentuan') }}" target="_blank" class="hover:text-slate-600 underline-offset-2 hover:underline">Syarat &amp; Ketentuan</a>
+                <span>·</span>
+                <a href="{{ central_url('/kebijakan-privasi') }}" target="_blank" class="hover:text-slate-600 underline-offset-2 hover:underline">Privasi</a>
+                <span>·</span>
+                <a href="{{ central_url('/kebijakan-pengembalian-dana') }}" target="_blank" class="hover:text-slate-600 underline-offset-2 hover:underline">Pengembalian Dana</a>
+            </span>
         </footer>
     </div>
 
@@ -83,13 +90,15 @@
         const okBtn = document.getElementById('mikpayConfirmOk');
         const cancelBtn = document.getElementById('mikpayConfirmCancel');
         const backdrop = document.getElementById('mikpayConfirmBackdrop');
+        const alertMode = !!options.alert;
 
         if (!modal) return Promise.resolve(false);
 
-        titleEl.textContent = options.title || 'Konfirmasi';
+        titleEl.textContent = options.title || (alertMode ? 'Pemberitahuan' : 'Konfirmasi');
         msgEl.textContent = options.message || 'Lanjutkan?';
-        okBtn.textContent = options.confirmText || 'Ya, lanjut';
+        okBtn.textContent = options.confirmText || (alertMode ? 'Mengerti' : 'Ya, lanjut');
         cancelBtn.textContent = options.cancelText || 'Batal';
+        cancelBtn.classList.toggle('hidden', alertMode);
 
         modal.classList.remove('hidden');
         modal.classList.add('flex');
@@ -105,13 +114,20 @@
                 resolve(value);
             };
             const onKey = (e) => {
-                if (e.key === 'Escape') close(false);
+                if (e.key === 'Escape') close(alertMode ? true : false);
+                if (e.key === 'Enter') close(true);
             };
             okBtn.onclick = () => close(true);
             cancelBtn.onclick = () => close(false);
-            backdrop.onclick = () => close(false);
+            backdrop.onclick = () => close(alertMode ? true : false);
             document.addEventListener('keydown', onKey);
         });
+    };
+
+    window.mikpayAlert = function (opts) {
+        const options = typeof opts === 'string' ? { message: opts } : (opts || {});
+        options.alert = true;
+        return window.mikpayConfirm(options);
     };
 
     window.mikpayToast = function (message, ms) {

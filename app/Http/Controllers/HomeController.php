@@ -14,6 +14,7 @@ class HomeController extends Controller
             'landing' => LandingContentService::all(),
             'pricingPackages' => SubscriptionPackageService::all(),
             'pricingHeadlines' => SubscriptionPackageService::landingHeadlines(),
+            'pricingFeatures' => SubscriptionPackageService::sharedFeatures(),
         ]);
     }
 }

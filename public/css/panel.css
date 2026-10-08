@@ -39,3 +39,10 @@
 .leaflet-container {
     background: #f8fafc !important;
 }
+
+/* Kepadatan desktop: semua ukuran rem (font, padding, tinggi) ikut mengecil proporsional. */
+@media (min-width: 1024px) {
+    html {
+        font-size: 14px;
+    }
+}

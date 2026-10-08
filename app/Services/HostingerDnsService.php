@@ -91,7 +91,7 @@ class HostingerDnsService
     {
         $ip = $ip ?: $this->targetIp();
 
-        return $this->upsertRecord($name, 'A', [$ip]);
+        return $this->upsertRecord($name, 'A', [$ip], true);
     }
 
     /**
@@ -103,10 +103,12 @@ class HostingerDnsService
     }
 
     /**
+     * $overwrite=false menambah record ke nama+tipe yang sudah ada (dibutuhkan TXT ACME wildcard + apex).
+     *
      * @param  list<string>  $contents
      * @return array{ok: bool, message: string, name?: string, ip?: string, raw?: mixed}
      */
-    public function upsertRecord(string $name, string $type, array $contents): array
+    public function upsertRecord(string $name, string $type, array $contents, bool $overwrite = false): array
     {
         if ($this->token() === '') {
             return ['ok' => false, 'message' => 'HOSTINGER_API_TOKEN kosong.'];
@@ -127,7 +129,7 @@ class HostingerDnsService
         }
 
         $payload = [
-            'overwrite' => false,
+            'overwrite' => $overwrite,
             'zone' => [
                 [
                     'name' => $name,

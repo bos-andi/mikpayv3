@@ -1,4 +1,4 @@
-<header class="h-16 border-b border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/70 backdrop-blur-md px-3 sm:px-6 flex items-center justify-between gap-2 sm:gap-4 shrink-0 z-20 shadow-sm">
+<header class="h-16 border-b border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/70 backdrop-blur-md px-3 sm:px-6 flex items-center justify-between gap-2 sm:gap-4 shrink-0 relative z-30 shadow-sm">
     <div class="flex items-center gap-2 sm:gap-3 flex-1 min-w-0 max-w-md">
         <button
             type="button"

@@ -6,6 +6,7 @@ use App\Models\Tenant;
 use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Str;
 use Symfony\Component\HttpFoundation\Response;
 
 class IdentifyTenant
@@ -29,24 +30,26 @@ class IdentifyTenant
         $tenant = $this->resolveTenant($request);
 
         if (! $tenant) {
-            // Tunnel / central: ikuti tenant user yang login (pelanggan daftar sendiri).
             $user = Auth::user();
-            if ($user?->tenant_id) {
+            if ($user?->tenant_id && ! $user->isSuperAdmin()) {
                 $tenant = Tenant::query()->find($user->tenant_id);
+            } elseif ($user?->isSuperAdmin() && ! $this->isTenantHost($request)) {
+                $slug = Str::lower(trim((string) config('mikpay.superadmin_panel_tenant', '')));
+                if ($slug !== '') {
+                    $tenant = Tenant::query()->where('subdomain', $slug)->first();
+                }
             }
-        }
-
-        if (! $tenant) {
-            // Central domain (/dashboard) uses demo/owner tenant until auth is ready.
-            $tenant = Tenant::query()->where('subdomain', 'annetwifi')->first()
-                ?? Tenant::query()->where('subdomain', 'demo')->first()
-                ?? Tenant::query()->where('subdomain', 'cl45')->first()
-                ?? $this->demoTenant();
         }
 
         $prefix = $this->isTenantHost($request) ? 'tenant' : 'panel';
 
-        app()->instance('currentTenant', $tenant);
+        if ($tenant) {
+            app()->instance('currentTenant', $tenant);
+        }
+
+        // The {tenant} domain segment would otherwise be passed positionally to controller actions.
+        $request->route()?->forgetParameter('tenant');
+
         app()->instance('panelRoutePrefix', $prefix);
         view()->share('tenant', $tenant);
         view()->share('panelRoutePrefix', $prefix);
@@ -70,11 +73,6 @@ class IdentifyTenant
 
                 return $tenant;
             }
-        }
-
-        // Explicit override: /dashboard?tenant=sarpannet
-        if ($slug = $request->query('tenant')) {
-            return Tenant::query()->where('subdomain', $slug)->first();
         }
 
         return null;
@@ -103,18 +101,5 @@ class IdentifyTenant
         $pattern = (string) config('mikpay.tunnel.node_sub_pattern', '^(an|cgk)-[0-9]+$');
 
         return $pattern !== '' && (bool) preg_match('/'.$pattern.'/i', $subdomain);
-    }
-
-    protected function demoTenant(): Tenant
-    {
-        return new Tenant([
-            'name' => 'ANNET WIFI',
-            'subdomain' => 'annetwifi',
-            'status' => 'active',
-            'plan' => 'pro',
-            'vpn_status' => 'online',
-            'remote_host' => config('mikpay.tunnel.default_node_host', 'an-1.mikpay.link'),
-            'router_label' => 'RB4011-iGS+ (10.10.0.1)',
-        ]);
     }
 }

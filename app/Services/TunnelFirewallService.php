@@ -13,8 +13,20 @@ class TunnelFirewallService
 
     public const FWD_CHAIN = 'MIKPAY_FWD';
 
+    public function canApply(): bool
+    {
+        return function_exists('posix_geteuid') && posix_geteuid() === 0;
+    }
+
+    /**
+     * @return array{accounts: int, rules: int, skipped?: bool}
+     */
     public function sync(): array
     {
+        if (! $this->canApply()) {
+            return ['accounts' => 0, 'rules' => 0, 'skipped' => true];
+        }
+
         $this->ensureChains();
 
         $this->runIptables(['-t', 'nat', '-F', self::NAT_CHAIN]);

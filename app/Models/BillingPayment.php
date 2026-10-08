@@ -22,6 +22,7 @@ class BillingPayment extends Model
         'period',
         'payment_date',
         'payment_method',
+        'gateway',
         'notes',
         'status',
     ];

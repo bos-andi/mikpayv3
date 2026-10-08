@@ -7,14 +7,18 @@ use App\Services\MikrotikService;
 use App\Support\ActiveRouter;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
 class RouterController extends Controller
 {
-    public function create(): View
+    public function create(): View|RedirectResponse
     {
-        $this->ensureTenant();
+        $tenant = $this->ensureTenant();
+        if ($limitError = $this->routerLimitError($tenant)) {
+            return redirect()->to(panel_route('settings').'?tab=mikrotik')->with('error', $limitError);
+        }
 
         return view('panel.settings.routers-form', [
             'router' => null,
@@ -24,24 +28,43 @@ class RouterController extends Controller
     public function store(Request $request): RedirectResponse
     {
         $tenant = $this->ensureTenant();
+        if ($limitError = $this->routerLimitError($tenant)) {
+            return redirect()->to(panel_route('settings').'?tab=mikrotik')->with('error', $limitError);
+        }
         $data = $this->validated($request);
 
         if (strtolower($data['name']) === 'mikpay') {
             return back()->withInput()->with('error', 'Session name tidak boleh "mikpay".');
         }
 
-        $isFirst = ! Router::query()->where('tenant_id', $tenant->id)->exists();
-        $makeDefault = (bool) ($data['is_default'] ?? false) || $isFirst;
+        $created = DB::transaction(function () use ($tenant, $data) {
+            \App\Models\Tenant::query()->whereKey($tenant->id)->lockForUpdate()->first();
 
-        if ($makeDefault) {
-            Router::query()->where('tenant_id', $tenant->id)->update(['is_default' => false]);
+            if ($limitError = $this->routerLimitError($tenant)) {
+                return $limitError;
+            }
+
+            $isFirst = ! Router::query()->where('tenant_id', $tenant->id)->exists();
+            $makeDefault = (bool) ($data['is_default'] ?? false) || $isFirst;
+
+            if ($makeDefault) {
+                Router::query()->where('tenant_id', $tenant->id)->update(['is_default' => false]);
+            }
+
+            $router = Router::query()->create([
+                ...$data,
+                'tenant_id' => $tenant->id,
+                'is_default' => $makeDefault,
+            ]);
+
+            return [$router, $isFirst, $makeDefault];
+        });
+
+        if (is_string($created)) {
+            return redirect()->to(panel_route('settings').'?tab=mikrotik')->with('error', $created);
         }
 
-        $router = Router::query()->create([
-            ...$data,
-            'tenant_id' => $tenant->id,
-            'is_default' => $makeDefault,
-        ]);
+        [$router, $isFirst, $makeDefault] = $created;
 
         if ($isFirst || $makeDefault) {
             ActiveRouter::select($router);
@@ -249,6 +272,16 @@ class RouterController extends Controller
         }
 
         return $tenant;
+    }
+
+    protected function routerLimitError(\App\Models\Tenant $tenant): ?string
+    {
+        $limit = (int) config('mikpay.max_routers_per_tenant', 1);
+        if (Router::query()->where('tenant_id', $tenant->id)->count() < $limit) {
+            return null;
+        }
+
+        return "Paket MikPay mendukung {$limit} router MikroTik per akun. Edit router yang sudah ada jika ingin mengganti perangkat.";
     }
 
     protected function authorizeRouter(Router $router): void

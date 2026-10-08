@@ -27,7 +27,7 @@
 
     @include('components.toast')
 
-    <script src="{{ asset('js/mikpay.js') }}" defer></script>
+    <script src="{{ asset('js/mikpay.js') }}?v={{ @filemtime(public_path('js/mikpay.js')) ?: 2 }}" defer></script>
     @stack('scripts')
 </body>
 </html>

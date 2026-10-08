@@ -793,10 +793,10 @@ table.voucher { display: inline-block; border: 2px solid black; margin: 2px; }
             $parts = explode(',', $m[1]);
 
             return [
-                'expmode' => (string) ($parts[1] ?? ''),
-                'price' => (int) ($parts[2] ?? 0),
-                'validity' => (string) ($parts[3] ?? ''),
-                'sprice' => (int) ($parts[4] ?? 0),
+                'expmode' => (string) ($parts[0] ?? ''),
+                'price' => (int) ($parts[1] ?? 0),
+                'validity' => (string) ($parts[2] ?? ''),
+                'sprice' => (int) ($parts[3] ?? 0),
             ];
         }
 

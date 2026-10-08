@@ -294,6 +294,76 @@ class MikrotikService
     }
 
     /**
+     * Tambah PPP secret baru di MikroTik.
+     *
+     * @param  array{name: string, password: string, service?: string, profile?: string, local_address?: ?string, remote_address?: ?string, comment?: ?string}  $data
+     * @return array{ok: bool, message: string, id: ?string}
+     */
+    public function addPppSecret(Router $router, array $data): array
+    {
+        $name = trim((string) ($data['name'] ?? ''));
+        $profile = trim((string) ($data['profile'] ?? ''));
+        if ($name === '' || (string) ($data['password'] ?? '') === '') {
+            return ['ok' => false, 'message' => 'Username dan password PPP wajib diisi.', 'id' => null];
+        }
+
+        try {
+            if (! $this->connectRouter($router)) {
+                return ['ok' => false, 'message' => $this->api->error_str ?: 'Tidak bisa connect ke router.', 'id' => null];
+            }
+
+            $existing = $this->normalizeHotspotList($this->comm('/ppp/secret/print', ['?name' => $name]));
+            if ($existing !== []) {
+                $this->disconnect();
+
+                return ['ok' => false, 'message' => "Username PPP “{$name}” sudah ada di MikroTik.", 'id' => null];
+            }
+
+            if ($profile !== '') {
+                $profiles = array_column($this->normalizeHotspotList($this->comm('/ppp/profile/print')), 'name');
+                if (! in_array($profile, $profiles, true)) {
+                    $this->disconnect();
+
+                    return ['ok' => false, 'message' => "Profile “{$profile}” tidak ditemukan di MikroTik.", 'id' => null];
+                }
+            }
+
+            $payload = array_filter([
+                'name' => $name,
+                'password' => (string) $data['password'],
+                'service' => (string) ($data['service'] ?? 'pppoe'),
+                'profile' => $profile,
+                'local-address' => trim((string) ($data['local_address'] ?? '')),
+                'remote-address' => trim((string) ($data['remote_address'] ?? '')),
+                'comment' => trim((string) ($data['comment'] ?? '')),
+            ], fn ($v) => $v !== '');
+
+            $result = $this->comm('/ppp/secret/add', $payload);
+            $this->disconnect();
+
+            if (is_array($result) && (isset($result['!trap']) || isset($result['!fatal']))) {
+                $err = $result['!trap'][0]['message'] ?? $result['!fatal'][0]['message'] ?? 'MikroTik menolak permintaan.';
+
+                return ['ok' => false, 'message' => 'MikroTik: '.$err, 'id' => null];
+            }
+
+            return [
+                'ok' => true,
+                'message' => "PPP “{$name}” berhasil ditambahkan ke MikroTik.",
+                'id' => is_string($result) ? $result : null,
+            ];
+        } catch (\Throwable $e) {
+            $this->disconnect();
+            Log::error('MikrotikService: addPppSecret failed', [
+                'router_id' => $router->id,
+                'error' => $e->getMessage(),
+            ]);
+
+            return ['ok' => false, 'message' => 'Error: '.$e->getMessage(), 'id' => null];
+        }
+    }
+
+    /**
      * Cari satu PPP secret by name.
      *
      * @return array{ok: bool, message: string, secret: ?array<string, mixed>, profiles: array<int, string>}
@@ -814,8 +884,14 @@ class MikrotikService
             if (! $this->connectRouter($router)) {
                 return ['ok' => false, 'message' => $this->api->error_str ?: 'Tidak bisa connect ke router.'];
             }
-            $this->comm('/ip/hotspot/user/add', $params);
+            $result = $this->comm('/ip/hotspot/user/add', $params);
             $this->disconnect();
+
+            if (is_array($result) && (isset($result['!trap']) || isset($result['!fatal']))) {
+                $err = $result['!trap'][0]['message'] ?? $result['!fatal'][0]['message'] ?? 'MikroTik menolak permintaan.';
+
+                return ['ok' => false, 'message' => 'MikroTik: '.$err];
+            }
 
             return ['ok' => true, 'message' => 'User hotspot ditambahkan.'];
         } catch (\Throwable $e) {
@@ -995,6 +1071,84 @@ class MikrotikService
         }
 
         return $out;
+    }
+
+    /**
+     * Baca rule NAT MikPay OLT dari MikroTik (hasil konfigurasi script tunnel).
+     *
+     * @return array{
+     *     ok: bool,
+     *     message: string,
+     *     rules: array<int, array{
+     *         management_ip: string,
+     *         web_port: int,
+     *         tunnel_dst_port: int,
+     *         comment: string
+     *     }>
+     * }
+     */
+    public function fetchMikpayOltNatRules(Router $router): array
+    {
+        $empty = ['ok' => false, 'message' => '', 'rules' => []];
+
+        try {
+            if (! $this->connectRouter($router)) {
+                $err = $this->api->error_str ?: 'Tidak bisa connect ke router.';
+
+                return array_merge($empty, [
+                    'message' => $err.' Pastikan API MikroTik bisa dijangkau.',
+                ]);
+            }
+
+            $rows = $this->comm('/ip/firewall/nat/print', ['?chain' => 'dstnat']);
+            $rows = is_array($rows) ? $rows : [];
+            $rules = [];
+
+            foreach ($rows as $row) {
+                if (! is_array($row)) {
+                    continue;
+                }
+
+                $comment = (string) ($row['comment'] ?? '');
+                if (! str_contains(strtoupper($comment), 'MIKPAY') || ! str_contains(strtoupper($comment), 'OLT')) {
+                    continue;
+                }
+
+                $managementIp = (string) ($row['to-addresses'] ?? $row['to-address'] ?? '');
+                if ($managementIp === '') {
+                    continue;
+                }
+
+                $rules[] = [
+                    'management_ip' => $managementIp,
+                    'web_port' => max(1, (int) ($row['to-ports'] ?? 80)),
+                    'tunnel_dst_port' => max(1, (int) ($row['dst-port'] ?? 25)),
+                    'comment' => $comment,
+                ];
+            }
+
+            $this->disconnect();
+
+            if ($rules === []) {
+                return [
+                    'ok' => true,
+                    'message' => 'Rule NAT MikPay OLT tidak ditemukan. Pastikan script tunnel sudah di-paste dan IP OLT sudah diganti.',
+                    'rules' => [],
+                ];
+            }
+
+            return [
+                'ok' => true,
+                'message' => count($rules).' rule OLT terdeteksi dari MikroTik.',
+                'rules' => $rules,
+            ];
+        } catch (\Throwable $e) {
+            $this->disconnect();
+
+            return array_merge($empty, [
+                'message' => 'Gagal membaca NAT OLT: '.$e->getMessage(),
+            ]);
+        }
     }
 
     public function disconnect(): void

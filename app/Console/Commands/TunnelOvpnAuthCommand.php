@@ -3,6 +3,7 @@
 namespace App\Console\Commands;
 
 use App\Models\TunnelAccount;
+use App\Services\TunnelService;
 use Illuminate\Console\Command;
 
 class TunnelOvpnAuthCommand extends Command
@@ -11,7 +12,7 @@ class TunnelOvpnAuthCommand extends Command
 
     protected $description = 'OpenVPN auth-user-pass-verify (env username/password)';
 
-    public function handle(): int
+    public function handle(TunnelService $tunnels): int
     {
         $username = (string) (getenv('username') ?: '');
         $password = (string) (getenv('password') ?: '');
@@ -22,10 +23,9 @@ class TunnelOvpnAuthCommand extends Command
 
         $account = TunnelAccount::query()
             ->where('username', $username)
-            ->whereIn('status', ['active', 'pending'])
             ->first();
 
-        if (! $account) {
+        if (! $account || ! $tunnels->accountAllowedForVpn($account)) {
             return self::FAILURE;
         }
 
@@ -34,14 +34,6 @@ class TunnelOvpnAuthCommand extends Command
             return self::FAILURE;
         }
 
-        // Entitlement masih aktif?
-        $ok = $account->entitlements()
-            ->where('status', 'active')
-            ->where(function ($q) {
-                $q->whereNull('ends_at')->orWhere('ends_at', '>', now());
-            })
-            ->exists();
-
-        return $ok ? self::SUCCESS : self::FAILURE;
+        return self::SUCCESS;
     }
 }

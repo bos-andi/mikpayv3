@@ -26,7 +26,11 @@
 
 <div class="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
     <div>
-        <h2 class="text-lg font-bold text-slate-900 dark:text-white">Laporan Keuangan</h2>
+        <p class="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Laporan Keuangan</p>
+        <h2 class="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
+            <i class="fa-solid {{ $sections[$section]['icon'] ?? 'fa-chart-pie' }} text-indigo-500 text-base"></i>
+            {{ $sections[$section]['label'] ?? 'Ringkasan' }}
+        </h2>
         <p class="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
             Router <span class="font-semibold text-indigo-600">{{ $router->displayName() }}</span>
             · Periode <span class="font-semibold text-slate-700 dark:text-slate-200">{{ $periodLabel }}</span>
@@ -55,17 +59,6 @@
         {{ session('error') }}
     </div>
 @endif
-
-{{-- Section tabs --}}
-<div class="flex flex-wrap gap-1.5 p-1 rounded-2xl bg-slate-100/80 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800">
-    @foreach ($sections as $key => $meta)
-        <a href="{{ $financeUrl(['section' => $key]) }}"
-           class="inline-flex items-center gap-2 text-xs font-bold px-3.5 py-2 rounded-xl transition {{ $section === $key ? 'bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-300 shadow-sm' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200' }}">
-            <i class="fa-solid {{ $meta['icon'] }}"></i>
-            <span>{{ $meta['label'] }}</span>
-        </a>
-    @endforeach
-</div>
 
 {{-- Period filter --}}
 <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-sm flex flex-col sm:flex-row gap-3 sm:items-center sm:justify-between">

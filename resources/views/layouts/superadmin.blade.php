@@ -26,6 +26,27 @@
                 <a href="{{ route('superadmin.payments') }}" class="flex items-center gap-3 px-3 py-2.5 rounded-xl {{ request()->routeIs('superadmin.payments*') ? 'bg-indigo-600 text-white' : 'hover:bg-slate-800 text-slate-300' }}">
                     <i class="fa-solid fa-credit-card w-5 text-center"></i> Pembayaran
                 </a>
+                @php
+                    $pendingWithdrawals = \App\Models\TenantWithdrawal::query()->where('status', 'pending')->count()
+                        + \App\Models\TenantPayoutAccount::query()->where('status', 'pending')->count();
+                @endphp
+                <a href="{{ route('superadmin.withdrawals') }}" class="flex items-center gap-3 px-3 py-2.5 rounded-xl {{ request()->routeIs('superadmin.withdrawals*') ? 'bg-indigo-600 text-white' : 'hover:bg-slate-800 text-slate-300' }}">
+                    <i class="fa-solid fa-building-columns w-5 text-center"></i> Penarikan Dana
+                    @if ($pendingWithdrawals > 0)
+                        <span class="ml-auto text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-amber-500 text-white">{{ $pendingWithdrawals }}</span>
+                    @endif
+                </a>
+                @php
+                    $pendingPartnerItems = \App\Models\Partner::query()->where('status', 'pending')->count()
+                        + \App\Models\Partner::query()->where('bank_status', 'pending')->count()
+                        + \App\Models\PartnerWithdrawal::query()->where('status', 'pending')->count();
+                @endphp
+                <a href="{{ route('superadmin.partners') }}" class="flex items-center gap-3 px-3 py-2.5 rounded-xl {{ request()->routeIs('superadmin.partners*') ? 'bg-indigo-600 text-white' : 'hover:bg-slate-800 text-slate-300' }}">
+                    <i class="fa-solid fa-handshake w-5 text-center"></i> Program Affiliate
+                    @if ($pendingPartnerItems > 0)
+                        <span class="ml-auto text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-amber-500 text-white">{{ $pendingPartnerItems }}</span>
+                    @endif
+                </a>
                 <a href="{{ route('superadmin.users') }}" class="flex items-center gap-3 px-3 py-2.5 rounded-xl {{ request()->routeIs('superadmin.users*') || request()->routeIs('superadmin.tenants*') ? 'bg-indigo-600 text-white' : 'hover:bg-slate-800 text-slate-300' }}">
                     <i class="fa-solid fa-users w-5 text-center"></i> Pengguna & Tenant
                 </a>
@@ -80,6 +101,7 @@
             </div>
         </main>
     </div>
+    @include('components.mikpay-dialogs')
     @stack('scripts')
 </body>
 </html>

@@ -1,58 +1,42 @@
-<section class="py-20 bg-slate-50">
+@php
+    $pairs = [
+        ['Mencatat tagihan di buku atau Excel, sering lupa menagih.', 'Tagihan dibuat otomatis & dikirim via WhatsApp tiap bulan.', 'fa-file-invoice-dollar'],
+        ['Isolir pelanggan menunggak satu per satu lewat Winbox.', 'Auto-isolir di MikroTik tepat di tanggal jatuh tempo, buka otomatis saat lunas.', 'fa-user-lock'],
+        ['Tanpa IP Public, Winbox & OLT tidak bisa dibuka dari luar.', 'VPN remote gratis: Winbox, API, Web OLT & modem dari mana saja.', 'fa-shield-halved'],
+        ['Teknisi bingung mencari lokasi ODP & jalur kabel.', 'Peta ODP & pelanggan di GIS, lengkap dengan titik koordinat.', 'fa-map-location-dot'],
+    ];
+@endphp
+
+<section class="py-20 lg:py-24 bg-slate-50 relative overflow-hidden">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div class="text-center max-w-2xl mx-auto mb-14">
-            <h2 class="text-xs font-bold uppercase tracking-widest text-indigo-600 mb-2">Mengapa MikPay Pilihan Terbaik?</h2>
-            <h3 class="text-2xl sm:text-4xl font-extrabold text-slate-900">Tinggalkan Cara Lama yang Menguras Waktu & Tenaga.</h3>
+        <div class="reveal text-center max-w-2xl mx-auto mb-14">
+            <span class="inline-flex items-center gap-2 text-[11px] font-bold uppercase tracking-widest text-indigo-600 bg-indigo-50 border border-indigo-100 px-3 py-1 rounded-full">Kenapa MikPay</span>
+            <h2 class="mt-4 text-3xl sm:text-4xl font-extrabold text-slate-900 tracking-tight">Tinggalkan cara lama yang menguras waktu & tenaga.</h2>
+            <p class="mt-4 text-slate-600">Semua pekerjaan rutin ISP / RT RW Net kecil sampai menengah, dirapikan dalam satu panel.</p>
         </div>
 
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
-            <div class="p-6 sm:p-8 rounded-2xl bg-white border border-rose-200 space-y-4 shadow-sm relative">
-                <div class="inline-flex items-center gap-2 text-rose-700 text-xs font-bold uppercase tracking-wider bg-rose-50 px-3 py-1 rounded-full border border-rose-200">
-                    <i class="fa-solid fa-xmark"></i> Cara Lama (Manual & Ribet)
-                </div>
-                <ul class="space-y-3.5 text-xs sm:text-sm text-slate-600">
-                    <li class="flex items-start gap-3">
-                        <i class="fa-solid fa-circle-xmark text-rose-500 mt-1 shrink-0"></i>
-                        <span>Lupa menagih pelanggan & pusing mencatat tagihan di buku manual / Excel.</span>
-                    </li>
-                    <li class="flex items-start gap-3">
-                        <i class="fa-solid fa-circle-xmark text-rose-500 mt-1 shrink-0"></i>
-                        <span>Harus matikan akses (isolir) pelanggan menunggak secara manual satu-per-satu di Winbox.</span>
-                    </li>
-                    <li class="flex items-start gap-3">
-                        <i class="fa-solid fa-circle-xmark text-rose-500 mt-1 shrink-0"></i>
-                        <span>Tidak punya IP Public Statis, jadi Winbox dan OLT tidak bisa dibuka saat diluar rumah.</span>
-                    </li>
-                    <li class="flex items-start gap-3">
-                        <i class="fa-solid fa-circle-xmark text-rose-500 mt-1 shrink-0"></i>
-                        <span>Bingung melacak lokasi ODP & tiang kabel FO yang membuat perbaikan teknisi lambat.</span>
-                    </li>
-                </ul>
+        <div class="space-y-4 max-w-5xl mx-auto">
+            <div class="hidden md:grid grid-cols-[1fr_auto_1fr] gap-6 px-2 text-[11px] font-bold uppercase tracking-widest">
+                <span class="text-rose-500"><i class="fa-solid fa-xmark mr-1"></i> Cara lama</span>
+                <span class="w-10"></span>
+                <span class="text-indigo-600"><i class="fa-solid fa-check mr-1"></i> Dengan MikPay</span>
             </div>
 
-            <div class="p-6 sm:p-8 rounded-2xl bg-white border-2 border-indigo-500 space-y-4 shadow-xl shadow-indigo-500/10">
-                <div class="inline-flex items-center gap-2 text-emerald-700 text-xs font-bold uppercase tracking-wider bg-emerald-50 px-3 py-1 rounded-full border border-emerald-200">
-                    <i class="fa-solid fa-check"></i> Bersama MikPay.link (Otomatis)
+            @foreach ($pairs as $pair)
+                <div class="reveal grid md:grid-cols-[1fr_auto_1fr] gap-3 md:gap-6 items-center">
+                    <div class="flex items-start gap-3 rounded-2xl bg-white border border-slate-200 p-4 sm:p-5 text-sm text-slate-500">
+                        <i class="fa-solid fa-circle-xmark text-rose-400 mt-0.5"></i>
+                        <span>{{ $pair[0] }}</span>
+                    </div>
+                    <span class="hidden md:flex w-10 h-10 rounded-full gradient-bg text-white items-center justify-center shadow-lg shadow-indigo-500/30">
+                        <i class="fa-solid fa-arrow-right text-xs"></i>
+                    </span>
+                    <div class="flex items-start gap-3 rounded-2xl bg-white gradient-border p-4 sm:p-5 text-sm text-slate-800 font-semibold shadow-md shadow-indigo-500/5">
+                        <span class="w-8 h-8 shrink-0 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center text-xs"><i class="fa-solid {{ $pair[2] }}"></i></span>
+                        <span class="pt-1">{{ $pair[1] }}</span>
+                    </div>
                 </div>
-                <ul class="space-y-3.5 text-xs sm:text-sm text-slate-700 font-medium">
-                    <li class="flex items-start gap-3">
-                        <i class="fa-solid fa-circle-check text-emerald-600 mt-1 shrink-0"></i>
-                        <span><strong class="text-slate-900">Kirim WA Automatic:</strong> Invoice tagihan dikirim otomatis via WhatsApp Gateway.</span>
-                    </li>
-                    <li class="flex items-start gap-3">
-                        <i class="fa-solid fa-circle-check text-emerald-600 mt-1 shrink-0"></i>
-                        <span><strong class="text-slate-900">Auto-Isolir MikroTik:</strong> Sistem memutus koneksi pelanggan nunggak secara akurat di tanggal jatuh tempo.</span>
-                    </li>
-                    <li class="flex items-start gap-3">
-                        <i class="fa-solid fa-circle-check text-emerald-600 mt-1 shrink-0"></i>
-                        <span><strong class="text-slate-900">FREE Dedicated VPN Remote:</strong> Buka Winbox & Web OLT kapan saja dari HP/Laptop via WireGuard.</span>
-                    </li>
-                    <li class="flex items-start gap-3">
-                        <i class="fa-solid fa-circle-check text-emerald-600 mt-1 shrink-0"></i>
-                        <span><strong class="text-slate-900">Peta GIS & ODP:</strong> Tampilan visual lokasi ODP, kabel FO, dan nilai redaman (dBm) per rumah.</span>
-                    </li>
-                </ul>
-            </div>
+            @endforeach
         </div>
     </div>
 </section>

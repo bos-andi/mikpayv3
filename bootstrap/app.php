@@ -18,6 +18,17 @@ return Application::configure(basePath: dirname(__DIR__))
             'active' => \App\Http\Middleware\EnsureUserIsActive::class,
             'tenant.subscription' => \App\Http\Middleware\EnsureTenantSubscription::class,
             'tenant.host' => \App\Http\Middleware\RedirectTenantToOwnHost::class,
+            'tenant.membership' => \App\Http\Middleware\EnsureTenantMembership::class,
+            'central.domain' => \App\Http\Middleware\EnsureCentralDomain::class,
+            'tenant.subdomain' => \App\Http\Middleware\EnsureKnownTenantSubdomain::class,
+            'partner' => \App\Http\Middleware\EnsurePartner::class,
+            'verified.email' => \App\Http\Middleware\EnsureEmailVerified::class,
+        ]);
+
+        $middleware->web(prepend: [
+            \App\Http\Middleware\EnsureKnownTenantSubdomain::class,
+        ], append: [
+            \App\Http\Middleware\CaptureReferral::class,
         ]);
 
         $middleware->validateCsrfTokens(except: [
@@ -28,8 +39,12 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->redirectUsersTo(function () {
             $user = auth()->user();
 
+            if ($user?->isPartner()) {
+                return central_url('/affiliate/dashboard');
+            }
+
             return $user?->isSuperAdmin()
-                ? '/superadmin'
+                ? central_url('/superadmin')
                 : '/dashboard';
         });
     })
@@ -37,4 +52,16 @@ return Application::configure(basePath: dirname(__DIR__))
         $exceptions->shouldRenderJsonWhen(
             fn (Request $request) => $request->is('api/*'),
         );
+
+        $exceptions->render(function (\Illuminate\Routing\Exceptions\InvalidSignatureException $e, Request $request) {
+            if (! $request->routeIs('verification.verify')) {
+                return null;
+            }
+
+            $message = 'Tautan verifikasi sudah kedaluwarsa atau tidak valid. Kirim ulang tautan baru di bawah.';
+
+            return $request->user()
+                ? redirect()->away(central_url('/email/verifikasi'))->with('error', $message)
+                : redirect()->away(central_url('/login'))->with('error', 'Tautan verifikasi sudah kedaluwarsa atau tidak valid. Silakan masuk untuk meminta tautan baru.');
+        });
     })->create();

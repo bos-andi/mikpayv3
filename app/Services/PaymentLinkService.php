@@ -225,6 +225,7 @@ class PaymentLinkService
 
         $invoiceId = (string) ($payload['id'] ?? $link->xendit_invoice_id ?? '');
         $externalId = (string) ($payload['external_id'] ?? $link->xendit_external_id ?? '');
+        $gatewaySource = \App\Support\PaymentGateway::active($link->tenant ?: Tenant::query()->find($link->tenant_id));
 
         $customer = BillingCustomer::query()
             ->where('router_id', $link->router_id)
@@ -281,6 +282,7 @@ class PaymentLinkService
                 'period' => $period,
                 'payment_date' => now(),
                 'payment_method' => 'Xendit',
+                'gateway' => $gatewaySource,
                 'notes' => 'Xendit '.$invoiceId,
                 'status' => $paymentStatus,
                 'xendit_invoice_id' => $invoiceId ?: null,
@@ -325,6 +327,7 @@ class PaymentLinkService
                 'period' => $period,
                 'payment_date' => now(),
                 'payment_method' => 'Xendit',
+                'gateway' => $gatewaySource,
                 'notes' => 'Xendit '.$invoiceId.' (sisa)',
                 'status' => $paymentStatus,
                 'xendit_invoice_id' => $invoiceId ?: null,

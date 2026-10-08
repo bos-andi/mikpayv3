@@ -41,7 +41,7 @@
 </div>
 
 <div class="grid grid-cols-1 lg:grid-cols-4 gap-4 h-[650px]">
-    <div class="lg:col-span-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden relative shadow-sm">
+    <div class="lg:col-span-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden relative isolate shadow-sm">
         <div id="gisMap" class="w-full h-full touch-none"></div>
         <div id="gisCursorHud" class="hidden absolute bottom-4 right-4 z-[1000] bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border border-slate-200 dark:border-slate-800 px-3 py-1.5 rounded-xl text-[10px] font-mono font-semibold text-slate-700 dark:text-slate-200 shadow-md pointer-events-none">
             —
@@ -71,7 +71,7 @@
             </div>
         </div>
 
-        <div id="gisStatsChip" class="absolute top-4 left-4 z-[1000] bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border border-slate-200 dark:border-slate-800 px-3 py-1.5 rounded-xl text-[11px] font-semibold text-slate-700 dark:text-slate-200 shadow-md">
+        <div id="gisStatsChip" class="absolute top-[10px] left-[56px] max-w-[calc(100%-128px)] truncate z-[1000] bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border border-slate-200 dark:border-slate-800 px-3 py-1.5 rounded-xl text-[11px] font-semibold text-slate-700 dark:text-slate-200 shadow-md">
             Memuat peta…
         </div>
 
@@ -95,8 +95,9 @@
             </div>
             <p class="text-sm font-bold text-slate-900 dark:text-slate-100">Inspector Jaringan</p>
             <p class="text-xs text-slate-500 dark:text-slate-400 mt-1.5 leading-relaxed">
-                Klik marker OLT / ODC / ODP di peta.
-                Urutan ideal: <strong>OLT → ODC → ODP</strong>, lalu assign pelanggan di port ODP.
+                Klik marker atau area dekat titik OLT / ODC / ODP di peta.
+                Panel kanan akan menampilkan detail node yang dipilih.
+                Chip <strong>Ringkasan</strong> di pojok kiri atas adalah total seluruh jaringan.
             </p>
         </div>
 
@@ -247,5 +248,5 @@
 <script>
 window.__gisConfig = @json($gisConfig ?? []);
 </script>
-<script src="{{ asset('js/panel-gis.js') }}?v=7" defer></script>
+<script src="{{ asset('js/panel-gis.js') }}?v=10" defer></script>
 @endpush

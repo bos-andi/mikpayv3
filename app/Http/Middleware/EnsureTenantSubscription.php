@@ -23,32 +23,34 @@ class EnsureTenantSubscription
             return $next($request);
         }
 
-        // Tenant tanpa tanggal berakhir (legacy) tetap diizinkan.
-        if ($tenant->subscriptionEndsAt() === null) {
-            return $next($request);
-        }
-
+        // Panel terkunci jika nonaktif, trial/langganan habis, atau status inactive.
+        // Tenant legacy tanpa tanggal berakhir tetap diizinkan selama status aktif/trial.
         if ($tenant->subscriptionIsActive()) {
             return $next($request);
         }
 
-        if ($request->routeIs([
-            'panel.subscription',
-            'panel.subscription.*',
-            'tenant.subscription',
-            'tenant.subscription.*',
-        ])) {
+        if ($this->isSubscriptionRoute($request)) {
             return $next($request);
         }
 
         if ($request->expectsJson()) {
             return response()->json([
-                'message' => 'Langganan tidak aktif atau sudah berakhir. Silakan perpanjang di menu Langganan MikPay.',
+                'message' => 'Akun nonaktif atau langganan berakhir. Silakan bayar paket di halaman Langganan MikPay.',
             ], 402);
         }
 
         return redirect()
             ->to(panel_route('subscription'))
-            ->with('error', 'Trial/langganan sudah berakhir. Silakan bayar paket di halaman ini untuk mengaktifkan panel kembali.');
+            ->with('error', 'Akun nonaktif atau langganan berakhir. Bayar paket di halaman ini untuk mengaktifkan panel kembali.');
+    }
+
+    protected function isSubscriptionRoute(Request $request): bool
+    {
+        return $request->routeIs([
+            'panel.subscription',
+            'panel.subscription.*',
+            'tenant.subscription',
+            'tenant.subscription.*',
+        ]);
     }
 }

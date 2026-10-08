@@ -128,7 +128,7 @@ MikPay.generateVouchers = function () {
 
 /**
  * Custom confirm modal (mengganti window.confirm).
- * @param {string|{title?:string,message?:string,confirmText?:string,cancelText?:string,variant?:'default'|'danger'|'warning'}} opts
+ * @param {string|{title?:string,message?:string,confirmText?:string,cancelText?:string,variant?:'default'|'danger'|'warning'|'info',alert?:boolean}} opts
  * @returns {Promise<boolean>}
  */
 MikPay.confirm = function (opts) {
@@ -141,16 +141,22 @@ MikPay.confirm = function (opts) {
     const backdrop = document.getElementById('mikpayConfirmBackdrop');
     const iconWrap = document.getElementById('mikpayConfirmIconWrap');
     const icon = document.getElementById('mikpayConfirmIcon');
+    const alertMode = !!options.alert;
 
     if (!modal || !okBtn || !cancelBtn) {
+        if (alertMode) {
+            window.alert(options.message || '');
+            return Promise.resolve(true);
+        }
         return Promise.resolve(window.confirm(options.message || 'Lanjutkan?'));
     }
 
-    const variant = options.variant || 'default';
-    titleEl.textContent = options.title || 'Konfirmasi';
-    msgEl.textContent = options.message || 'Lanjutkan?';
-    okBtn.textContent = options.confirmText || (variant === 'danger' ? 'Ya, hapus' : 'Ya, lanjut');
+    const variant = options.variant || (alertMode ? 'info' : 'default');
+    titleEl.textContent = options.title || (alertMode ? 'Pemberitahuan' : 'Konfirmasi');
+    msgEl.textContent = options.message || (alertMode ? '' : 'Lanjutkan?');
+    okBtn.textContent = options.confirmText || (alertMode ? 'Mengerti' : (variant === 'danger' ? 'Ya, hapus' : 'Ya, lanjut'));
     cancelBtn.textContent = options.cancelText || 'Batal';
+    cancelBtn.classList.toggle('hidden', alertMode);
 
     okBtn.className = 'flex-1 px-3 py-2.5 rounded-2xl text-white text-xs font-bold shadow-md transition ' + (
         variant === 'danger'
@@ -166,14 +172,18 @@ MikPay.confirm = function (opts) {
                 ? 'bg-rose-100 text-rose-600'
                 : variant === 'warning'
                     ? 'bg-amber-100 text-amber-600'
-                    : 'bg-violet-100 text-violet-600'
+                    : variant === 'info'
+                        ? 'bg-sky-100 text-sky-600'
+                        : 'bg-violet-100 text-violet-600'
         );
         icon.className = 'fa-solid text-lg ' + (
             variant === 'danger'
                 ? 'fa-trash-can'
                 : variant === 'warning'
                     ? 'fa-triangle-exclamation'
-                    : 'fa-circle-question'
+                    : variant === 'info'
+                        ? 'fa-circle-info'
+                        : 'fa-circle-question'
         );
     }
 
@@ -192,12 +202,12 @@ MikPay.confirm = function (opts) {
             resolve(value);
         };
         const onKey = (e) => {
-            if (e.key === 'Escape') close(false);
+            if (e.key === 'Escape') close(alertMode ? true : false);
             if (e.key === 'Enter') close(true);
         };
         okBtn.onclick = () => close(true);
         cancelBtn.onclick = () => close(false);
-        if (backdrop) backdrop.onclick = () => close(false);
+        if (backdrop) backdrop.onclick = () => close(alertMode ? true : false);
         document.addEventListener('keydown', onKey);
     });
 };
@@ -234,6 +244,17 @@ MikPay.confirmForm = function (event, message, options) {
 
 window.mikpayConfirm = MikPay.confirm;
 window.mikpayConfirmForm = MikPay.confirmForm;
+
+MikPay.alert = function (opts) {
+    const options = typeof opts === 'string' ? { message: opts } : (opts || {});
+    options.alert = true;
+    options.variant = options.variant || 'info';
+    return MikPay.confirm(options);
+};
+window.mikpayAlert = MikPay.alert;
+window.mikpayToast = MikPay.showToast || function (message) {
+    if (typeof MikPay.showToast === 'function') return MikPay.showToast(message);
+};
 
 MikPay.initSidebar = function () {
     const sidebar = document.getElementById('panelSidebar');

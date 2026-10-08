@@ -75,6 +75,7 @@ class TunnelRegisterController extends Controller
                     'product' => 'tunnel',
                     'phone' => $data['phone'] ?? null,
                     'registered_via' => 'tunnel.mikpay.link',
+                    'email_verification_pending' => true,
                 ]),
             ]);
 
@@ -102,12 +103,18 @@ class TunnelRegisterController extends Controller
             // Non-fatal: cron/connect akan sync ulang.
         }
 
+        try {
+            $user->sendEmailVerificationNotification();
+        } catch (\Throwable $e) {
+            report($e);
+        }
+
         Auth::login($user);
         $request->session()->regenerate();
 
         return redirect()
-            ->route('tunnel.dashboard')
-            ->with('success', 'Pendaftaran berhasil. Akun OpenVPN Anda sudah siap — salin script ke MikroTik.');
+            ->away(central_url('/email/verifikasi'))
+            ->with('success', "Pendaftaran berhasil! Klik tautan verifikasi yang kami kirim ke {$user->email} untuk mengaktifkan akun OpenVPN Anda.");
     }
 
     /**

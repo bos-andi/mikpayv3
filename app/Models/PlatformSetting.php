@@ -12,6 +12,8 @@ class PlatformSetting extends Model
         'subscription_landing_headlines',
         'payment_channel_order',
         'subscription_verification_whatsapp',
+        'payout_settings',
+        'partner_settings',
     ];
 
     protected function casts(): array
@@ -21,6 +23,8 @@ class PlatformSetting extends Model
             'subscription_packages_meta' => 'array',
             'subscription_landing_headlines' => 'array',
             'payment_channel_order' => 'array',
+            'payout_settings' => 'array',
+            'partner_settings' => 'array',
         ];
     }
 

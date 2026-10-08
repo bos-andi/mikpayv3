@@ -6,7 +6,11 @@ use App\Models\BillingCustomer;
 use App\Models\BillingPayment;
 use App\Models\Odp;
 use App\Models\OdpPort;
+use App\Models\OltDevice;
+use App\Models\SupportTicket;
 use App\Services\MikrotikService;
+use App\Services\OnboardingService;
+use App\Services\OltMonitorService;
 use App\Services\TunnelService;
 use App\Support\ActiveRouter;
 use App\Support\BillingArrearsHelper;
@@ -17,7 +21,7 @@ use Illuminate\Http\Request;
 
 class PanelController extends Controller
 {
-    public function dashboard(MikrotikService $mikrotik): View
+    public function dashboard(MikrotikService $mikrotik, OnboardingService $onboarding): View
     {
         $tenant = current_tenant();
         $router = ActiveRouter::current();
@@ -106,6 +110,13 @@ class PanelController extends Controller
             }
         }
 
+        $recentTickets = SupportTicket::query()
+            ->where('tenant_id', $tenant?->id ?? 0)
+            ->whereIn('status', SupportTicket::OPEN_STATUSES)
+            ->orderByDesc('created_at')
+            ->limit(5)
+            ->get();
+
         return view('panel.dashboard', [
             'period' => $period,
             'periodLabel' => now()->translatedFormat('M Y'),
@@ -122,6 +133,10 @@ class PanelController extends Controller
             'odpPortUsed' => $odpPortUsed,
             'odpPortTotal' => $odpPortTotal,
             'odpBoxCount' => $odpBoxCount,
+            'recentTickets' => $recentTickets,
+            'onboarding' => ($tenant && $onboarding->isEligible($tenant))
+                ? $onboarding->checklist($tenant)
+                : null,
             'trafficUrl' => panel_route('dashboard.bandwidth'),
         ]);
     }
@@ -162,9 +177,10 @@ class PanelController extends Controller
         ]);
     }
 
-    public function remote(TunnelService $tunnels): View
+    public function remote(TunnelService $tunnels, OltMonitorService $oltMonitor, MikrotikService $mikrotik): View
     {
         $tenant = current_tenant();
+        $router = ActiveRouter::current();
         $account = null;
         $scripts = ['ros6' => '', 'ros7' => ''];
         $bundleNote = null;
@@ -179,16 +195,33 @@ class PanelController extends Controller
             }
         }
 
+        $oltDevices = collect();
+        $oltGisNodes = collect();
+        if ($tenant?->id && $router) {
+            $oltMonitor->syncFromRouter($tenant, $router, $mikrotik);
+
+            $oltDevices = OltDevice::query()
+                ->with('odp')
+                ->where('tenant_id', $tenant->id)
+                ->where('router_id', $router->id)
+                ->orderBy('name')
+                ->get();
+
+            $oltGisNodes = Odp::query()
+                ->where('tenant_id', $tenant->id)
+                ->where('router_id', $router->id)
+                ->where('type', Odp::TYPE_OLT)
+                ->orderBy('code')
+                ->get(['id', 'code', 'name', 'pon_label']);
+        }
+
         return view('panel.remote', [
             'tunnelAccount' => $account,
             'tunnelScripts' => $scripts,
             'tunnelBundleNote' => $bundleNote,
+            'oltDevices' => $oltDevices,
+            'oltGisNodes' => $oltGisNodes,
         ]);
-    }
-
-    public function tickets(): View
-    {
-        return view('panel.tickets');
     }
 
     public function settings(): View
@@ -204,8 +237,12 @@ class PanelController extends Controller
                 ->get();
         }
 
+        $routerLimit = (int) config('mikpay.max_routers_per_tenant', 1);
+
         return view('panel.settings', [
             'routers' => $routers,
+            'routerLimit' => $routerLimit,
+            'canAddRouter' => $routers->count() < $routerLimit,
             'settingsTab' => $this->normalizeSettingsTab(request('tab', 'mikrotik')),
         ]);
     }

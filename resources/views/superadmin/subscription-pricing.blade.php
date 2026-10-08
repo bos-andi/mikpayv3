@@ -32,89 +32,49 @@
         </div>
     </div>
 
+    <div class="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-2">
+        <h2 class="text-sm font-bold text-slate-900">Fitur paket (berlaku untuk semua durasi)</h2>
+        <p class="text-xs text-slate-500">Satu baris satu fitur. Tampil di landing dan halaman Langganan panel. Batas router per tenant: {{ (int) config('mikpay.max_routers_per_tenant', 1) }} (atur via <code>MIKPAY_MAX_ROUTERS_PER_TENANT</code>).</p>
+        <textarea name="features_text" rows="8" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs font-mono">{{ old('features_text', $featuresText) }}</textarea>
+    </div>
+
     <div class="grid grid-cols-1 xl:grid-cols-3 gap-4">
-        @foreach (['starter', 'pro', 'enterprise'] as $key)
-            @php $pkg = $subscriptionPackages[$key] ?? []; @endphp
-            <div class="bg-white border {{ !empty($pkg['featured']) ? 'border-indigo-300' : 'border-slate-200' }} rounded-2xl p-5 shadow-sm space-y-3">
+        @foreach ($subscriptionPackages as $key => $pkg)
+            <div class="bg-white border {{ ! empty($pkg['featured']) ? 'border-indigo-300' : 'border-slate-200' }} rounded-2xl p-5 shadow-sm space-y-3" data-pkg-pricing data-months="{{ $pkg['months'] }}">
                 <div class="flex items-center justify-between gap-2">
-                    <h3 class="text-sm font-extrabold text-slate-900">{{ strtoupper($key) }}</h3>
+                    <h3 class="text-sm font-extrabold text-slate-900">DURASI {{ $pkg['months'] }} BULAN <span class="text-[11px] font-semibold text-slate-400">({{ $pkg['duration'] }} hari)</span></h3>
                     <label class="inline-flex items-center gap-1.5 text-[11px] font-semibold text-slate-600">
                         <input type="checkbox" name="packages[{{ $key }}][featured]" value="1" @checked(old("packages.$key.featured", $pkg['featured'] ?? false)) class="rounded border-slate-300">
                         Featured
                     </label>
                 </div>
 
-                <div>
-                    <label class="block text-[11px] font-bold text-slate-600 mb-1">Nama</label>
-                    <input type="text" name="packages[{{ $key }}][name]" required value="{{ old("packages.$key.name", $pkg['name'] ?? '') }}" class="w-full rounded-lg border border-slate-200 px-2.5 py-2 text-sm">
-                </div>
                 <div class="grid grid-cols-2 gap-2">
                     <div>
-                        <label class="block text-[11px] font-bold text-slate-600 mb-1">Badge</label>
-                        <input type="text" name="packages[{{ $key }}][badge]" value="{{ old("packages.$key.badge", $pkg['badge'] ?? '') }}" class="w-full rounded-lg border border-slate-200 px-2.5 py-2 text-sm">
+                        <label class="block text-[11px] font-bold text-slate-600 mb-1">Nama</label>
+                        <input type="text" name="packages[{{ $key }}][name]" required value="{{ old("packages.$key.name", $pkg['name']) }}" class="w-full rounded-lg border border-slate-200 px-2.5 py-2 text-sm">
                     </div>
-                    <div>
-                        <label class="block text-[11px] font-bold text-slate-600 mb-1">Ribbon</label>
-                        <input type="text" name="packages[{{ $key }}][featured_ribbon]" value="{{ old("packages.$key.featured_ribbon", $pkg['featured_ribbon'] ?? '') }}" class="w-full rounded-lg border border-slate-200 px-2.5 py-2 text-sm">
-                    </div>
-                </div>
-                <div class="grid grid-cols-2 gap-2">
                     <div>
                         <label class="block text-[11px] font-bold text-slate-600 mb-1">Harga (Rp)</label>
-                        <input type="number" min="0" name="packages[{{ $key }}][price]" required value="{{ old("packages.$key.price", $pkg['price'] ?? 0) }}" class="w-full rounded-lg border border-slate-200 px-2.5 py-2 text-sm">
-                    </div>
-                    <div>
-                        <label class="block text-[11px] font-bold text-slate-600 mb-1">Harga coret</label>
-                        <input type="number" min="0" name="packages[{{ $key }}][original_price]" value="{{ old("packages.$key.original_price", $pkg['original_price'] ?? '') }}" class="w-full rounded-lg border border-slate-200 px-2.5 py-2 text-sm">
+                        <input type="number" min="1000" step="500" name="packages[{{ $key }}][price]" required
+                               value="{{ old("packages.$key.price", $pkg['price']) }}"
+                               class="pkg-price w-full rounded-lg border border-slate-200 px-2.5 py-2 text-sm">
                     </div>
                 </div>
-                <div class="grid grid-cols-2 gap-2">
-                    <div>
-                        <label class="block text-[11px] font-bold text-slate-600 mb-1">Durasi (hari)</label>
-                        <input type="number" min="1" name="packages[{{ $key }}][duration]" required value="{{ old("packages.$key.duration", $pkg['duration'] ?? 30) }}" class="w-full rounded-lg border border-slate-200 px-2.5 py-2 text-sm">
-                    </div>
-                    <div>
-                        <label class="block text-[11px] font-bold text-slate-600 mb-1">Label durasi</label>
-                        <input type="text" name="packages[{{ $key }}][duration_label]" value="{{ old("packages.$key.duration_label", $pkg['duration_label'] ?? '') }}" class="w-full rounded-lg border border-slate-200 px-2.5 py-2 text-sm">
-                    </div>
-                </div>
+                <p class="pkg-preview text-[11px] text-slate-600 rounded-lg bg-slate-50 border border-slate-200 px-2.5 py-2"></p>
                 <div>
                     <label class="block text-[11px] font-bold text-slate-600 mb-1">Subtitle</label>
                     <input type="text" name="packages[{{ $key }}][subtitle]" value="{{ old("packages.$key.subtitle", $pkg['subtitle'] ?? '') }}" class="w-full rounded-lg border border-slate-200 px-2.5 py-2 text-sm">
                 </div>
                 <div class="grid grid-cols-2 gap-2">
                     <div>
-                        <label class="block text-[11px] font-bold text-slate-600 mb-1">Max pelanggan</label>
-                        <input type="number" min="0" name="packages[{{ $key }}][max_customers]" value="{{ old("packages.$key.max_customers", $pkg['max_customers'] ?? '') }}" class="w-full rounded-lg border border-slate-200 px-2.5 py-2 text-sm" placeholder="∞">
+                        <label class="block text-[11px] font-bold text-slate-600 mb-1">Ribbon</label>
+                        <input type="text" name="packages[{{ $key }}][featured_ribbon]" value="{{ old("packages.$key.featured_ribbon", $pkg['featured_ribbon'] ?? '') }}" placeholder="PALING POPULER" class="w-full rounded-lg border border-slate-200 px-2.5 py-2 text-sm">
                     </div>
                     <div>
-                        <label class="block text-[11px] font-bold text-slate-600 mb-1">Max router</label>
-                        <input type="number" min="0" name="packages[{{ $key }}][max_routers]" value="{{ old("packages.$key.max_routers", $pkg['max_routers'] ?? '') }}" class="w-full rounded-lg border border-slate-200 px-2.5 py-2 text-sm" placeholder="∞">
+                        <label class="block text-[11px] font-bold text-slate-600 mb-1">Label tombol (landing)</label>
+                        <input type="text" name="packages[{{ $key }}][button_label]" value="{{ old("packages.$key.button_label", $pkg['button_label'] ?? '') }}" class="w-full rounded-lg border border-slate-200 px-2.5 py-2 text-sm">
                     </div>
-                </div>
-                <div>
-                    <label class="block text-[11px] font-bold text-slate-600 mb-1">Tipe CTA</label>
-                    <select name="packages[{{ $key }}][cta_type]" class="w-full rounded-lg border border-slate-200 px-2.5 py-2 text-sm">
-                        @foreach (['register' => 'Daftar / Trial', 'checkout' => 'Checkout bayar', 'whatsapp' => 'WhatsApp sales'] as $val => $label)
-                            <option value="{{ $val }}" @selected(old("packages.$key.cta_type", $pkg['cta_type'] ?? 'register') === $val)>{{ $label }}</option>
-                        @endforeach
-                    </select>
-                </div>
-                <div>
-                    <label class="block text-[11px] font-bold text-slate-600 mb-1">Label tombol</label>
-                    <input type="text" name="packages[{{ $key }}][button_label]" value="{{ old("packages.$key.button_label", $pkg['button_label'] ?? '') }}" class="w-full rounded-lg border border-slate-200 px-2.5 py-2 text-sm">
-                </div>
-                <div>
-                    <label class="block text-[11px] font-bold text-slate-600 mb-1">Badge diskon</label>
-                    <input type="text" name="packages[{{ $key }}][discount_badge]" value="{{ old("packages.$key.discount_badge", $pkg['discount_badge'] ?? '') }}" class="w-full rounded-lg border border-slate-200 px-2.5 py-2 text-sm">
-                </div>
-                <div>
-                    <label class="block text-[11px] font-bold text-slate-600 mb-1">Pesan WA (jika CTA WhatsApp)</label>
-                    <input type="text" name="packages[{{ $key }}][wa_message]" value="{{ old("packages.$key.wa_message", $pkg['wa_message'] ?? '') }}" class="w-full rounded-lg border border-slate-200 px-2.5 py-2 text-sm">
-                </div>
-                <div>
-                    <label class="block text-[11px] font-bold text-slate-600 mb-1">Fitur (satu baris satu fitur)</label>
-                    <textarea name="packages[{{ $key }}][features_text]" rows="7" class="w-full rounded-lg border border-slate-200 px-2.5 py-2 text-xs font-mono">{{ old("packages.$key.features_text", $featuresText[$key] ?? '') }}</textarea>
                 </div>
             </div>
         @endforeach
@@ -158,29 +118,56 @@
 <script>
 (function () {
     const list = document.getElementById('payOrderList');
-    if (!list) return;
+    if (list) {
+        function reindex() {
+            [...list.querySelectorAll('.pay-order-item')].forEach((el, i) => {
+                const n = el.querySelector('span');
+                if (n) n.textContent = String(i + 1);
+            });
+        }
 
-    function reindex() {
-        [...list.querySelectorAll('.pay-order-item')].forEach((el, i) => {
-            const n = el.querySelector('span');
-            if (n) n.textContent = String(i + 1);
+        list.addEventListener('click', (e) => {
+            const up = e.target.closest('.pay-up');
+            const down = e.target.closest('.pay-down');
+            const item = e.target.closest('.pay-order-item');
+            if (!item) return;
+            if (up && item.previousElementSibling) {
+                list.insertBefore(item, item.previousElementSibling);
+                reindex();
+            }
+            if (down && item.nextElementSibling) {
+                list.insertBefore(item.nextElementSibling, item);
+                reindex();
+            }
         });
     }
 
-    list.addEventListener('click', (e) => {
-        const up = e.target.closest('.pay-up');
-        const down = e.target.closest('.pay-down');
-        const item = e.target.closest('.pay-order-item');
-        if (!item) return;
-        if (up && item.previousElementSibling) {
-            list.insertBefore(item, item.previousElementSibling);
-            reindex();
-        }
-        if (down && item.nextElementSibling) {
-            list.insertBefore(item.nextElementSibling, item);
-            reindex();
-        }
+    const idr = (n) => 'Rp ' + Math.round(n).toLocaleString('id-ID');
+    const cards = [...document.querySelectorAll('[data-pkg-pricing]')];
+    const priceOf = (card) => Math.max(0, parseInt(card.querySelector('.pkg-price')?.value || '0', 10) || 0);
+
+    function refreshPreviews() {
+        const monthlyCard = cards.find((c) => c.dataset.months === '1');
+        const base = monthlyCard ? priceOf(monthlyCard) : 0;
+        cards.forEach((card) => {
+            const months = parseInt(card.dataset.months || '1', 10);
+            const price = priceOf(card);
+            const normal = base * months;
+            const el = card.querySelector('.pkg-preview');
+            if (!el) return;
+            if (months > 1 && normal > price) {
+                const pct = Math.round((normal - price) / normal * 100);
+                el.textContent = `Tampil: ${idr(price)} (coret ${idr(normal)}, hemat ${idr(normal - price)} / ${pct}%) · setara ${idr(price / months)}/bulan`;
+            } else {
+                el.textContent = `Tampil: ${idr(price)}` + (months > 1 ? ` · setara ${idr(price / months)}/bulan (tidak lebih hemat dari bulanan)` : ' / bulan');
+            }
+        });
+    }
+
+    cards.forEach((card) => {
+        ['input', 'change'].forEach((ev) => card.addEventListener(ev, refreshPreviews));
     });
+    refreshPreviews();
 })();
 </script>
 @endpush

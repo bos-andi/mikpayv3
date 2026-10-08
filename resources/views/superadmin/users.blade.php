@@ -5,34 +5,19 @@
 
 @section('content')
 @php
-    $planOptions = ['trial' => 'Trial', 'starter' => 'Starter', 'pro' => 'Pro', 'enterprise' => 'Enterprise'];
-    $statusOptions = ['active' => 'Aktif', 'suspended' => 'Suspended', 'trial' => 'Trial', 'inactive' => 'Inactive'];
+    $planOptions = ['trial' => 'Trial'];
+    foreach (\App\Services\SubscriptionPackageService::all() as $planKey => $planPkg) {
+        $planOptions[$planKey] = 'MikPay '.$planPkg['name'];
+    }
+    $statusOptions = ['active' => 'Aktif', 'trial' => 'Trial', 'inactive' => 'Nonaktif'];
     $roleLabel = [
         'superadmin' => 'Superadmin',
         'tenant_admin' => 'Admin Tenant',
         'tenant_user' => 'User Tenant',
     ];
+    $tenantBase = $tenantBase ?? config('mikpay.tenant_base_domain', 'mikpay.link');
+    $openTenantId = (int) ($openTenantId ?? 0);
 @endphp
-
-@if (session('success'))
-    <div class="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-800 text-xs font-semibold px-4 py-3">
-        {{ session('success') }}
-    </div>
-@endif
-@if (session('error'))
-    <div class="mb-4 rounded-xl border border-rose-200 bg-rose-50 text-rose-800 text-xs font-semibold px-4 py-3">
-        {{ session('error') }}
-    </div>
-@endif
-@if ($errors->any())
-    <div class="mb-4 rounded-xl border border-rose-200 bg-rose-50 text-rose-800 text-xs font-semibold px-4 py-3">
-        <ul class="list-disc pl-4 space-y-0.5">
-            @foreach ($errors->all() as $err)
-                <li>{{ $err }}</li>
-            @endforeach
-        </ul>
-    </div>
-@endif
 
 <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
     <div class="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm">
@@ -61,198 +46,123 @@
     @endif
 </form>
 
-<div class="space-y-4">
-    @forelse ($tenants as $tenant)
-        @php
-            $panelUrl = 'https://'.$tenant->panelHost();
-            $statusClass = match ($tenant->status) {
-                'active' => 'bg-emerald-50 text-emerald-700 border-emerald-200',
-                'suspended' => 'bg-rose-50 text-rose-700 border-rose-200',
-                'trial' => 'bg-amber-50 text-amber-700 border-amber-200',
-                default => 'bg-slate-50 text-slate-600 border-slate-200',
-            };
-        @endphp
-        <div class="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
-            <div class="px-4 py-3 border-b border-slate-100 flex flex-col lg:flex-row lg:items-center justify-between gap-3">
-                <div class="min-w-0">
-                    <div class="flex items-center gap-2 flex-wrap">
-                        <h2 class="text-sm font-extrabold text-slate-900">{{ $tenant->name }}</h2>
-                        <span class="text-[10px] font-bold px-2 py-0.5 rounded-full border {{ $statusClass }}">{{ strtoupper($tenant->status) }}</span>
-                        <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-100">{{ strtoupper($tenant->plan ?: '—') }}</span>
-                    </div>
-                    <p class="text-[11px] text-slate-500 mt-1 font-mono">
-                        {{ $tenant->subdomain }}.{{ config('mikpay.tenant_base_domain') }}
-                        · {{ $tenant->users_count }} user
-                        · {{ $tenant->routers_count }} router
-                        · {{ $tenant->tunnel_accounts_count }} tunnel
-                    </p>
-                </div>
-                <div class="flex flex-wrap items-center gap-2 shrink-0">
-                    <a href="{{ $panelUrl }}" target="_blank" rel="noopener" class="text-[10px] font-bold px-2.5 py-1.5 rounded-lg bg-indigo-600 text-white hover:bg-indigo-500">
-                        <i class="fa-solid fa-external-link mr-1"></i> Buka Panel
-                    </a>
-                    <form method="POST" action="{{ route('superadmin.tenants.toggle', $tenant) }}"
-                          onsubmit="return confirm('{{ $tenant->status === 'active' ? 'Suspend tenant ini?' : 'Aktifkan kembali tenant ini?' }}')">
-                        @csrf
-                        <button type="submit" class="text-[10px] font-bold px-2.5 py-1.5 rounded-lg border {{ $tenant->status === 'active' ? 'border-rose-200 text-rose-600 hover:bg-rose-50' : 'border-emerald-200 text-emerald-700 hover:bg-emerald-50' }}">
-                            {{ $tenant->status === 'active' ? 'Suspend' : 'Aktifkan' }}
-                        </button>
-                    </form>
-                </div>
-            </div>
-
-            <div class="p-4 grid grid-cols-1 xl:grid-cols-2 gap-4">
-                <form method="POST" action="{{ route('superadmin.tenants.update', $tenant) }}" class="rounded-xl border border-slate-200 bg-slate-50 p-3 space-y-3">
-                    @csrf
-                    @method('PUT')
-                    <p class="text-[11px] font-bold text-slate-700">Edit Tenant</p>
-                    <div>
-                        <label class="block text-[10px] font-bold text-slate-500 mb-1">Nama</label>
-                        <input type="text" name="name" value="{{ old('name', $tenant->name) }}" required
-                               class="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-xs">
-                    </div>
-                    <div class="grid grid-cols-2 gap-2">
-                        <div>
-                            <label class="block text-[10px] font-bold text-slate-500 mb-1">Status</label>
-                            <select name="status" class="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-xs">
-                                @foreach ($statusOptions as $val => $label)
-                                    <option value="{{ $val }}" @selected(old('status', $tenant->status) === $val)>{{ $label }}</option>
-                                @endforeach
-                            </select>
-                        </div>
-                        <div>
-                            <label class="block text-[10px] font-bold text-slate-500 mb-1">Paket</label>
-                            <select name="plan" class="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-xs">
-                                @foreach ($planOptions as $val => $label)
-                                    <option value="{{ $val }}" @selected(old('plan', $tenant->plan) === $val)>{{ $label }}</option>
-                                @endforeach
-                                @if ($tenant->plan && ! isset($planOptions[$tenant->plan]))
-                                    <option value="{{ $tenant->plan }}" selected>{{ $tenant->plan }}</option>
-                                @endif
-                            </select>
-                        </div>
-                    </div>
-                    <p class="text-[10px] text-slate-400">Subdomain terkunci: <span class="font-mono font-semibold text-slate-600">{{ $tenant->subdomain }}</span></p>
-                    <button type="submit" class="text-[11px] font-bold px-3 py-2 rounded-lg bg-slate-900 text-white">Simpan Tenant</button>
-                </form>
-
-                <div class="space-y-3">
-                    <div class="rounded-xl border border-slate-200 overflow-hidden">
-                        <div class="px-3 py-2 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
-                            <p class="text-[11px] font-bold text-slate-700">User Tenant</p>
-                            <span class="text-[10px] text-slate-400">{{ $tenant->users->count() }} akun</span>
-                        </div>
-                        <div class="divide-y divide-slate-100">
-                            @forelse ($tenant->users as $user)
-                                <div class="p-3 space-y-2">
-                                    <div class="flex items-start justify-between gap-2">
-                                        <div class="min-w-0">
-                                            <p class="text-xs font-bold text-slate-900 truncate">{{ $user->name }}</p>
-                                            <p class="text-[11px] font-mono text-slate-500 truncate">{{ $user->email }}</p>
-                                            <div class="flex flex-wrap gap-1 mt-1">
-                                                <span class="text-[9px] font-bold px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700">{{ $roleLabel[$user->role] ?? $user->role }}</span>
-                                                <span class="text-[9px] font-bold px-1.5 py-0.5 rounded {{ $user->is_active ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700' }}">
-                                                    {{ $user->is_active ? 'AKTIF' : 'NONAKTIF' }}
-                                                </span>
-                                            </div>
-                                        </div>
-                                        <form method="POST" action="{{ route('superadmin.users.toggle', $user) }}"
-                                              onsubmit="return confirm('{{ $user->is_active ? 'Nonaktifkan user ini?' : 'Aktifkan user ini?' }}')">
-                                            @csrf
-                                            <button type="submit" class="text-[10px] font-bold px-2 py-1 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50">
-                                                {{ $user->is_active ? 'Nonaktifkan' : 'Aktifkan' }}
-                                            </button>
-                                        </form>
-                                    </div>
-                                    <details class="text-[11px]">
-                                        <summary class="cursor-pointer font-semibold text-indigo-600">Edit user</summary>
-                                        <form method="POST" action="{{ route('superadmin.users.update', $user) }}" class="mt-2 space-y-2 rounded-lg border border-slate-200 bg-slate-50 p-2.5">
-                                            @csrf
-                                            @method('PUT')
-                                            <div class="grid grid-cols-2 gap-2">
-                                                <div>
-                                                    <label class="block text-[10px] font-bold text-slate-500 mb-1">Nama</label>
-                                                    <input type="text" name="name" value="{{ $user->name }}" required class="w-full rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs">
-                                                </div>
-                                                <div>
-                                                    <label class="block text-[10px] font-bold text-slate-500 mb-1">Role</label>
-                                                    <select name="role" class="w-full rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs">
-                                                        <option value="tenant_admin" @selected($user->role === 'tenant_admin')>Admin Tenant</option>
-                                                        <option value="tenant_user" @selected($user->role === 'tenant_user')>User Tenant</option>
-                                                    </select>
-                                                </div>
-                                            </div>
-                                            <div>
-                                                <label class="block text-[10px] font-bold text-slate-500 mb-1">Email</label>
-                                                <input type="email" name="email" value="{{ $user->email }}" required class="w-full rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs">
-                                            </div>
-                                            <div class="grid grid-cols-2 gap-2">
-                                                <div>
-                                                    <label class="block text-[10px] font-bold text-slate-500 mb-1">Password baru</label>
-                                                    <input type="password" name="password" class="w-full rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs" placeholder="Kosongkan jika tidak diganti">
-                                                </div>
-                                                <div>
-                                                    <label class="block text-[10px] font-bold text-slate-500 mb-1">Ulangi password</label>
-                                                    <input type="password" name="password_confirmation" class="w-full rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs">
-                                                </div>
-                                            </div>
-                                            <label class="inline-flex items-center gap-2 text-[10px] font-semibold text-slate-600">
-                                                <input type="checkbox" name="is_active" value="1" @checked($user->is_active) class="rounded border-slate-300">
-                                                Akun aktif
-                                            </label>
-                                            <button type="submit" class="text-[10px] font-bold px-2.5 py-1.5 rounded-lg bg-indigo-600 text-white">Simpan User</button>
-                                        </form>
-                                    </details>
-                                </div>
-                            @empty
-                                <p class="p-4 text-[11px] text-slate-500">Belum ada user di tenant ini.</p>
-                            @endforelse
-                        </div>
-                    </div>
-
-                    <details class="rounded-xl border border-dashed border-violet-300 bg-violet-50/50 p-3">
-                        <summary class="cursor-pointer text-[11px] font-bold text-violet-700">+ Tambah user ke tenant</summary>
-                        <form method="POST" action="{{ route('superadmin.tenants.users.store', $tenant) }}" class="mt-3 space-y-2">
-                            @csrf
-                            <div class="grid grid-cols-2 gap-2">
-                                <div>
-                                    <label class="block text-[10px] font-bold text-slate-500 mb-1">Nama</label>
-                                    <input type="text" name="name" required class="w-full rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs">
-                                </div>
-                                <div>
-                                    <label class="block text-[10px] font-bold text-slate-500 mb-1">Role</label>
-                                    <select name="role" class="w-full rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs">
-                                        <option value="tenant_admin">Admin Tenant</option>
-                                        <option value="tenant_user">User Tenant</option>
-                                    </select>
-                                </div>
+<div class="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
+    <div class="overflow-x-auto">
+        <table class="min-w-full text-left text-xs">
+            <thead class="bg-slate-50 text-[10px] uppercase tracking-wider text-slate-500 border-b border-slate-200">
+                <tr>
+                    <th class="px-4 py-3 font-bold">Tenant</th>
+                    <th class="px-4 py-3 font-bold">Subdomain</th>
+                    <th class="px-4 py-3 font-bold">Paket</th>
+                    <th class="px-4 py-3 font-bold">Status</th>
+                    <th class="px-4 py-3 font-bold">Resource</th>
+                    <th class="px-4 py-3 font-bold">Saldo</th>
+                    <th class="px-4 py-3 font-bold">Trial / Langganan</th>
+                    <th class="px-4 py-3 font-bold text-right">Aksi</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100">
+                @forelse ($tenants as $tenant)
+                    @php
+                        $panelUrl = 'https://'.$tenant->panelHost();
+                        $statusClass = match ($tenant->status) {
+                            'active' => 'bg-emerald-50 text-emerald-700 border-emerald-200',
+                            'inactive' => 'bg-rose-50 text-rose-700 border-rose-200',
+                            'trial' => 'bg-amber-50 text-amber-700 border-amber-200',
+                            default => 'bg-slate-50 text-slate-600 border-slate-200',
+                        };
+                        $endAt = $tenant->subscriptionEndsAt();
+                        $isActiveSub = $tenant->subscriptionIsActive();
+                    @endphp
+                    <tr class="hover:bg-slate-50/70">
+                        <td class="px-4 py-3">
+                            <p class="font-extrabold text-slate-900">{{ $tenant->name }}</p>
+                            <p class="text-[10px] text-slate-400 mt-0.5">ID #{{ $tenant->id }}</p>
+                        </td>
+                        <td class="px-4 py-3">
+                            <a href="{{ $panelUrl }}" target="_blank" rel="noopener" class="font-mono text-[11px] text-indigo-600 hover:underline">
+                                {{ $tenant->subdomain }}.{{ $tenantBase }}
+                            </a>
+                        </td>
+                        <td class="px-4 py-3">
+                            <span class="inline-flex text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-100">
+                                {{ \App\Services\SubscriptionPackageService::planLabel($tenant->plan) }}
+                            </span>
+                        </td>
+                        <td class="px-4 py-3">
+                            <span class="inline-flex text-[10px] font-bold px-2 py-0.5 rounded-full border {{ $statusClass }}">
+                                {{ strtoupper($tenant->statusLabel()) }}
+                            </span>
+                        </td>
+                        <td class="px-4 py-3 text-slate-600 whitespace-nowrap">
+                            {{ $tenant->users_count }} user · {{ $tenant->routers_count }} router · {{ $tenant->tunnel_accounts_count }} tunnel
+                        </td>
+                        <td class="px-4 py-3 whitespace-nowrap">
+                            <p class="font-bold text-emerald-700">Rp {{ number_format($tenant->platformBalance(), 0, ',', '.') }}</p>
+                        </td>
+                        <td class="px-4 py-3 text-slate-600">
+                            @if ($endAt)
+                                <span class="{{ $isActiveSub ? 'text-emerald-700' : 'text-rose-600' }} font-semibold">
+                                    {{ format_wib($endAt) }}
+                                </span>
+                                <p class="text-[10px] text-slate-400 mt-0.5">{{ $isActiveSub ? 'Aktif' : 'Habis' }}</p>
+                            @else
+                                <span class="text-slate-400">—</span>
+                            @endif
+                        </td>
+                        <td class="px-4 py-3">
+                            <div class="flex flex-wrap items-center justify-end gap-1.5">
+                                <button type="button"
+                                        onclick="openTenantDetail({{ $tenant->id }})"
+                                        class="text-[10px] font-bold px-2.5 py-1.5 rounded-lg bg-slate-900 text-white hover:bg-slate-800">
+                                    Detail
+                                </button>
+                                <button type="button"
+                                        onclick="openTenantDetail({{ $tenant->id }}, 'saldo')"
+                                        class="text-[10px] font-bold px-2.5 py-1.5 rounded-lg border border-emerald-300 text-emerald-700 hover:bg-emerald-50">
+                                    Inject Saldo
+                                </button>
+                                <form method="POST" action="{{ route('superadmin.tenants.toggle', $tenant) }}"
+                                      onsubmit="return MikPay.confirmForm(event, { title: '{{ $tenant->status === 'inactive' ? 'Aktifkan tenant?' : 'Nonaktifkan tenant?' }}', message: '{{ $tenant->status === 'inactive' ? 'Tenant akan diaktifkan kembali.' : 'Tenant akan dinonaktifkan. Panel terkunci dan mereka bisa bayar sendiri di halaman Langganan untuk aktif kembali.' }}', variant: '{{ $tenant->status === 'inactive' ? 'default' : 'warning' }}', confirmText: '{{ $tenant->status === 'inactive' ? 'Ya, aktifkan' : 'Ya, nonaktifkan' }}' })">
+                                    @csrf
+                                    <button type="submit" class="text-[10px] font-bold px-2.5 py-1.5 rounded-lg border {{ $tenant->status === 'inactive' ? 'border-emerald-300 text-emerald-700 hover:bg-emerald-50' : 'border-amber-300 text-amber-700 hover:bg-amber-50' }}">
+                                        {{ $tenant->status === 'inactive' ? 'Aktifkan' : 'Nonaktifkan' }}
+                                    </button>
+                                </form>
+                                @php
+                                    $deletePayload = [
+                                        'id' => $tenant->id,
+                                        'name' => $tenant->name,
+                                        'subdomain' => $tenant->subdomain,
+                                        'fqdn' => $tenant->subdomain.'.'.$tenantBase,
+                                        'url' => route('superadmin.tenants.destroy', $tenant),
+                                    ];
+                                @endphp
+                                <button type="button"
+                                        data-delete-tenant="{{ e(json_encode($deletePayload)) }}"
+                                        onclick="destroyTenantWithProgress(this)"
+                                        class="text-[10px] font-bold px-2.5 py-1.5 rounded-lg border border-rose-300 text-rose-600 hover:bg-rose-50">
+                                    Delete
+                                </button>
                             </div>
-                            <div>
-                                <label class="block text-[10px] font-bold text-slate-500 mb-1">Email</label>
-                                <input type="email" name="email" required class="w-full rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs">
-                            </div>
-                            <div class="grid grid-cols-2 gap-2">
-                                <div>
-                                    <label class="block text-[10px] font-bold text-slate-500 mb-1">Password</label>
-                                    <input type="password" name="password" required class="w-full rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs">
-                                </div>
-                                <div>
-                                    <label class="block text-[10px] font-bold text-slate-500 mb-1">Ulangi</label>
-                                    <input type="password" name="password_confirmation" required class="w-full rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs">
-                                </div>
-                            </div>
-                            <button type="submit" class="text-[10px] font-bold px-2.5 py-1.5 rounded-lg bg-violet-600 text-white">Buat User</button>
-                        </form>
-                    </details>
-                </div>
-            </div>
-        </div>
-    @empty
-        <div class="bg-white border border-slate-200 rounded-2xl p-8 text-center text-sm text-slate-500">
-            Tidak ada tenant{{ $q !== '' ? ' untuk pencarian ini' : '' }}.
-        </div>
-    @endforelse
+                        </td>
+                    </tr>
+                @empty
+                    <tr>
+                        <td colspan="8" class="px-4 py-10 text-center text-sm text-slate-500">
+                            Tidak ada tenant{{ $q !== '' ? ' untuk pencarian ini' : '' }}.
+                        </td>
+                    </tr>
+                @endforelse
+            </tbody>
+        </table>
+    </div>
 </div>
+
+{{-- Detail drawers --}}
+@foreach ($tenants as $tenant)
+    @include('superadmin.partials.tenant-drawer')
+@endforeach
 
 @if ($superadmins->isNotEmpty())
     <div class="mt-6 bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
@@ -286,4 +196,274 @@
         </ul>
     </div>
 @endif
+
+{{-- Progress penghapusan tenant --}}
+<div id="tenantDeleteProgress" class="fixed inset-0 z-[9500] hidden items-center justify-center p-4">
+    <div class="absolute inset-0 bg-slate-950/60 backdrop-blur-sm"></div>
+    <div class="relative w-full max-w-md bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden">
+        <div class="px-5 pt-5 pb-3 border-b border-slate-100 bg-gradient-to-br from-rose-50 to-violet-50">
+            <div class="flex items-center gap-3">
+                <div id="tenantDeleteIcon" class="h-11 w-11 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center shrink-0">
+                    <i class="fa-solid fa-trash-can text-lg"></i>
+                </div>
+                <div class="min-w-0">
+                    <p id="tenantDeleteTitle" class="text-sm font-extrabold text-slate-900">Menghapus tenant…</p>
+                    <p id="tenantDeleteSubtitle" class="text-[11px] text-slate-500 mt-0.5 font-mono truncate">—</p>
+                </div>
+            </div>
+            <div class="mt-4 h-2 rounded-full bg-slate-200 overflow-hidden">
+                <div id="tenantDeleteBar" class="h-full w-0 rounded-full bg-gradient-to-r from-violet-600 to-rose-500 transition-all duration-500 ease-out"></div>
+            </div>
+            <p id="tenantDeletePct" class="text-[10px] font-bold text-slate-500 mt-1.5">0%</p>
+        </div>
+        <div id="tenantDeleteSteps" class="px-5 py-4 space-y-2.5 max-h-[50vh] overflow-y-auto"></div>
+        <div id="tenantDeleteFooter" class="hidden px-5 pb-5">
+            <button type="button" id="tenantDeleteDoneBtn" class="w-full text-xs font-bold px-3 py-2.5 rounded-2xl bg-slate-900 text-white">
+                Selesai
+            </button>
+        </div>
+    </div>
+</div>
 @endsection
+
+@push('scripts')
+<script>
+const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
+
+function switchTenantTab(id, tab) {
+    const modal = document.getElementById('tenant-modal-' + id);
+    if (!modal) return;
+    modal.querySelectorAll('[data-tab-pane]').forEach((p) => p.classList.toggle('hidden', p.dataset.tabPane !== tab));
+    modal.querySelectorAll('[data-tab-btn]').forEach((b) => {
+        const on = b.dataset.tabBtn === tab;
+        b.classList.toggle('text-indigo-700', on);
+        b.classList.toggle('text-slate-500', !on);
+        b.querySelector('[data-tab-line]')?.classList.toggle('hidden', !on);
+    });
+}
+function hideTenantDrawer(modal, instant = false) {
+    if (!modal || modal.classList.contains('hidden')) return;
+    modal.querySelector('[data-drawer-panel]')?.classList.add('translate-x-full');
+    modal.querySelector('[data-drawer-backdrop]')?.classList.add('opacity-0');
+    if (instant) {
+        modal.classList.add('hidden');
+    } else {
+        setTimeout(() => modal.classList.add('hidden'), 250);
+    }
+}
+function openTenantDetail(id, tab = 'config') {
+    document.querySelectorAll('.tenant-drawer').forEach((el) => hideTenantDrawer(el, true));
+    const modal = document.getElementById('tenant-modal-' + id);
+    if (!modal) return;
+    switchTenantTab(id, tab);
+    modal.classList.remove('hidden');
+    document.body.classList.add('overflow-hidden');
+    const panel = modal.querySelector('[data-drawer-panel]');
+    void panel?.offsetWidth;
+    panel?.classList.remove('translate-x-full');
+    modal.querySelector('[data-drawer-backdrop]')?.classList.remove('opacity-0');
+}
+function closeTenantDetail(id) {
+    hideTenantDrawer(document.getElementById('tenant-modal-' + id));
+    document.body.classList.remove('overflow-hidden');
+}
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+        const progress = document.getElementById('tenantDeleteProgress');
+        if (progress && !progress.classList.contains('hidden') && progress.dataset.locked === '1') {
+            return;
+        }
+        document.querySelectorAll('.tenant-drawer').forEach((el) => hideTenantDrawer(el));
+        document.body.classList.remove('overflow-hidden');
+    }
+});
+
+const pendingSteps = [
+    { key: 'users', label: 'Hapus akun login panel' },
+    { key: 'tunnels', label: 'Hapus OpenVPN & port remote' },
+    { key: 'data', label: 'Hapus data tenant (router, billing, GIS, keuangan)' },
+    { key: 'sessions', label: 'Putus sesi VPN yang masih tersambung' },
+    { key: 'firewall', label: 'Bersihkan firewall tunnel server' },
+    { key: 'dns', label: 'Hapus DNS subdomain Hostinger' },
+    { key: 'done', label: 'Tenant dihapus permanen' },
+];
+
+function renderDeleteSteps(stateMap) {
+    const wrap = document.getElementById('tenantDeleteSteps');
+    if (!wrap) return;
+    wrap.innerHTML = pendingSteps.map((step) => {
+        const st = stateMap[step.key] || { status: 'pending', detail: '' };
+        let icon = '<span class="w-5 h-5 rounded-full border-2 border-slate-300 inline-flex"></span>';
+        let text = 'text-slate-500';
+        if (st.status === 'running') {
+            icon = '<i class="fa-solid fa-spinner fa-spin text-violet-600 text-sm w-5 text-center"></i>';
+            text = 'text-slate-900 font-semibold';
+        } else if (st.status === 'ok') {
+            icon = '<i class="fa-solid fa-circle-check text-emerald-500 text-sm w-5 text-center"></i>';
+            text = 'text-slate-800 font-semibold';
+        } else if (st.status === 'fail') {
+            icon = '<i class="fa-solid fa-circle-xmark text-rose-500 text-sm w-5 text-center"></i>';
+            text = 'text-rose-700 font-semibold';
+        }
+        return `<div class="flex items-start gap-3">
+            <div class="pt-0.5">${icon}</div>
+            <div class="min-w-0">
+                <p class="text-[12px] ${text}">${step.label}</p>
+                ${st.detail ? `<p class="text-[10px] text-slate-400 mt-0.5">${st.detail}</p>` : ''}
+            </div>
+        </div>`;
+    }).join('');
+}
+
+function setDeleteProgress(pct) {
+    const bar = document.getElementById('tenantDeleteBar');
+    const label = document.getElementById('tenantDeletePct');
+    if (bar) bar.style.width = Math.max(0, Math.min(100, pct)) + '%';
+    if (label) label.textContent = Math.round(pct) + '%';
+}
+
+function sleep(ms) {
+    return new Promise((r) => setTimeout(r, ms));
+}
+
+function parseDeletePayload(el) {
+    if (!el) return null;
+    if (typeof el === 'object' && el.url) return el;
+    const raw = el.getAttribute?.('data-delete-tenant') || el.dataset?.deleteTenant || '';
+    if (!raw) return null;
+    try {
+        return JSON.parse(raw);
+    } catch (e) {
+        console.error('Delete payload parse error', e, raw);
+        return null;
+    }
+}
+
+async function destroyTenantWithProgress(source) {
+    const payload = parseDeletePayload(source);
+    if (!payload?.url) {
+        await MikPay.alert({
+            title: 'Tombol delete error',
+            message: 'Data tenant tidak valid. Muat ulang halaman lalu coba lagi.',
+            variant: 'danger',
+        });
+        return;
+    }
+
+    const ok = await MikPay.confirm({
+        title: 'Hapus tenant?',
+        message: `HAPUS permanen tenant ${payload.name} (${payload.fqdn}) beserta semua konfigurasi subdomain, user, tunnel, dan data terkait? Tindakan ini tidak bisa dibatalkan.`,
+        variant: 'danger',
+        confirmText: 'Ya, hapus semua',
+    });
+    if (!ok) return;
+
+    closeTenantDetail(payload.id);
+
+    const modal = document.getElementById('tenantDeleteProgress');
+    const title = document.getElementById('tenantDeleteTitle');
+    const subtitle = document.getElementById('tenantDeleteSubtitle');
+    const footer = document.getElementById('tenantDeleteFooter');
+    const icon = document.getElementById('tenantDeleteIcon');
+    const doneBtn = document.getElementById('tenantDeleteDoneBtn');
+
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+    modal.dataset.locked = '1';
+    document.body.classList.add('overflow-hidden');
+    footer.classList.add('hidden');
+    title.textContent = 'Menghapus konfigurasi…';
+    subtitle.textContent = payload.fqdn || payload.name;
+    icon.innerHTML = '<i class="fa-solid fa-spinner fa-spin text-lg"></i>';
+    icon.className = 'h-11 w-11 rounded-2xl bg-violet-100 text-violet-600 flex items-center justify-center shrink-0';
+
+    const stateMap = {};
+    pendingSteps.forEach((s) => { stateMap[s.key] = { status: 'pending', detail: '' }; });
+    renderDeleteSteps(stateMap);
+    setDeleteProgress(8);
+
+    // Animasi langkah berjalan sambil request diproses.
+    let i = 0;
+    const ticker = setInterval(() => {
+        if (i >= pendingSteps.length) return;
+        const key = pendingSteps[i].key;
+        if (stateMap[key].status === 'pending') {
+            stateMap[key] = { status: 'running', detail: 'Memproses…' };
+            renderDeleteSteps(stateMap);
+            setDeleteProgress(12 + (i / pendingSteps.length) * 55);
+        }
+        i += 1;
+    }, 420);
+
+    try {
+        const res = await fetch(payload.url, {
+            method: 'DELETE',
+            headers: {
+                'Accept': 'application/json',
+                'X-CSRF-TOKEN': csrfToken,
+                'X-Requested-With': 'XMLHttpRequest',
+            },
+        });
+        const data = await res.json().catch(() => ({}));
+        clearInterval(ticker);
+        await sleep(250);
+
+        const serverSteps = Array.isArray(data.steps) ? data.steps : [];
+        for (let idx = 0; idx < pendingSteps.length; idx++) {
+            const key = pendingSteps[idx].key;
+            const found = serverSteps.find((s) => s.key === key);
+            stateMap[key] = {
+                status: found ? (found.ok ? 'ok' : 'fail') : (data.ok ? 'ok' : 'fail'),
+                detail: found?.detail || '',
+            };
+            renderDeleteSteps(stateMap);
+            setDeleteProgress(70 + ((idx + 1) / pendingSteps.length) * 30);
+            await sleep(180);
+        }
+
+        if (data.ok) {
+            title.textContent = 'Penghapusan selesai';
+            subtitle.textContent = data.message || `${payload.name} sudah dihapus`;
+            icon.innerHTML = '<i class="fa-solid fa-circle-check text-lg"></i>';
+            icon.className = 'h-11 w-11 rounded-2xl bg-emerald-100 text-emerald-600 flex items-center justify-center shrink-0';
+            setDeleteProgress(100);
+            modal.dataset.locked = '0';
+            footer.classList.remove('hidden');
+            doneBtn.onclick = () => { window.location.href = data.redirect || @json(route('superadmin.users')); };
+            setTimeout(() => { window.location.href = data.redirect || @json(route('superadmin.users')); }, 1600);
+        } else {
+            title.textContent = 'Penghapusan gagal';
+            subtitle.textContent = data.message || 'Terjadi kesalahan';
+            icon.innerHTML = '<i class="fa-solid fa-circle-xmark text-lg"></i>';
+            icon.className = 'h-11 w-11 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center shrink-0';
+            modal.dataset.locked = '0';
+            footer.classList.remove('hidden');
+            doneBtn.textContent = 'Tutup';
+            doneBtn.onclick = () => {
+                modal.classList.add('hidden');
+                modal.classList.remove('flex');
+                document.body.classList.remove('overflow-hidden');
+            };
+        }
+    } catch (err) {
+        clearInterval(ticker);
+        title.textContent = 'Penghapusan gagal';
+        subtitle.textContent = err?.message || 'Tidak bisa menghubungi server';
+        icon.innerHTML = '<i class="fa-solid fa-circle-xmark text-lg"></i>';
+        icon.className = 'h-11 w-11 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center shrink-0';
+        modal.dataset.locked = '0';
+        footer.classList.remove('hidden');
+        doneBtn.textContent = 'Tutup';
+        doneBtn.onclick = () => {
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+            document.body.classList.remove('overflow-hidden');
+        };
+    }
+}
+
+@if ($openTenantId > 0)
+openTenantDetail({{ $openTenantId }});
+@endif
+</script>
+@endpush

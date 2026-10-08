@@ -192,10 +192,10 @@
         });
     });
 
-    form?.addEventListener('submit', (e) => {
+    form?.addEventListener('submit', async (e) => {
         if (!checks.some(c => c.checked)) {
             e.preventDefault();
-            alert('Pilih minimal satu periode.');
+            await (window.mikpayAlert || window.MikPay?.alert)?.({ title: 'Periode belum dipilih', message: 'Pilih minimal satu periode.' });
         }
     });
 

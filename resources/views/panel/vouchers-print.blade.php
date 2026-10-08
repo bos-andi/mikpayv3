@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Cetak Voucher — {{ $tenant?->name ?? 'MikPay' }}</title>
+    @include('partials.favicon')
     <style>
         * { box-sizing: border-box; }
         body { font-family: ui-sans-serif, system-ui, sans-serif; margin: 16px; background: #f8fafc; color: #0f172a; }

@@ -15,7 +15,8 @@
     <div class="flex-1 flex flex-col min-w-0 overflow-hidden bg-slate-50 dark:bg-slate-950 transition-colors duration-200">
         @include('partials.panel.topbar')
 
-        <main class="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4 sm:space-y-6">
+        <main class="flex-1 overflow-y-auto p-4 sm:p-6">
+          <div class="w-full max-w-[1600px] mx-auto space-y-4 sm:space-y-5">
             @php
                 $subTenant = current_tenant();
                 $subEnd = $subTenant?->subscriptionEndsAt();
@@ -35,7 +36,7 @@
                         @if ($subActive)
                             Langganan/trial berakhir {{ format_wib($subEnd) }} ({{ max(0, (int) $subDays) }} hari lagi).
                         @else
-                            Trial/langganan sudah berakhir. Panel terkunci sampai pembayaran disetujui.
+                            Panel nonaktif. Isi saldo & perpanjang langganan di menu Langganan MikPay.
                         @endif
                     </span>
                     <a href="{{ panel_route('subscription') }}" class="inline-flex items-center gap-1.5 font-bold underline underline-offset-2 shrink-0">
@@ -44,6 +45,7 @@
                 </div>
             @endif
             @yield('content')
+          </div>
         </main>
     </div>
 
@@ -52,10 +54,10 @@
 
     @php
         $tenantPayload = [
-            'name' => $tenant->name ?? null,
-            'subdomain' => $tenant->subdomain ?? 'cl45',
-            'remote_host' => isset($tenant) ? $tenant->remoteHost() : 'cl45.remote.mikpay.link',
-            'vpn_status' => $tenant->vpn_status ?? 'offline',
+            'name' => $tenant?->name,
+            'subdomain' => $tenant?->subdomain ?? 'cl45',
+            'remote_host' => $tenant?->remoteHost() ?? 'cl45.remote.mikpay.link',
+            'vpn_status' => $tenant?->vpn_status ?? 'offline',
         ];
     @endphp
     <script>
@@ -63,7 +65,7 @@
         window.MikPay.tenant = @json($tenantPayload);
     </script>
     <script src="{{ asset('js/mikpay.js') }}" defer></script>
-    <script src="{{ asset('js/panel.js') }}?v=5" defer></script>
+    <script src="{{ asset('js/panel.js') }}?v=6" defer></script>
     @stack('scripts')
 </body>
 </html>

@@ -3,6 +3,10 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
+use App\Models\Tenant;
+use App\Rules\Turnstile;
+use App\Services\OnboardingService;
+use App\Services\TurnstileService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -10,20 +14,38 @@ use Illuminate\View\View;
 
 class LoginController extends Controller
 {
-    public function create(): View
+    public function create(Request $request): View
     {
         return view('auth.login', [
             'hideNavbar' => true,
             'hideFooter' => true,
+            'loginTenant' => $this->tenantFromHost($request->getHost()),
         ]);
     }
 
-    public function store(Request $request): RedirectResponse
+    protected function tenantFromHost(string $host): ?Tenant
+    {
+        $base = (string) config('mikpay.tenant_base_domain', 'mikpay.link');
+        if ($base === '' || ! str_ends_with($host, '.'.$base)) {
+            return null;
+        }
+
+        $subdomain = substr($host, 0, -strlen('.'.$base));
+        if ($subdomain === '' || str_contains($subdomain, '.') || in_array($subdomain, ['www', 'tunnel', 'app', 'admin'], true)) {
+            return null;
+        }
+
+        return Tenant::query()->where('subdomain', $subdomain)->first();
+    }
+
+    public function store(Request $request, OnboardingService $onboarding): RedirectResponse
     {
         $credentials = $request->validate([
             'email' => ['required', 'email'],
             'password' => ['required', 'string'],
+            TurnstileService::FIELD => [new Turnstile],
         ]);
+        unset($credentials[TurnstileService::FIELD]);
 
         if (! Auth::attempt($credentials, $request->boolean('remember'))) {
             return back()
@@ -41,6 +63,11 @@ class LoginController extends Controller
             return back()->withErrors(['email' => 'Akun Anda dinonaktifkan.']);
         }
 
+        if ($user->requiresEmailVerification()) {
+            return redirect()->away(central_url('/email/verifikasi'))
+                ->with('error', 'Email Anda belum diverifikasi. Klik tautan di email kami atau kirim ulang di bawah.');
+        }
+
         if ($user->isSuperAdmin()) {
             // Prefer superadmin home unless user explicitly opened another URL first.
             $intended = session()->pull('url.intended');
@@ -49,7 +76,11 @@ class LoginController extends Controller
                 return redirect()->to($intended);
             }
 
-            return redirect()->route('superadmin.dashboard');
+            return redirect()->away(central_url('/superadmin'));
+        }
+
+        if ($user->isPartner()) {
+            return redirect()->away(central_url('/affiliate/dashboard'));
         }
 
         // Pelanggan Tunnel standalone → dashboard tunnel.
@@ -60,25 +91,34 @@ class LoginController extends Controller
         }
 
         $tenant = $user->tenant;
-        if (
-            $tenant
-            && $tenant->subscriptionEndsAt() !== null
-            && ! $tenant->subscriptionIsActive()
-        ) {
+        if ($tenant && $tenant->needsRenewal()) {
+            $msg = 'Akun nonaktif atau langganan berakhir. Bayar paket di halaman ini untuk mengaktifkan panel kembali.';
             if ($tenant->subdomain) {
                 return redirect()
                     ->away(tenant_panel_url($tenant, '/langganan'))
-                    ->with('error', 'Trial/langganan sudah berakhir. Perpanjang di halaman ini untuk membuka panel kembali.');
+                    ->with('error', $msg);
             }
 
             return redirect()
                 ->route('panel.subscription')
-                ->with('error', 'Trial/langganan sudah berakhir. Perpanjang di halaman ini untuk membuka panel kembali.');
+                ->with('error', $msg);
         }
 
         // Selalu arahkan ke subdomain tenant agar UI panel sama persis.
         if ($tenant?->subdomain) {
-            return redirect()->away(tenant_panel_url($tenant, '/dashboard'));
+            $path = '/dashboard';
+            if (
+                ! $user->isSuperAdmin()
+                && $tenant->subscriptionIsActive()
+                && $onboarding->isEligible($tenant)
+            ) {
+                $checklist = $onboarding->checklist($tenant);
+                if (! ($checklist['all_required_done'] ?? true) && ! ($checklist['dismissed'] ?? false)) {
+                    $path = '/mulai';
+                }
+            }
+
+            return redirect()->away(tenant_panel_url($tenant, $path));
         }
 
         return redirect()->intended(route('panel.dashboard'));

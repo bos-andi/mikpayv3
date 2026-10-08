@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Facades\Crypt;
 
@@ -47,6 +48,11 @@ class Tenant extends Model
         return $this->hasMany(PlatformPendingPayment::class);
     }
 
+    public function referrer(): BelongsTo
+    {
+        return $this->belongsTo(Partner::class, 'referred_by_partner_id');
+    }
+
     public function subscriptionEndsAt(): ?Carbon
     {
         $raw = $this->metaGet('subscription_ends_at') ?: $this->metaGet('trial_ends_at');
@@ -62,9 +68,18 @@ class Tenant extends Model
         }
     }
 
+    /**
+     * Pemilik baru daftar dan belum klik link verifikasi email: panel & VPN dikunci.
+     */
+    public function awaitingEmailVerification(): bool
+    {
+        return (bool) $this->metaGet('email_verification_pending', false);
+    }
+
     public function subscriptionIsActive(): bool
     {
-        if ($this->status === 'suspended' || $this->status === 'inactive') {
+        // Nonaktif = panel terkunci, harus bayar/perpanjang sendiri.
+        if ($this->status === 'inactive') {
             return false;
         }
 
@@ -76,6 +91,34 @@ class Tenant extends Model
 
         // Habis tepat pada tanggal & jam WIB (bukan sampai akhir hari kalender).
         return $end->greaterThan(wib_now());
+    }
+
+    public function subscriptionExpired(): bool
+    {
+        $end = $this->subscriptionEndsAt();
+        if ($end === null) {
+            return false;
+        }
+
+        return ! $end->greaterThan(wib_now());
+    }
+
+    /**
+     * Panel terkunci dan harus diarahkan ke halaman pembayaran perpanjang.
+     */
+    public function needsRenewal(): bool
+    {
+        return ($this->plan ?? '') !== 'tunnel' && ! $this->subscriptionIsActive();
+    }
+
+    public function statusLabel(): string
+    {
+        return match ($this->status) {
+            'active' => 'Aktif',
+            'inactive' => 'Nonaktif',
+            'trial' => 'Trial',
+            default => ucfirst((string) $this->status),
+        };
     }
 
     /**
@@ -95,6 +138,79 @@ class Tenant extends Model
         $this->metaSet('subscription_starts_at', $now->toIso8601String());
         $this->metaSet('subscription_ends_at', $newEnd->toIso8601String());
         $this->save();
+
+        if (($this->plan ?? '') !== 'tunnel') {
+            app(\App\Services\TunnelService::class)->syncAccessForTenant($this);
+        }
+    }
+
+    public function platformBalance(): int
+    {
+        return max(0, (int) $this->metaGet('platform_balance', 0));
+    }
+
+    public function addPlatformBalance(int $amount, string $note = ''): void
+    {
+        if ($amount < 1) {
+            return;
+        }
+
+        $this->metaSet('platform_balance', $this->platformBalance() + $amount);
+        $this->appendBalanceLedger('credit', $amount, $note);
+        $this->save();
+    }
+
+    /**
+     * Saldo hasil inject superadmin (bukan uang asli) — tidak menghasilkan komisi affiliate.
+     */
+    public function bonusPlatformBalance(): int
+    {
+        return min($this->platformBalance(), max(0, (int) $this->metaGet('platform_balance_bonus', 0)));
+    }
+
+    public function addBonusPlatformBalance(int $amount): void
+    {
+        $this->metaSet('platform_balance_bonus', $this->bonusPlatformBalance() + max(0, $amount));
+        $this->save();
+    }
+
+    /**
+     * Kurangi porsi saldo bonus untuk pembayaran dari saldo. Panggil sebelum deductPlatformBalance().
+     *
+     * @return int Nominal saldo bonus yang terpakai.
+     */
+    public function consumeBonusPlatformBalance(int $amount): int
+    {
+        $bonus = $this->bonusPlatformBalance();
+        $used = min($bonus, max(0, $amount));
+        $this->metaSet('platform_balance_bonus', $bonus - $used);
+
+        return $used;
+    }
+
+    public function deductPlatformBalance(int $amount): bool
+    {
+        if ($amount < 1 || $this->platformBalance() < $amount) {
+            return false;
+        }
+
+        $this->metaSet('platform_balance', $this->platformBalance() - $amount);
+        $this->appendBalanceLedger('debit', $amount);
+        $this->save();
+
+        return true;
+    }
+
+    protected function appendBalanceLedger(string $type, int $amount, string $note = ''): void
+    {
+        $ledger = is_array($this->metaGet('platform_balance_ledger')) ? $this->metaGet('platform_balance_ledger') : [];
+        $ledger[] = [
+            'type' => $type,
+            'amount' => $amount,
+            'note' => $note,
+            'at' => wib_now()->toIso8601String(),
+        ];
+        $this->metaSet('platform_balance_ledger', array_slice($ledger, -50));
     }
 
     public function panelHost(): string

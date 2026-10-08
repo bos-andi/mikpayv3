@@ -11,38 +11,48 @@ class LandingContentService
      */
     public static function defaults(): array
     {
-        $trialDays = (int) config('mikpay.trial_days', 3);
+        $trialDays = (int) config('mikpay.trial_days', 4);
 
         return [
-            'hero_badge' => 'Software All-in-One ISP & RTRW Net Terlengkap',
+            'hero_badge' => 'Software All-in-One ISP & RTRW Net',
             'hero_title' => 'Kelola Bisnis WiFi, Remote OLT & Auto Isolir',
             'hero_title_highlight' => 'Tanpa Pusing.',
-            'hero_subtitle' => 'Aplikasi manajemen terpadu untuk pengusaha RTRW Net & ISP. Dilengkapi Auto Isolir WhatsApp, Peta ODP Interaktif, Cetak Voucher, dan Bonus VPN Remote Tunneling Gratis tanpa perlu IP Public Statis.',
+            'hero_subtitle' => 'Aplikasi manajemen terpadu untuk RT RW Net & ISP: tagihan otomatis via WhatsApp, auto-isolir MikroTik, peta ODP, voucher hotspot, plus VPN remote gratis tanpa perlu IP Public.',
             'hero_cta_primary' => "Mulai Coba Gratis {$trialDays} Hari",
             'hero_cta_secondary' => 'Pelajari Remote VPN Gratis',
             'cta_title' => 'Siap Mengotomatiskan Bisnis Internet Anda?',
-            'cta_subtitle' => "Daftar sekarang dan nikmati seluruh fitur MikPay + Remote VPN Dedicated Gratis selama {$trialDays} Hari tanpa komitmen!",
+            'cta_subtitle' => "Daftar sekarang dan nikmati seluruh fitur MikPay + VPN remote gratis selama {$trialDays} hari tanpa komitmen.",
             'cta_button' => 'Daftar & Coba Gratis',
             'faqs' => [
                 [
                     'id' => 'faq1',
                     'q' => 'Apakah MikPay membutuhkan IP Public Statis di lokasi saya?',
-                    'a' => '<strong>Tidak sama sekali!</strong> MikPay menyediakan fasilitas Remote VPN Tunneling gratis. Router MikroTik Anda cukup dial VPN ke server Cloud MikPay, lalu Anda bisa mengakses Winbox & Web OLT dari mana saja.',
+                    'a' => '<strong>Tidak.</strong> Setiap akun mendapat 1 akun VPN remote (OpenVPN) gratis. MikroTik Anda cukup terhubung ke server MikPay, lalu Winbox, API, Web OLT, dan web modem pelanggan bisa diakses dari mana saja.',
                 ],
                 [
                     'id' => 'faq2',
-                    'q' => 'Apakah MikPay mendukung RouterOS v6 dan RouterOS v7?',
-                    'a' => '<strong>Ya, keduanya didukung penuh.</strong> Untuk RouterOS v7 kami merekomendasikan protokol WireGuard yang cepat dan hemat CPU. Untuk RouterOS v6 tersedia protokol SSTP.',
+                    'q' => 'Apakah mendukung RouterOS v6 dan v7?',
+                    'a' => '<strong>Ya, keduanya didukung.</strong> Panel otomatis membuatkan script OpenVPN yang sesuai untuk RouterOS v6 maupun v7. Cukup copy-paste ke Terminal Winbox.',
                 ],
                 [
                     'id' => 'faq3',
-                    'q' => 'Bagaimana cara kerja fitur Auto-Isolir Pelanggan?',
-                    'a' => 'MikPay terhubung ke MikroTik via API. Saat pelanggan melewati tanggal jatuh tempo pembayaran, sistem akan otomatis mengubah Profile PPPoE atau men-disable secret pengguna tersebut secara real-time.',
+                    'q' => 'Bagaimana cara kerja Auto-Isolir pelanggan?',
+                    'a' => 'MikPay terhubung ke MikroTik via API. Saat pelanggan melewati tanggal jatuh tempo, sistem otomatis mengisolir akun PPPoE-nya. Begitu tagihan dibayar, akses dibuka kembali secara otomatis.',
                 ],
                 [
                     'id' => 'faq4',
-                    'q' => 'Merk OLT apa saja yang didukung oleh MikPay?',
-                    'a' => 'MikPay mendukung hampir seluruh OLT EPON & GPON populer di Indonesia, seperti HSGQ, HIOSO, ZTE (C320/C300), VSOL, Huawei, dan V-MAX yang mendukung komunikasi SNMP / SSH / TR-069.',
+                    'q' => 'OLT merk apa saja yang bisa diremote?',
+                    'a' => 'Semua OLT yang memiliki halaman web management (HSGQ, HIOSO, ZTE, VSOL, Huawei, dll) bisa dibuka lewat Remote Web OLT melalui tunnel MikPay, selama OLT terhubung ke MikroTik Anda.',
+                ],
+                [
+                    'id' => 'faq5',
+                    'q' => 'Bisa perpanjang langganan sebelum masa aktif habis?',
+                    'a' => '<strong>Bisa.</strong> Perpanjangan bisa dilakukan kapan saja. Sisa masa aktif tidak hangus; durasi paket baru ditambahkan ke tanggal berakhir yang sekarang.',
+                ],
+                [
+                    'id' => 'faq6',
+                    'q' => 'Berapa router MikroTik yang bisa dihubungkan?',
+                    'a' => 'Setiap akun dapat menghubungkan 1 router MikroTik dengan jumlah pelanggan tanpa batas. Hubungi admin jika Anda membutuhkan lebih dari 1 router.',
                 ],
             ],
         ];

@@ -57,7 +57,7 @@
             <div class="p-4 bg-slate-950 border-b border-slate-800 flex items-center justify-between shrink-0">
                 <div class="flex items-center gap-2">
                     <span class="w-3 h-3 rounded-full bg-amber-500 inline-block"></span>
-                    <h3 class="font-bold text-sm text-white">Web Management OLT HSGQ (Tunnel: {{ $tenant->remoteHost() }}:28080)</h3>
+                    <h3 class="font-bold text-sm text-white">Web Management OLT HSGQ (Tunnel: {{ $tenant?->remoteHost() ?? '—' }}:28080)</h3>
                 </div>
                 <div class="flex items-center gap-2">
                     <span class="text-[10px] font-mono bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded font-bold">HTTP PROXY ACTIVE</span>

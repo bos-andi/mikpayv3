@@ -148,6 +148,8 @@ class PlatformSubscriptionPaymentService
             'package' => $payment->package,
         ]);
 
+        app(PartnerProgramService::class)->recordForPayment($payment->fresh());
+
         return ['ok' => true, 'message' => 'Langganan diaktifkan via Xendit.'];
     }
 

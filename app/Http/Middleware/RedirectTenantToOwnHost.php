@@ -28,22 +28,22 @@ class RedirectTenantToOwnHost
         $expectedHost = strtolower($tenant->subdomain.'.'.$base);
         $currentHost = strtolower($request->getHost());
 
-        // Sudah di host tenant sendiri.
-        if ($currentHost === $expectedHost) {
-            return $next($request);
+        // Bukan host tenant sendiri — tolak akses ke subdomain tenant lain.
+        if ($currentHost !== $expectedHost) {
+            $central = [
+                strtolower((string) config('mikpay.central_domain', 'mikpay.link')),
+                'www.'.strtolower((string) config('mikpay.central_domain', 'mikpay.link')),
+            ];
+
+            if (in_array($currentHost, $central, true)) {
+                $target = tenant_panel_url($tenant, $request->getRequestUri());
+
+                return redirect()->away($target);
+            }
+
+            abort(403, 'Anda tidak memiliki akses ke tenant ini.');
         }
 
-        // Hanya redirect dari apex / www (central panel), bukan dari host lain.
-        $central = [
-            strtolower((string) config('mikpay.central_domain', 'mikpay.link')),
-            'www.'.strtolower((string) config('mikpay.central_domain', 'mikpay.link')),
-        ];
-        if (! in_array($currentHost, $central, true)) {
-            return $next($request);
-        }
-
-        $target = tenant_panel_url($tenant, $request->getRequestUri());
-
-        return redirect()->away($target);
+        return $next($request);
     }
 }

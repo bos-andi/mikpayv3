@@ -7,232 +7,179 @@
 @php
     $tunnelAccount = $tunnelAccount ?? null;
     $tunnelScripts = $tunnelScripts ?? ['ros6' => '', 'ros7' => ''];
-    $tunnelOnline = $tunnelAccount && $tunnelAccount->isUsable();
-    $primaryMap = $tunnelAccount
-        ? ($tunnelAccount->portMaps->firstWhere('label', 'Winbox') ?? $tunnelAccount->portMaps->first())
-        : null;
-    $apiMap = $tunnelAccount
-        ? ($tunnelAccount->portMaps->firstWhere('label', 'API') ?? null)
-        : null;
-    $oltMap = $tunnelAccount
-        ? ($tunnelAccount->portMaps->firstWhere('label', 'OLT') ?? null)
-        : null;
-    $routerClientMap = $tunnelAccount
-        ? ($tunnelAccount->portMaps->firstWhere('label', 'Router Client') ?? null)
-        : null;
-    $nodeHost = $tunnelAccount?->nodeHostname();
-    $ovpnPort = $tunnelAccount?->node?->ovpn_port ?? $tunnelAccount?->server_port;
+    $routerConnected = ($tenant?->vpn_status ?? null) === 'online';
+    $portMaps = $tunnelAccount?->portMaps ?? collect();
+    $apiMap = $portMaps->firstWhere('label', 'API');
+    $portHelp = [
+        'Winbox' => ['icon' => 'fa-desktop', 'text' => 'Buka Winbox, isi kolom Connect To dengan alamat ini.', 'web' => false],
+        'API' => ['icon' => 'fa-plug', 'text' => 'Untuk MikPay. Isi di Pengaturan → Router MikroTik.', 'web' => false],
+        'OLT' => ['icon' => 'fa-tower-broadcast', 'text' => 'Buka halaman web OLT dari browser.', 'web' => true],
+        'Router Client' => ['icon' => 'fa-wifi', 'text' => 'Buka halaman web perangkat di LAN.', 'web' => true],
+    ];
+    $card = 'bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm';
+    $stepBadge = 'w-7 h-7 rounded-full text-white text-xs font-black flex items-center justify-center shrink-0';
 @endphp
 
-<div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+<div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
     <div>
-        <h2 class="text-lg font-bold text-slate-900 dark:text-white">Setup OpenVPN & Remote MikroTik</h2>
+        <h2 class="text-lg font-bold text-slate-900 dark:text-white">Remote MikroTik & OLT</h2>
         <p class="text-xs text-slate-500 dark:text-slate-400">
-            {{ $tunnelBundleNote ?? 'Bonus gratis OpenVPN untuk langganan MikPay. Pasang script di Terminal MikroTik agar bisa di-remote dari mana saja.' }}
+            Ikuti 3 langkah di bawah agar MikroTik bisa diakses dari mana saja dan terhubung ke MikPay.
         </p>
     </div>
-    <span class="px-3 py-1 rounded-full text-xs font-bold flex items-center gap-2 {{ $tunnelOnline ? 'bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400' : 'bg-amber-500/10 border border-amber-500/20 text-amber-700' }}">
-        <span class="w-2 h-2 rounded-full {{ $tunnelOnline ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500' }}"></span>
-        {{ $tunnelOnline ? 'Akun Tunnel Siap' : 'Tunnel Pending' }}
+    <span class="px-3 py-1 rounded-full text-xs font-bold flex items-center gap-2 {{ $routerConnected ? 'bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400' : 'bg-amber-500/10 border border-amber-500/20 text-amber-700 dark:text-amber-300' }}">
+        <span class="w-2 h-2 rounded-full {{ $routerConnected ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500' }}"></span>
+        {{ $routerConnected ? 'MikroTik Terhubung' : 'MikroTik Belum Terhubung' }}
     </span>
 </div>
 
-{{-- Wizard 3 langkah --}}
-<div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 sm:p-5 shadow-sm">
-    <ol class="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        <li class="flex items-start gap-3 p-3 rounded-xl bg-violet-50/80 dark:bg-violet-500/10 border border-violet-100 dark:border-violet-500/20">
-            <span class="w-7 h-7 rounded-lg bg-violet-600 text-white text-xs font-black flex items-center justify-center shrink-0">1</span>
-            <div>
-                <p class="text-xs font-extrabold text-slate-900 dark:text-white">Salin script</p>
-                <p class="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">Pilih ROS 6/7 lalu salin perintah OpenVPN di bawah.</p>
-            </div>
-        </li>
-        <li class="flex items-start gap-3 p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700">
-            <span class="w-7 h-7 rounded-lg bg-slate-800 dark:bg-slate-700 text-white text-xs font-black flex items-center justify-center shrink-0">2</span>
-            <div>
-                <p class="text-xs font-extrabold text-slate-900 dark:text-white">Paste di Terminal</p>
-                <p class="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">Buka Winbox (lokal sekali) → Terminal → tempel → Enter.</p>
-            </div>
-        </li>
-        <li class="flex items-start gap-3 p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700">
-            <span class="w-7 h-7 rounded-lg bg-slate-800 dark:bg-slate-700 text-white text-xs font-black flex items-center justify-center shrink-0">3</span>
-            <div>
-                <p class="text-xs font-extrabold text-slate-900 dark:text-white">Remote & isi API</p>
-                <p class="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
-                    Winbox ke URL remote, lalu isi host API di
-                    <a href="{{ panel_route('settings') }}?tab=mikrotik" class="text-violet-600 font-bold hover:underline">Settings → Router</a>.
-                </p>
-            </div>
-        </li>
-    </ol>
-</div>
-
-@if ($tunnelAccount)
-    {{-- Kredensial + List — tampilan terang --}}
-    <div class="p-5 rounded-2xl bg-white border border-slate-200 shadow-sm space-y-4">
-        <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-            <div class="flex items-center gap-3">
-                <div class="w-12 h-12 rounded-2xl bg-violet-50 border border-violet-100 flex items-center justify-center text-violet-600 text-xl shrink-0">
-                    <i class="fa-solid fa-shield-halved"></i>
-                </div>
+@if (! $tunnelAccount)
+    <div class="rounded-2xl border border-dashed border-amber-300 bg-amber-50 dark:bg-amber-500/10 dark:border-amber-500/30 p-6 text-center space-y-2">
+        <p class="text-sm font-bold text-amber-900 dark:text-amber-200">Akun VPN belum tersedia</p>
+        <p class="text-xs text-amber-800/80 dark:text-amber-200/80">{{ $tunnelBundleNote ?? 'Aktifkan langganan MikPay agar akun VPN gratis dibuat otomatis.' }}</p>
+    </div>
+@else
+    {{-- Langkah 1 --}}
+    <div id="ovpn-setup" class="{{ $card }} p-5 space-y-4">
+        <div class="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
+            <div class="flex items-start gap-3">
+                <span class="{{ $stepBadge }} bg-indigo-600">1</span>
                 <div>
-                    <div class="flex items-center gap-2 flex-wrap">
-                        <h3 class="font-extrabold text-base text-slate-900">Akun OpenVPN MikPay</h3>
-                        <span class="bg-violet-50 text-violet-700 border border-violet-200 text-[10px] px-2 py-0.5 rounded-full font-mono font-bold">TCP · MODE=IP</span>
-                    </div>
-                    <p class="text-xs text-slate-500 mt-0.5">
-                        Node:
-                        <span class="text-violet-700 font-mono font-semibold">{{ $nodeHost }}:{{ $ovpnPort }}</span>
-                        · Username sudah siap pakai di script
+                    <h3 class="text-sm font-bold text-slate-900 dark:text-white">Salin script lalu tempel di Terminal MikroTik</h3>
+                    <p class="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
+                        Buka <strong>Winbox</strong> (dari jaringan lokal) → klik <strong>New Terminal</strong> → tempel script → tekan <strong>Enter</strong>.
+                        Cukup dilakukan sekali.
                     </p>
                 </div>
             </div>
-            <button type="button" onclick="copyText(@js($tunnelAccount->plainPassword()))" class="text-xs font-bold px-3 py-2 rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-700">
-                <i class="fa-regular fa-copy mr-1"></i> Salin Password
-            </button>
+            <div class="flex items-center gap-2 shrink-0">
+                <select id="vpnVersion" onchange="MikPay.switchVpnScript()" class="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 text-xs rounded-xl px-3 py-2 font-medium text-slate-800 dark:text-slate-200 focus:outline-none focus:border-indigo-500">
+                    <option value="ros7">RouterOS v7</option>
+                    <option value="ros6">RouterOS v6</option>
+                </select>
+                <button type="button" onclick="copyVpnScript()" class="bg-indigo-600 hover:bg-indigo-500 text-white text-xs px-4 py-2 rounded-xl font-bold flex items-center gap-1.5 shadow-md shadow-indigo-600/20">
+                    <i class="fa-regular fa-copy"></i> Salin Script
+                </button>
+            </div>
         </div>
+        <textarea id="vpnScriptCode" readonly rows="8" class="w-full bg-slate-950 text-emerald-400 font-mono text-[11px] p-4 rounded-xl border border-slate-800 focus:outline-none resize-y leading-relaxed">{{ $tunnelScripts['ros7'] ?: '# Script belum tersedia' }}</textarea>
+        <p class="text-[11px] text-slate-500 dark:text-slate-400">
+            <i class="fa-solid fa-circle-info text-indigo-500 mr-1"></i>
+            Tidak tahu versi RouterOS? Di Winbox buka menu <strong>System → Resources</strong>, lihat baris <strong>Version</strong>.
+        </p>
+    </div>
 
-        <div class="overflow-x-auto rounded-xl border border-slate-200">
-            <table class="w-full text-left text-[11px] min-w-[480px]">
-                <thead>
-                    <tr class="bg-slate-50 text-slate-500 font-bold uppercase tracking-wider border-b border-slate-200">
-                        <th class="px-4 py-3">Username VPN <span class="normal-case font-medium text-slate-400">(permanen)</span></th>
-                        <th class="px-4 py-3">Password</th>
-                        <th class="px-4 py-3">Status</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr class="bg-white">
-                        <td class="px-4 py-3 font-mono font-semibold text-violet-700">
-                            <button type="button" onclick="copyText(@js($tunnelAccount->username))" class="hover:text-violet-900 text-left">{{ $tunnelAccount->username }}</button>
-                            <p class="text-[10px] text-slate-400 font-sans font-normal mt-1">Tidak dapat diubah setelah dibuat</p>
-                        </td>
-                        <td class="px-4 py-3 font-mono text-slate-800">
-                            <button type="button" onclick="copyText(@js($tunnelAccount->plainPassword()))" class="hover:text-violet-700">{{ $tunnelAccount->plainPassword() }}</button>
-                        </td>
-                        <td class="px-4 py-3">
-                            <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold {{ $tunnelOnline ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-amber-50 text-amber-700 border border-amber-200' }}">
-                                <span class="w-1.5 h-1.5 rounded-full {{ $tunnelOnline ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500' }}"></span>
-                                {{ strtoupper($tunnelAccount->status) }}
+    {{-- Langkah 2 --}}
+    <div class="{{ $card }} p-5">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div class="flex items-start gap-3">
+                <span class="{{ $stepBadge }} bg-indigo-600">2</span>
+                <div>
+                    <h3 class="text-sm font-bold text-slate-900 dark:text-white">Pastikan VPN sudah tersambung</h3>
+                    <p class="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
+                        Tunggu ±1 menit lalu refresh halaman ini. Status di kanan atas harus <strong class="text-emerald-600">MikroTik Terhubung</strong>.
+                        Bisa juga dicek di Terminal dengan perintah
+                        <button type="button" onclick="copyText('/interface ovpn-client print')" class="font-mono text-[11px] bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded hover:bg-slate-200" title="Salin">/interface ovpn-client print</button>
+                        — harus ada huruf <strong>R</strong>.
+                    </p>
+                </div>
+            </div>
+            <span class="shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold {{ $routerConnected ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-500/10 dark:border-emerald-500/30 dark:text-emerald-300' : 'bg-slate-100 text-slate-500 border border-slate-200 dark:bg-slate-800 dark:border-slate-700' }}">
+                <i class="fa-solid {{ $routerConnected ? 'fa-circle-check' : 'fa-hourglass-half' }}"></i>
+                {{ $routerConnected ? 'Tersambung' : 'Menunggu' }}
+            </span>
+        </div>
+    </div>
+
+    {{-- Langkah 3 --}}
+    <div class="{{ $card }} p-5">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div class="flex items-start gap-3">
+                <span class="{{ $stepBadge }} bg-indigo-600">3</span>
+                <div>
+                    <h3 class="text-sm font-bold text-slate-900 dark:text-white">Hubungkan router ke MikPay</h3>
+                    <p class="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
+                        Buka Pengaturan → Router MikroTik, lalu isi <strong>Host</strong> dengan alamat
+                        @if ($apiMap)
+                            <button type="button" onclick="copyText(@js($apiMap->endpoint()))" class="font-mono font-bold text-indigo-600 dark:text-indigo-400 hover:underline" title="Salin">{{ $apiMap->endpoint() }}</button>
+                        @else
+                            API di bawah
+                        @endif
+                        beserta username &amp; password MikroTik Anda.
+                    </p>
+                </div>
+            </div>
+            <a href="{{ panel_route('settings') }}?tab=mikrotik" class="shrink-0 inline-flex items-center justify-center gap-2 bg-slate-900 dark:bg-slate-100 hover:bg-slate-800 text-white dark:text-slate-900 text-xs font-bold px-4 py-2.5 rounded-xl">
+                Buka Pengaturan Router <i class="fa-solid fa-arrow-right text-[10px]"></i>
+            </a>
+        </div>
+    </div>
+
+    {{-- Alamat remote --}}
+    @if ($portMaps->isNotEmpty())
+        <div class="{{ $card }} p-5 space-y-3">
+            <div>
+                <h3 class="text-sm font-bold text-slate-900 dark:text-white">Alamat Remote Anda</h3>
+                <p class="text-xs text-slate-500 dark:text-slate-400">Bisa dipakai dari mana saja setelah VPN tersambung.</p>
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
+                @foreach ($portMaps as $map)
+                    @php $help = $portHelp[$map->label] ?? ['icon' => 'fa-link', 'text' => '', 'web' => false]; @endphp
+                    <div class="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 flex flex-col gap-2">
+                        <div class="flex items-center gap-2">
+                            <span class="w-7 h-7 rounded-lg bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 flex items-center justify-center text-xs">
+                                <i class="fa-solid {{ $help['icon'] }}"></i>
                             </span>
-                        </td>
-                    </tr>
-                </tbody>
-            </table>
-        </div>
-
-        <div>
-            <h4 class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">Port Remote (setelah tunnel connect)</h4>
-            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 text-xs">
-                @foreach ($tunnelAccount->portMaps as $map)
-                    <div class="p-3 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
-                        <div class="flex justify-between items-center text-slate-500">
-                            <span class="font-semibold text-slate-900">{{ $map->label }}</span>
-                            <span class="text-[10px] font-mono bg-violet-50 text-violet-700 border border-violet-100 px-1.5 py-0.5 rounded">:{{ $map->target_port }}</span>
+                            <span class="text-xs font-bold text-slate-900 dark:text-white">{{ $map->label }}</span>
                         </div>
-                        <div class="font-mono text-xs text-amber-800 truncate bg-white p-1.5 rounded border border-slate-200 select-all">{{ $map->endpoint() }}</div>
-                        <button type="button" onclick="copyText(@js($map->endpoint()))" class="w-full bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 py-1 rounded text-[11px] font-semibold transition">
-                            <i class="fa-regular fa-copy mr-1"></i> Salin
-                        </button>
+                        <div class="font-mono text-xs font-semibold text-slate-800 dark:text-slate-100 bg-white dark:bg-slate-900 px-2 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 truncate select-all">{{ $map->endpoint() }}</div>
+                        @if ($help['text'])
+                            <p class="text-[11px] text-slate-500 dark:text-slate-400 leading-snug flex-1">{{ $help['text'] }}</p>
+                        @endif
+                        <div class="flex gap-2">
+                            <button type="button" onclick="copyText(@js($map->endpoint()))" class="flex-1 bg-white dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 py-1.5 rounded-lg text-[11px] font-semibold">
+                                <i class="fa-regular fa-copy mr-1"></i> Salin
+                            </button>
+                            @if ($help['web'])
+                                <a href="http://{{ $map->endpoint() }}" target="_blank" rel="noopener" class="flex-1 text-center bg-indigo-600 hover:bg-indigo-500 text-white py-1.5 rounded-lg text-[11px] font-semibold">
+                                    <i class="fa-solid fa-arrow-up-right-from-square mr-1"></i> Buka
+                                </a>
+                            @endif
+                        </div>
                     </div>
                 @endforeach
             </div>
-            @if ($apiMap)
-                <p class="text-[11px] text-slate-500 mt-3">
-                    Untuk Settings → Router, isi host:
-                    <button type="button" onclick="copyText(@js($apiMap->endpoint()))" class="font-mono font-bold text-violet-700 hover:underline">{{ $apiMap->endpoint() }}</button>
-                    (API :{{ $apiMap->target_port }})
-                </p>
-            @endif
+
+            <details class="group rounded-xl border border-slate-200 dark:border-slate-700">
+                <summary class="cursor-pointer list-none px-4 py-2.5 text-xs font-bold text-slate-600 dark:text-slate-300 flex items-center justify-between">
+                    <span><i class="fa-solid fa-key mr-1.5 text-slate-400"></i> Detail akun VPN (sudah otomatis ada di script)</span>
+                    <i class="fa-solid fa-chevron-down text-[10px] text-slate-400 transition-transform group-open:rotate-180"></i>
+                </summary>
+                <div class="px-4 pb-4 grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+                    <div>
+                        <p class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Username</p>
+                        <button type="button" onclick="copyText(@js($tunnelAccount->username))" class="font-mono font-semibold text-slate-800 dark:text-slate-100 hover:text-indigo-600 text-left break-all">{{ $tunnelAccount->username }}</button>
+                    </div>
+                    <div>
+                        <p class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Password</p>
+                        <button type="button" onclick="copyText(@js($tunnelAccount->plainPassword()))" class="font-mono font-semibold text-slate-800 dark:text-slate-100 hover:text-indigo-600">{{ $tunnelAccount->plainPassword() }}</button>
+                    </div>
+                    <div>
+                        <p class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Server</p>
+                        <span class="font-mono font-semibold text-slate-800 dark:text-slate-100">{{ $tunnelAccount->nodeHostname() }}:{{ $tunnelAccount->node?->ovpn_port ?? $tunnelAccount->server_port }}</span>
+                    </div>
+                </div>
+            </details>
         </div>
-    </div>
-@else
-    <div class="rounded-2xl border border-dashed border-amber-300 bg-amber-50 p-6 text-center space-y-2">
-        <p class="text-sm font-bold text-amber-900">Akun tunnel belum tersedia</p>
-        <p class="text-xs text-amber-800/80">{{ $tunnelBundleNote ?? 'Aktifkan langganan MikPay agar 1 slot OpenVPN gratis dibuat otomatis.' }}</p>
-    </div>
+    @endif
 @endif
-
-{{-- Script Terminal — langkah inti --}}
-<div id="ovpn-setup" class="bg-white dark:bg-slate-900 border border-violet-200 dark:border-violet-500/30 rounded-2xl p-5 shadow-sm space-y-4 ring-1 ring-violet-500/10">
-    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div>
-            <h3 class="font-bold text-sm text-slate-900 dark:text-slate-100 flex items-center gap-2">
-                <span class="w-6 h-6 rounded-md bg-violet-600 text-white text-[10px] font-black flex items-center justify-center">2</span>
-                <i class="fa-solid fa-terminal text-violet-600 dark:text-violet-400"></i>
-                Script Terminal MikroTik
-            </h3>
-            <p class="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                Untuk MikroTik yang belum pernah dikonfig MikPay — paste sekali: OVPN + firewall + NAT OLT/Router Client.
-            </p>
-        </div>
-        <div class="flex items-center gap-2">
-            <select id="vpnVersion" onchange="MikPay.switchVpnScript()" class="bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs rounded-xl p-2 font-medium text-slate-800 dark:text-slate-200 focus:outline-none focus:border-violet-500">
-                <option value="ros7">RouterOS v7 (OpenVPN)</option>
-                <option value="ros6">RouterOS v6 (OpenVPN)</option>
-            </select>
-            <button type="button" onclick="MikPay.copyVpnScript(); showToast && showToast('Script OpenVPN disalin')" class="bg-violet-600 hover:bg-violet-500 text-white text-xs px-3 py-2 rounded-xl font-bold flex items-center gap-1.5 shadow-md shadow-violet-600/20">
-                <i class="fa-regular fa-copy"></i> Salin Script
-            </button>
-        </div>
-    </div>
-    <div class="relative">
-        <textarea id="vpnScriptCode" readonly rows="18" class="w-full bg-slate-950 text-emerald-400 font-mono text-[11px] p-4 rounded-xl border border-slate-800 focus:outline-none resize-y leading-relaxed select-all">{{ $tunnelScripts['ros7'] ?: '# Akun tunnel belum tersedia' }}</textarea>
-    </div>
-    <div class="rounded-xl border border-amber-200 dark:border-amber-500/30 bg-amber-50/80 dark:bg-amber-500/10 px-3 py-2.5 text-[11px] text-amber-950 dark:text-amber-100">
-        <p class="font-bold mb-1">Syarat agar remote dari luar jalan:</p>
-        <ol class="list-decimal ml-4 space-y-0.5 text-amber-900/80 dark:text-amber-100/80">
-            <li>Pastikan script berisi komentar <span class="font-mono font-semibold">MikPay</span> dan <span class="font-mono font-semibold">ovpn-client</span> (bukan sstp/wireguard).</li>
-            <li>Salin semua → paste di Terminal MikroTik → cek: <span class="font-mono">/interface ovpn-client print</span> harus <strong class="text-emerald-700 dark:text-emerald-400">R</strong>.</li>
-            <li>Baru buka Winbox ke URL remote (port 1000+) / isi host API di Settings.</li>
-        </ol>
-    </div>
-    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-[11px] text-slate-500">
-        <p>
-            Cek status di MikroTik:
-            <code class="font-mono text-[10px] bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded">/interface ovpn-client print</code>
-            — harus <strong class="text-emerald-600">R</strong> (running).
-        </p>
-        <p>
-            Tunnel standalone:
-            <a href="https://{{ config('mikpay.tunnel_domain', 'tunnel.mikpay.link') }}" class="text-violet-600 font-bold hover:underline" target="_blank" rel="noopener">tunnel.mikpay.link</a>
-        </p>
-    </div>
-</div>
-
-{{-- Langkah 3 CTA --}}
-<div class="bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-    <div class="flex items-start gap-3">
-        <span class="w-7 h-7 rounded-lg bg-slate-800 text-white text-xs font-black flex items-center justify-center shrink-0">3</span>
-        <div>
-            <p class="text-sm font-bold text-slate-900 dark:text-white">Hubungkan MikPay ke router via API</p>
-            <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                Setelah tunnel running, tambah/edit router di Settings. Pakai host remote API
-                @if ($apiMap)
-                    (<span class="font-mono font-semibold text-violet-600">{{ $apiMap->endpoint() }}</span>)
-                @else
-                    (lihat port API di atas)
-                @endif
-                — bukan IP lokal.
-            </p>
-        </div>
-    </div>
-    <a href="{{ panel_route('settings') }}?tab=mikrotik" class="inline-flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold px-4 py-2.5 rounded-xl shrink-0">
-        Buka Settings → Router <i class="fa-solid fa-arrow-right text-[10px]"></i>
-    </a>
-</div>
 
 <script>
     window.__tunnelScripts = @js($tunnelScripts);
-    function switchVpnScript() {
-        const v = document.getElementById('vpnVersion')?.value || 'ros7';
-        const ta = document.getElementById('vpnScriptCode');
-        if (ta && window.__tunnelScripts) ta.value = window.__tunnelScripts[v] || '';
-    }
     function copyVpnScript() {
         const ta = document.getElementById('vpnScriptCode');
         if (!ta) return;
-        navigator.clipboard.writeText(ta.value).then(() => showToast && showToast('Script OpenVPN disalin — paste di Terminal MikroTik'));
+        navigator.clipboard.writeText(ta.value).then(() => showToast && showToast('Script disalin — tempel di Terminal MikroTik'));
     }
     function copyText(t) {
         navigator.clipboard.writeText(t).then(() => showToast && showToast('Disalin'));
@@ -242,95 +189,180 @@
     }
 </script>
 
-{{-- OLT & perangkat LAN via tunnel --}}
-<div class="pt-2 border-t border-slate-200 dark:border-slate-800 space-y-4">
-    <div>
-        <h3 class="text-sm font-bold text-slate-900 dark:text-white mb-1">OLT &amp; Router Client (jarak jauh)</h3>
-        <p class="text-[11px] text-slate-500 dark:text-slate-400 max-w-2xl">
-            Akses web OLT lewat tunnel — sama seperti mytunnel. Alur:
-            <span class="font-mono text-violet-700 dark:text-violet-400">browser → an-1:1002 → VPS → tunnel IP:25 → NAT MikroTik → IP LAN OLT</span>.
-            Monitoring ONU/TR-069 di panel belum aktif; yang siap dipakai sekarang adalah buka web OLT langsung.
-        </p>
-    </div>
-
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 space-y-3 shadow-sm">
-            <div class="flex items-start justify-between gap-3">
-                <div class="flex items-center gap-2">
-                    <div class="w-9 h-9 rounded-xl bg-amber-100 text-amber-600 flex items-center justify-center shrink-0">
-                        <i class="fa-solid fa-tower-broadcast"></i>
-                    </div>
-                    <div>
-                        <h4 class="text-sm font-bold text-slate-900 dark:text-white">Web OLT</h4>
-                        <p class="text-[11px] text-slate-500">Port publik → target tunnel :{{ $oltMap?->target_port ?? 25 }}</p>
-                    </div>
-                </div>
-                @if ($tunnelOnline && $oltMap)
-                    <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">SIAP</span>
-                @else
-                    <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 border border-slate-200">TUNNEL OFF</span>
-                @endif
-            </div>
-            @if ($oltMap)
-                <div class="font-mono text-xs text-amber-900 bg-amber-50 border border-amber-100 rounded-xl px-3 py-2 select-all">{{ $oltMap->endpoint() }}</div>
-                <div class="flex flex-wrap gap-2">
-                    <a href="http://{{ $oltMap->endpoint() }}" target="_blank" rel="noopener" class="inline-flex items-center gap-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs px-3 py-2 rounded-xl transition">
-                        <i class="fa-solid fa-external-link"></i> Buka Web OLT
-                    </a>
-                    <button type="button" onclick="copyText(@js($oltMap->endpoint()))" class="inline-flex items-center gap-1.5 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 font-semibold text-xs px-3 py-2 rounded-xl transition">
-                        <i class="fa-regular fa-copy"></i> Salin
-                    </button>
-                </div>
-                <p class="text-[11px] text-slate-500 leading-relaxed">
-                    Di MikroTik, rule <span class="font-semibold">MikPay REMOTE OLT</span> harus mengarah ke IP LAN OLT yang benar
-                    (<code class="text-[10px] bg-slate-100 px-1 rounded">/ip firewall nat print where comment~"OLT"</code>).
-                </p>
-            @else
-                <p class="text-xs text-slate-500">Port map OLT belum ada. Refresh halaman Remote setelah akun tunnel dibuat.</p>
-            @endif
+{{-- Monitoring OLT --}}
+@php
+    $oltDevices = $oltDevices ?? collect();
+    $oltGisNodes = $oltGisNodes ?? collect();
+@endphp
+<div class="{{ $card }} p-5 space-y-4">
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div>
+            <h3 class="text-sm font-bold text-slate-900 dark:text-white">Monitoring OLT</h3>
+            <p class="text-xs text-slate-500 dark:text-slate-400">
+                OLT terdeteksi otomatis dari MikroTik. Anda juga bisa menambahkannya manual.
+            </p>
         </div>
-
-        <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 space-y-3 shadow-sm">
-            <div class="flex items-start justify-between gap-3">
-                <div class="flex items-center gap-2">
-                    <div class="w-9 h-9 rounded-xl bg-violet-100 text-violet-600 flex items-center justify-center shrink-0">
-                        <i class="fa-solid fa-router"></i>
-                    </div>
-                    <div>
-                        <h4 class="text-sm font-bold text-slate-900 dark:text-white">Router Client</h4>
-                        <p class="text-[11px] text-slate-500">Port publik → target tunnel :{{ $routerClientMap?->target_port ?? 19 }}</p>
-                    </div>
-                </div>
-                @if ($tunnelOnline && $routerClientMap)
-                    <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">SIAP</span>
-                @else
-                    <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 border border-slate-200">TUNNEL OFF</span>
-                @endif
-            </div>
-            @if ($routerClientMap)
-                <div class="font-mono text-xs text-violet-900 bg-violet-50 border border-violet-100 rounded-xl px-3 py-2 select-all">{{ $routerClientMap->endpoint() }}</div>
-                <div class="flex flex-wrap gap-2">
-                    <a href="http://{{ $routerClientMap->endpoint() }}" target="_blank" rel="noopener" class="inline-flex items-center gap-1.5 bg-violet-600 hover:bg-violet-500 text-white font-bold text-xs px-3 py-2 rounded-xl transition">
-                        <i class="fa-solid fa-external-link"></i> Buka Router Client
-                    </a>
-                    <button type="button" onclick="copyText(@js($routerClientMap->endpoint()))" class="inline-flex items-center gap-1.5 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 font-semibold text-xs px-3 py-2 rounded-xl transition">
-                        <i class="fa-regular fa-copy"></i> Salin
-                    </button>
-                </div>
-                <p class="text-[11px] text-slate-500 leading-relaxed">
-                    Sama seperti OLT: NAT di MikroTik harus mengarah ke IP perangkat LAN (router pelanggan / CPE).
-                </p>
-            @else
-                <p class="text-xs text-slate-500">Port map Router Client belum ada.</p>
+        <div class="flex flex-wrap gap-2">
+            <button type="button" onclick="syncOlts()" class="inline-flex items-center gap-1.5 bg-white dark:bg-slate-800 hover:bg-slate-50 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 font-bold text-xs px-3 py-2 rounded-xl transition">
+                <i class="fa-solid fa-arrows-rotate"></i> Deteksi Ulang
+            </button>
+            @if ($oltDevices->isNotEmpty())
+                <button type="button" onclick="pollAllOlts()" class="inline-flex items-center gap-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs px-3 py-2 rounded-xl transition">
+                    <i class="fa-solid fa-signal"></i> Cek Status
+                </button>
             @endif
         </div>
     </div>
 
-    <div class="rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/60 p-4 text-[11px] text-slate-600 dark:text-slate-400 space-y-1">
-        <p class="font-bold text-slate-800 dark:text-slate-200 text-xs">Catatan singkat</p>
-        <p>• <span class="font-mono">:1001</span> = API RouterOS untuk Settings → Router (bukan browser OLT).</p>
-        <p>• <span class="font-mono">:1002</span> = web management OLT (yang sudah Anda uji).</p>
-        <p>• Kartu “New ONU / Reboot Modem / TR-069” sebelumnya hanya mock UI — belum baca OLT sungguhan.</p>
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div>
+            <h4 class="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">Perangkat Terdaftar</h4>
+            @if ($oltDevices->isEmpty())
+                <p class="text-xs text-slate-500 py-6 text-center rounded-xl border border-dashed border-slate-200 dark:border-slate-700">Belum ada OLT terdaftar.</p>
+            @else
+                <div class="space-y-2">
+                    @foreach ($oltDevices as $device)
+                        <div class="p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/40">
+                            <div class="flex items-start justify-between gap-2">
+                                <div>
+                                    <p class="text-sm font-bold text-slate-900 dark:text-white">{{ $device->name }}</p>
+                                    <p class="text-[10px] text-slate-500 mt-0.5">
+                                        {{ strtoupper($device->vendor) }}
+                                        @if ($device->management_ip)
+                                            · <span class="font-mono">{{ $device->management_ip }}:{{ $device->web_port }}</span>
+                                        @endif
+                                        @if (($device->meta['auto_detected'] ?? false))
+                                            <span class="text-emerald-600 font-bold">· Otomatis</span>
+                                        @endif
+                                    </p>
+                                </div>
+                                <span class="text-[10px] font-bold px-2 py-0.5 rounded-full border
+                                    {{ $device->status === 'online' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : ($device->status === 'offline' ? 'bg-rose-50 text-rose-700 border-rose-200' : 'bg-slate-100 text-slate-500 border-slate-200') }}">
+                                    {{ $device->statusLabel() }}
+                                </span>
+                            </div>
+                            @if ($device->last_polled_at)
+                                <p class="text-[10px] text-slate-400 mt-2">
+                                    Terakhir dicek: {{ format_wib($device->last_polled_at) }}
+                                    @if ($device->avg_rx_power)
+                                        · Rx rata-rata {{ number_format($device->avg_rx_power, 1) }} dBm
+                                    @endif
+                                </p>
+                            @endif
+                            @if ($device->poll_message)
+                                <p class="text-[10px] text-slate-500 mt-1">{{ $device->poll_message }}</p>
+                            @endif
+                            <div class="flex flex-wrap gap-2 mt-2">
+                                <button type="button" onclick="pollOlt({{ $device->id }})" class="text-[10px] font-bold px-2.5 py-1.5 rounded-lg bg-amber-500 text-slate-950">
+                                    Cek Sekarang
+                                </button>
+                                <form method="POST" action="{{ panel_route('olt.destroy', $device) }}" class="inline" onsubmit="return MikPay.confirmForm(event, 'Hapus OLT {{ $device->name }}?', { title: 'Hapus OLT', variant: 'danger', confirmText: 'Hapus' })">
+                                    @csrf
+                                    @method('DELETE')
+                                    <button type="submit" class="text-[10px] font-bold px-2.5 py-1.5 rounded-lg border border-rose-300 text-rose-600">Hapus</button>
+                                </form>
+                            </div>
+                        </div>
+                    @endforeach
+                </div>
+            @endif
+        </div>
+
+        <details class="group rounded-xl border border-slate-200 dark:border-slate-700 self-start" @if ($oltDevices->isEmpty()) open @endif>
+            <summary class="cursor-pointer list-none px-4 py-3 text-xs font-bold text-slate-700 dark:text-slate-200 flex items-center justify-between">
+                <span><i class="fa-solid fa-plus mr-1.5 text-amber-500"></i> Tambah OLT Manual</span>
+                <i class="fa-solid fa-chevron-down text-[10px] text-slate-400 transition-transform group-open:rotate-180"></i>
+            </summary>
+            <form method="POST" action="{{ panel_route('olt.store') }}" class="px-4 pb-4 space-y-3">
+                @csrf
+                <div>
+                    <label class="text-[11px] font-bold text-slate-500">Nama OLT</label>
+                    <input type="text" name="name" required placeholder="OLT Utama"
+                           class="mt-1 w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs px-3 py-2">
+                </div>
+                <div class="grid grid-cols-3 gap-3">
+                    <div>
+                        <label class="text-[11px] font-bold text-slate-500">Merek</label>
+                        <select name="vendor" class="mt-1 w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs px-3 py-2">
+                            <option value="hsgq">HSGQ</option>
+                            <option value="hioso">Hioso</option>
+                            <option value="zte">ZTE</option>
+                            <option value="other">Lainnya</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="text-[11px] font-bold text-slate-500">IP OLT</label>
+                        <input type="text" name="management_ip" placeholder="192.168.1.2"
+                               class="mt-1 w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs px-3 py-2 font-mono">
+                    </div>
+                    <div>
+                        <label class="text-[11px] font-bold text-slate-500">Port Web</label>
+                        <input type="number" name="web_port" value="80" min="1" max="65535"
+                               class="mt-1 w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs px-3 py-2">
+                    </div>
+                </div>
+                @if ($oltGisNodes->isNotEmpty())
+                    <div>
+                        <label class="text-[11px] font-bold text-slate-500">Hubungkan ke titik OLT di Peta GIS</label>
+                        <select name="odp_id" class="mt-1 w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs px-3 py-2">
+                            <option value="">— Tidak dihubungkan —</option>
+                            @foreach ($oltGisNodes as $node)
+                                <option value="{{ $node->id }}">{{ $node->code }}{{ $node->name ? ' · '.$node->name : '' }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                @endif
+                <button type="submit" class="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs py-2.5 rounded-xl">
+                    <i class="fa-solid fa-plus mr-1"></i> Tambah OLT
+                </button>
+            </form>
+        </details>
     </div>
 </div>
+
+<script>
+async function syncOlts() {
+    const token = document.querySelector('meta[name="csrf-token"]')?.content;
+    try {
+        const res = await fetch('{{ panel_route('olt.sync') }}', {
+            method: 'POST',
+            headers: { 'X-CSRF-TOKEN': token, 'Accept': 'application/json' },
+        });
+        const data = await res.json();
+        if (showToast) showToast(data.message || 'Deteksi OLT selesai');
+        setTimeout(() => location.reload(), 800);
+    } catch (e) {
+        if (showToast) showToast('Gagal mendeteksi OLT dari MikroTik');
+    }
+}
+async function pollOlt(id) {
+    const token = document.querySelector('meta[name="csrf-token"]')?.content;
+    try {
+        const res = await fetch(`{{ panel_route('olt.poll', ['olt' => '__ID__']) }}`.replace('__ID__', id), {
+            method: 'POST',
+            headers: { 'X-CSRF-TOKEN': token, 'Accept': 'application/json' },
+        });
+        const data = await res.json();
+        if (showToast) showToast(data.message || 'Pengecekan selesai');
+        setTimeout(() => location.reload(), 800);
+    } catch (e) {
+        if (showToast) showToast('Gagal mengecek OLT');
+    }
+}
+async function pollAllOlts() {
+    const token = document.querySelector('meta[name="csrf-token"]')?.content;
+    try {
+        const res = await fetch('{{ panel_route('olt.poll-all') }}', {
+            method: 'POST',
+            headers: { 'X-CSRF-TOKEN': token, 'Accept': 'application/json' },
+        });
+        const data = await res.json();
+        const s = data.summary || {};
+        if (showToast) showToast(`Cek selesai: ${s.online || 0} online, ${s.offline || 0} offline`);
+        setTimeout(() => location.reload(), 800);
+    } catch (e) {
+        if (showToast) showToast('Gagal mengecek semua OLT');
+    }
+}
+</script>
 @endsection

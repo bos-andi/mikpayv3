@@ -25,6 +25,7 @@ document.addEventListener('DOMContentLoaded', () => {
         placeLatLng: null,
         basemap: 'street',
         locatedOnce: false,
+        markerRefs: {},
     };
 
     const map = L.map('gisMap', {
@@ -37,25 +38,23 @@ document.addEventListener('DOMContentLoaded', () => {
         bounceAtZoomLimits: false,
     }).setView([-2.5, 118], 5);
 
-    // tile.openstreetmap.org sering memblokir (header x-blocked) → peta putih.
-    // Pakai Carto Voyager (data OSM) + cadangan Esri Street.
-    const streetLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-        subdomains: 'abcd',
-        maxZoom: 22,
-        maxNativeZoom: 20,
-        detectRetina: true,
-        updateWhenIdle: true,
-        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/">CARTO</a>',
-    });
-    const streetFallbackLayer = L.tileLayer(
+    // Carto basemaps kini butuh API key (tile berisi tulisan "API KEY REQUIRED", HTTP 200)
+    // dan tile.openstreetmap.org sering memblokir (header x-blocked) → pakai Esri Street + cadangan OSM.
+    const streetLayer = L.tileLayer(
         'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',
         {
-            maxZoom: 20,
+            maxZoom: 22,
             maxNativeZoom: 19,
             updateWhenIdle: true,
-            attribution: 'Tiles &copy; Esri',
+            attribution: 'Tiles &copy; <a href="https://www.esri.com/">Esri</a> &mdash; Esri, HERE, Garmin, &copy; OpenStreetMap',
         }
     );
+    const streetFallbackLayer = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 22,
+        maxNativeZoom: 19,
+        updateWhenIdle: true,
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+    });
     const satelliteLayer = L.tileLayer(
         'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
         {
@@ -86,7 +85,7 @@ document.addEventListener('DOMContentLoaded', () => {
             streetTileErrors = 0;
             if (map.hasLayer(streetLayer)) map.removeLayer(streetLayer);
             if (!map.hasLayer(streetFallbackLayer)) streetFallbackLayer.addTo(map);
-            toast('Cadangan peta jalan (Esri) diaktifkan.');
+            toast('Cadangan peta jalan (OpenStreetMap) diaktifkan.');
         }
     });
     streetLayer.on('load', () => {
@@ -390,6 +389,44 @@ document.addEventListener('DOMContentLoaded', () => {
         return state.nodes.find((n) => n.id === id) || null;
     }
 
+    function findNearestNode(latlng, maxPx = 32) {
+        if (!state.nodes.length) return null;
+        const click = map.latLngToContainerPoint(latlng);
+        let best = null;
+        let bestDist = maxPx;
+        state.nodes.forEach((node) => {
+            const point = map.latLngToContainerPoint([node.latitude, node.longitude]);
+            const dist = Math.hypot(point.x - click.x, point.y - click.y);
+            if (dist < bestDist) {
+                bestDist = dist;
+                best = node;
+            }
+        });
+        return best;
+    }
+
+    function applyMarkerHighlight() {
+        Object.entries(state.markerRefs).forEach(([id, refs]) => {
+            const selected = Number(id) === Number(state.selectedId);
+            const node = nodeById(Number(id));
+            if (!node || !refs?.visible) return;
+            const base = node.type === 'olt' ? 11 : node.type === 'odc' ? 10 : 9;
+            refs.visible.setStyle({
+                radius: selected ? base + 4 : base,
+                weight: selected ? 4 : 2,
+                color: selected ? '#ffffff' : typeColor(node.type),
+                fillOpacity: selected ? 1 : 0.9,
+            });
+            if (selected) refs.visible.bringToFront();
+        });
+    }
+
+    function scrollInspectorIntoView() {
+        const panel = document.getElementById('gisInspector');
+        if (!panel || window.innerWidth >= 1024) return;
+        panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+
     function colorForState(s) {
         if (s === 'online') return '#10b981';
         if (s === 'isolir' || s === 'offline') return '#f43f5e';
@@ -420,6 +457,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function renderMarkers(fit) {
         state.layer.clearLayers();
+        state.markerRefs = {};
         const bounds = [];
         const byId = {};
         state.nodes.forEach((n) => { byId[n.id] = n; });
@@ -443,13 +481,24 @@ document.addEventListener('DOMContentLoaded', () => {
 
         state.nodes.forEach((node) => {
             const color = typeColor(node.type);
-            const radius = node.type === 'olt' ? 10 : node.type === 'odc' ? 9 : 8;
-            const marker = L.circleMarker([node.latitude, node.longitude], {
+            const baseRadius = node.type === 'olt' ? 11 : node.type === 'odc' ? 10 : 9;
+            const latlng = [node.latitude, node.longitude];
+
+            const hitMarker = L.circleMarker(latlng, {
+                radius: 24,
+                fillOpacity: 0,
+                opacity: 0,
+                interactive: true,
+                bubblingMouseEvents: false,
+            });
+
+            const marker = L.circleMarker(latlng, {
                 color,
                 fillColor: color,
                 fillOpacity: 0.9,
-                radius,
+                radius: baseRadius,
                 weight: 2,
+                bubblingMouseEvents: false,
             });
 
             let popup = `<b>${escapeHtml(node.label)}</b><br>${escapeHtml(node.type_label || node.type.toUpperCase())}`;
@@ -458,9 +507,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (node.type === 'odc') popup += `<br>ODP anak: ${node.child_count || 0}`;
             if (node.parent_label) popup += `<br>← ${escapeHtml(node.parent_type?.toUpperCase() || '')} ${escapeHtml(node.parent_code || node.parent_label)}`;
 
-            marker.bindPopup(popup);
-            marker.on('click', (e) => {
-                // Saat mode penempatan: taruh pin di titik yang diklik (jangan blok map click)
+            const activateNode = (e) => {
                 if (state.mode !== 'view') {
                     L.DomEvent.stopPropagation(e);
                     setPlacePin(e.latlng);
@@ -468,9 +515,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 L.DomEvent.stopPropagation(e);
                 selectNode(node.id);
-            });
+            };
+
+            marker.bindPopup(popup);
+            hitMarker.on('click', activateNode);
+            marker.on('click', activateNode);
+            hitMarker.addTo(state.layer);
             marker.addTo(state.layer);
-            bounds.push([node.latitude, node.longitude]);
+            state.markerRefs[node.id] = { hit: hitMarker, visible: marker, popup };
+            bounds.push(latlng);
 
             if (node.has_customer_ports && Array.isArray(node.ports)) {
                 node.ports.forEach((port) => {
@@ -510,6 +563,8 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
 
+        applyMarkerHighlight();
+
         if (fit && bounds.length === 1) {
             map.setView(bounds[0], 18);
         } else if (fit && bounds.length > 1) {
@@ -524,7 +579,18 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!node) {
             els.empty.classList.remove('hidden');
             els.body.classList.add('hidden');
+            applyMarkerHighlight();
             return;
+        }
+
+        applyMarkerHighlight();
+        const refs = state.markerRefs[node.id];
+        if (refs?.visible) {
+            refs.visible.openPopup();
+            map.panTo([node.latitude, node.longitude], {
+                animate: true,
+                duration: 0.35,
+            });
         }
 
         els.empty.classList.add('hidden');
@@ -544,6 +610,7 @@ document.addEventListener('DOMContentLoaded', () => {
             els.capacity.textContent = `Anak: ${node.child_count || 0}`;
             els.portsWrap.classList.add('hidden');
             els.portsGrid.innerHTML = '';
+            scrollInspectorIntoView();
             return;
         }
 
@@ -569,6 +636,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     els.portsGrid.appendChild(card);
                 });
             }
+            scrollInspectorIntoView();
             return;
         }
 
@@ -594,6 +662,8 @@ document.addEventListener('DOMContentLoaded', () => {
             card.addEventListener('click', () => openPortModal(node, port));
             els.portsGrid.appendChild(card);
         });
+
+        scrollInspectorIntoView();
     }
 
     function portCardClass(stateName) {
@@ -737,7 +807,7 @@ document.addEventListener('DOMContentLoaded', () => {
         renderMarkers(!!fitMap);
 
         const s = data.stats || {};
-        els.stats.textContent = `OLT ${s.olt_count || 0} · ODC ${s.odc_count || 0} · ODP ${s.odp_count || 0} · Port ${s.port_used || 0}/${s.port_total || 0}`;
+        els.stats.textContent = `Ringkasan: OLT ${s.olt_count || 0} · ODC ${s.odc_count || 0} · ODP ${s.odp_count || 0} · Port ${s.port_used || 0}/${s.port_total || 0}`;
 
         const keep = selectId || state.selectedId;
         if (keep && state.nodes.some((n) => n.id === keep)) {
@@ -819,7 +889,7 @@ document.addEventListener('DOMContentLoaded', () => {
         toast(
             state.basemap === 'satellite'
                 ? 'Basemap satelit (zoom maks. 18).'
-                : 'Basemap jalan (Carto/OSM).'
+                : 'Basemap jalan (Esri).'
         );
     });
     els.btnZoomPlace?.addEventListener('click', () => ensurePlaceZoom());
@@ -839,7 +909,13 @@ document.addEventListener('DOMContentLoaded', () => {
     els.btnCancel?.addEventListener('click', cancelMode);
 
     map.on('click', (e) => {
-        if (state.mode === 'view') return;
+        if (state.mode === 'view') {
+            const near = findNearestNode(e.latlng);
+            if (near) {
+                selectNode(near.id);
+            }
+            return;
+        }
         // Container size kadang meleset — refresh sebelum hitung latlng
         refreshMapSize();
         const ll = normalizeLatLng(e.latlng);
@@ -939,14 +1015,12 @@ document.addEventListener('DOMContentLoaded', () => {
     els.btnClearPort?.addEventListener('click', async () => {
         const node = selectedNode();
         if (!node) return;
-        const ok = window.MikPay?.confirm
-            ? await MikPay.confirm({
+        const ok = await MikPay.confirm({
                 title: 'Kosongkan Port',
                 message: `Kosongkan port ${els.portNumber.value}?`,
                 variant: 'warning',
                 confirmText: 'Ya, kosongkan',
-            })
-            : confirm('Kosongkan port?');
+            });
         if (!ok) return;
         const { data } = await api(node.ports_url, {
             method: 'PUT',
@@ -993,14 +1067,12 @@ document.addEventListener('DOMContentLoaded', () => {
         const node = selectedNode();
         if (!node) return;
         const kind = node.type_label || node.type.toUpperCase();
-        const ok = window.MikPay?.confirm
-            ? await MikPay.confirm({
+        const ok = await MikPay.confirm({
                 title: `Hapus ${kind}`,
                 message: `Hapus ${kind} “${node.code}” dari peta?`,
                 variant: 'danger',
                 confirmText: 'Ya, hapus',
-            })
-            : confirm(`Hapus ${kind}?`);
+            });
         if (!ok) return;
         const { data } = await api(node.destroy_url, { method: 'DELETE' });
         toast(data.message || (data.ok ? 'Dihapus.' : 'Gagal.'));

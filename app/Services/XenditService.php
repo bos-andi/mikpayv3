@@ -110,6 +110,90 @@ class XenditService
     }
 
     /**
+     * Invoice isi saldo MikPay — Xendit platform (.env).
+     *
+     * @param  array{success_url?: string, failure_url?: string, duration?: int}  $options
+     * @return array{ok: bool, message: string, invoice_id?: string, invoice_url?: string, external_id?: string, raw?: array}
+     */
+    public function createPlatformDepositInvoice(
+        Tenant $tenant,
+        PlatformPendingPayment $payment,
+        array $options = []
+    ): array {
+        $secret = PaymentGateway::platformXenditSecretKey();
+        if ($secret === '' || ! PaymentGateway::platformXenditEnabled()) {
+            return ['ok' => false, 'message' => 'Xendit platform belum dikonfigurasi di .env.'];
+        }
+
+        $externalId = $payment->xendit_external_id
+            ?: ('mpd_'.$tenant->id.'_'.$payment->id.'_'.substr(md5($payment->payment_id.microtime(true)), 0, 8));
+
+        $amount = (int) $payment->amount;
+        if ($amount < 1) {
+            return ['ok' => false, 'message' => 'Nominal deposit tidak valid.'];
+        }
+
+        $successUrl = (string) ($options['success_url'] ?? url('/langganan?status=deposit_success'));
+        $failureUrl = (string) ($options['failure_url'] ?? url('/langganan?status=deposit_failed'));
+
+        $payload = [
+            'external_id' => $externalId,
+            'amount' => $amount,
+            'description' => 'Isi saldo MikPay — '.$tenant->name,
+            'invoice_duration' => (int) ($options['duration'] ?? 86400),
+            'currency' => 'IDR',
+            'success_redirect_url' => $successUrl,
+            'failure_redirect_url' => $failureUrl,
+            'metadata' => [
+                'type' => 'platform_deposit',
+                'tenant_id' => $tenant->id,
+                'payment_id' => $payment->payment_id,
+            ],
+        ];
+
+        try {
+            $response = Http::timeout(45)
+                ->withBasicAuth($secret, '')
+                ->acceptJson()
+                ->post(self::INVOICE_URL, $payload);
+        } catch (\Throwable $e) {
+            Log::warning('xendit.platform_deposit.http_error', ['message' => $e->getMessage()]);
+
+            return ['ok' => false, 'message' => 'Gagal menghubungi Xendit: '.$e->getMessage()];
+        }
+
+        $data = $response->json() ?? [];
+        if (! $response->successful()) {
+            $msg = (string) ($data['message'] ?? $response->body() ?: 'Xendit menolak permintaan.');
+            Log::warning('xendit.platform_deposit.failed', ['status' => $response->status(), 'body' => $data]);
+
+            return ['ok' => false, 'message' => $msg, 'raw' => $data];
+        }
+
+        $invoiceId = (string) ($data['id'] ?? '');
+        $invoiceUrl = (string) ($data['invoice_url'] ?? '');
+        if ($invoiceId === '' || $invoiceUrl === '') {
+            return ['ok' => false, 'message' => 'Respons Xendit tidak lengkap.', 'raw' => $data];
+        }
+
+        $payment->forceFill([
+            'xendit_invoice_id' => $invoiceId,
+            'xendit_external_id' => $externalId,
+            'xendit_invoice_url' => $invoiceUrl,
+            'payment_channel' => 'xendit',
+        ])->save();
+
+        return [
+            'ok' => true,
+            'message' => 'Invoice deposit dibuat.',
+            'invoice_id' => $invoiceId,
+            'invoice_url' => $invoiceUrl,
+            'external_id' => $externalId,
+            'raw' => $data,
+        ];
+    }
+
+    /**
      * Verifikasi callback khusus pembayaran platform (langganan SaaS).
      */
     public function verifyPlatformCallbackToken(?string $headerToken): bool
@@ -296,6 +380,88 @@ class XenditService
         ])->save();
 
         return ['ok' => true, 'message' => 'QRIS siap.', 'checkout' => $checkout, 'raw' => $data];
+    }
+
+    /**
+     * QRIS dinamis di akun Xendit platform (.env), mis. untuk toko voucher tenant.
+     *
+     * @return array{ok: bool, message: string, qr_id?: string, qr_string?: string, raw?: array}
+     */
+    public function createPlatformQris(string $referenceId, int $amount, Carbon $expiresAt): array
+    {
+        $secret = PaymentGateway::platformXenditSecretKey();
+        if ($secret === '' || ! PaymentGateway::platformXenditEnabled()) {
+            return ['ok' => false, 'message' => 'Pembayaran QRIS belum tersedia.'];
+        }
+
+        $this->ensureWebhookUrls(null, url('/webhooks/xendit'));
+
+        try {
+            $response = Http::timeout(30)
+                ->withBasicAuth($secret, '')
+                ->acceptJson()
+                ->withHeaders(['api-version' => '2022-07-31'])
+                ->post(self::QR_URL, [
+                    'reference_id' => $referenceId,
+                    'type' => 'DYNAMIC',
+                    'currency' => 'IDR',
+                    'amount' => $amount,
+                    'expires_at' => $expiresAt->copy()->utc()->format('Y-m-d\TH:i:s.000\Z'),
+                ]);
+        } catch (\Throwable $e) {
+            Log::warning('xendit.platform_qris.http_error', ['message' => $e->getMessage()]);
+
+            return ['ok' => false, 'message' => 'Gagal menghubungi Xendit. Coba lagi sebentar.'];
+        }
+
+        $data = $response->json() ?? [];
+        if (! $response->successful()) {
+            Log::warning('xendit.platform_qris.failed', ['status' => $response->status(), 'body' => $data]);
+
+            return ['ok' => false, 'message' => $this->extractErrorMessage($data, $response->body()), 'raw' => $data];
+        }
+
+        $qrString = (string) ($data['qr_string'] ?? '');
+        if ($qrString === '') {
+            return ['ok' => false, 'message' => 'QRIS tidak tersedia dari Xendit.', 'raw' => $data];
+        }
+
+        return ['ok' => true, 'message' => 'QRIS siap.', 'qr_id' => (string) ($data['id'] ?? ''), 'qr_string' => $qrString, 'raw' => $data];
+    }
+
+    /**
+     * Cek pembayaran QRIS platform (fallback bila webhook belum masuk).
+     *
+     * @return array{ok: bool, paid: bool, payment?: array}
+     */
+    public function fetchPlatformQrPayment(string $qrId): array
+    {
+        $secret = PaymentGateway::platformXenditSecretKey();
+        if ($secret === '' || $qrId === '') {
+            return ['ok' => false, 'paid' => false];
+        }
+
+        try {
+            $response = Http::timeout(15)
+                ->withBasicAuth($secret, '')
+                ->acceptJson()
+                ->withHeaders(['api-version' => '2022-07-31'])
+                ->get(self::QR_URL.'/'.urlencode($qrId).'/payments');
+        } catch (\Throwable) {
+            return ['ok' => false, 'paid' => false];
+        }
+
+        if (! $response->successful()) {
+            return ['ok' => false, 'paid' => false];
+        }
+
+        foreach ((array) ($response->json('data') ?? []) as $payment) {
+            if (is_array($payment) && strtoupper((string) ($payment['status'] ?? '')) === 'SUCCEEDED') {
+                return ['ok' => true, 'paid' => true, 'payment' => $payment];
+            }
+        }
+
+        return ['ok' => true, 'paid' => false];
     }
 
     /**

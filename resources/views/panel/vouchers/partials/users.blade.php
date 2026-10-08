@@ -29,16 +29,16 @@
     <div class="flex flex-wrap gap-2">
         @php $batchComment = (string) ($filters['comment'] ?? ''); @endphp
         <button type="button"
-                onclick="(function(){var c=document.getElementById('commentFilter')?.value||'{{ $batchComment }}'; if(!c){alert('Pilih batch comment dulu.');return;} window.open('{{ panel_route('vouchers.print') }}?id='+encodeURIComponent(c)+'&qr=no','_blank');})()"
+                onclick="(async function(){var c=document.getElementById('commentFilter')?.value||'{{ $batchComment }}'; if(!c){await (window.mikpayAlert||MikPay.alert)({title:'Belum pilih batch',message:'Pilih batch comment dulu sebelum cetak.'});return;} window.open('{{ panel_route('vouchers.print') }}?id='+encodeURIComponent(c)+'&qr=no','_blank');})()"
                 class="text-xs font-bold px-3 py-2 rounded-xl bg-indigo-600 text-white">Cetak</button>
         <button type="button"
-                onclick="(function(){var c=document.getElementById('commentFilter')?.value||'{{ $batchComment }}'; if(!c){alert('Pilih batch comment dulu.');return;} window.open('{{ panel_route('vouchers.print') }}?id='+encodeURIComponent(c)+'&qr=yes','_blank');})()"
+                onclick="(async function(){var c=document.getElementById('commentFilter')?.value||'{{ $batchComment }}'; if(!c){await (window.mikpayAlert||MikPay.alert)({title:'Belum pilih batch',message:'Pilih batch comment dulu sebelum cetak.'});return;} window.open('{{ panel_route('vouchers.print') }}?id='+encodeURIComponent(c)+'&qr=yes','_blank');})()"
                 class="text-xs font-bold px-3 py-2 rounded-xl bg-violet-600 text-white">Cetak QR</button>
         <button type="button"
-                onclick="(function(){var c=document.getElementById('commentFilter')?.value||'{{ $batchComment }}'; if(!c){alert('Pilih batch comment dulu.');return;} window.open('{{ panel_route('vouchers.print') }}?id='+encodeURIComponent(c)+'&small=yes','_blank');})()"
+                onclick="(async function(){var c=document.getElementById('commentFilter')?.value||'{{ $batchComment }}'; if(!c){await (window.mikpayAlert||MikPay.alert)({title:'Belum pilih batch',message:'Pilih batch comment dulu sebelum cetak.'});return;} window.open('{{ panel_route('vouchers.print') }}?id='+encodeURIComponent(c)+'&small=yes','_blank');})()"
                 class="text-xs font-bold px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200">Cetak Small</button>
         <button type="button"
-                onclick="(function(){var c=document.getElementById('commentFilter')?.value||'{{ $batchComment }}'; if(!c){alert('Pilih batch comment dulu.');return;} window.open('{{ panel_route('vouchers.print') }}?id='+encodeURIComponent(c)+'&tpl=thermal&qr=yes','_blank');})()"
+                onclick="(async function(){var c=document.getElementById('commentFilter')?.value||'{{ $batchComment }}'; if(!c){await (window.mikpayAlert||MikPay.alert)({title:'Belum pilih batch',message:'Pilih batch comment dulu sebelum cetak.'});return;} window.open('{{ panel_route('vouchers.print') }}?id='+encodeURIComponent(c)+'&tpl=thermal&qr=yes','_blank');})()"
                 class="text-xs font-bold px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200">Thermal</button>
         @if ($batchComment !== '')
             <form method="POST" action="{{ panel_route('vouchers.users.remove-by-comment') }}"

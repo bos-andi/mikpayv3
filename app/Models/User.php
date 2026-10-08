@@ -3,22 +3,26 @@
 namespace App\Models;
 
 use Database\Factories\UserFactory;
+use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 
-#[Fillable(['name', 'email', 'password', 'role', 'tenant_id', 'is_active'])]
+#[Fillable(['name', 'email', 'password', 'role', 'tenant_id', 'is_active', 'email_verified_at'])]
 #[Hidden(['password', 'remember_token'])]
-class User extends Authenticatable
+class User extends Authenticatable implements MustVerifyEmail
 {
     public const ROLE_SUPERADMIN = 'superadmin';
 
     public const ROLE_TENANT_ADMIN = 'tenant_admin';
 
     public const ROLE_TENANT_USER = 'tenant_user';
+
+    public const ROLE_PARTNER = 'partner';
 
     /** @use HasFactory<UserFactory> */
     use HasFactory, Notifiable;
@@ -37,6 +41,16 @@ class User extends Authenticatable
         return $this->belongsTo(Tenant::class);
     }
 
+    public function partner(): HasOne
+    {
+        return $this->hasOne(Partner::class);
+    }
+
+    public function isPartner(): bool
+    {
+        return $this->role === self::ROLE_PARTNER;
+    }
+
     public function isSuperAdmin(): bool
     {
         if ($this->role !== self::ROLE_SUPERADMIN) {
@@ -50,6 +64,21 @@ class User extends Authenticatable
         }
 
         return in_array(strtolower(trim((string) $this->email)), $allowed, true);
+    }
+
+    public function sendPasswordResetNotification(#[\SensitiveParameter] $token): void
+    {
+        $this->notify(new \App\Notifications\ResetPasswordNotification($token));
+    }
+
+    public function sendEmailVerificationNotification(): void
+    {
+        $this->notify(new \App\Notifications\VerifyEmailNotification);
+    }
+
+    public function requiresEmailVerification(): bool
+    {
+        return ! $this->isSuperAdmin() && ! $this->hasVerifiedEmail();
     }
 
     public function isTenantAdmin(): bool

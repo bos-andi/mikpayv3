@@ -24,14 +24,14 @@ class TunnelOvpnConnectCommand extends Command
 
         $account = TunnelAccount::query()
             ->where('username', $username)
-            ->whereIn('status', ['active', 'pending'])
             ->first();
 
-        if (! $account) {
+        if (! $account || ! $tunnels->accountAllowedForVpn($account)) {
             return self::FAILURE;
         }
 
-        $ip = $account->tunnel_ip ?: $tunnels->allocateTunnelIp($account);
+        // OpenVPN menunggu hook ini selesai, jadi management interface tidak bisa ditanya dari sini.
+        $ip = $account->tunnel_ip ?: $tunnels->allocateTunnelIp($account, checkLiveSessions: false);
         if (! $ip) {
             return self::FAILURE;
         }

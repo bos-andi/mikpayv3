@@ -6,17 +6,22 @@
 @section('content')
 <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
     <div class="bg-white border border-amber-200 rounded-2xl p-4 shadow-sm">
-        <p class="text-[11px] font-bold uppercase tracking-wider text-amber-700">Pending</p>
+        <p class="text-[11px] font-bold uppercase tracking-wider text-amber-700">Menunggu Dibayar</p>
         <p class="text-2xl font-extrabold text-amber-600 mt-1">{{ $stats['pending'] ?? 0 }}</p>
     </div>
     <div class="bg-white border border-emerald-200 rounded-2xl p-4 shadow-sm">
-        <p class="text-[11px] font-bold uppercase tracking-wider text-emerald-700">Approved</p>
+        <p class="text-[11px] font-bold uppercase tracking-wider text-emerald-700">Lunas</p>
         <p class="text-2xl font-extrabold text-emerald-600 mt-1">{{ $stats['approved'] ?? 0 }}</p>
     </div>
     <div class="bg-white border border-rose-200 rounded-2xl p-4 shadow-sm">
-        <p class="text-[11px] font-bold uppercase tracking-wider text-rose-700">Rejected</p>
+        <p class="text-[11px] font-bold uppercase tracking-wider text-rose-700">Batal / Kedaluwarsa</p>
         <p class="text-2xl font-extrabold text-rose-600 mt-1">{{ $stats['rejected'] ?? 0 }}</p>
     </div>
+</div>
+
+<div class="mb-4 flex items-start gap-2.5 rounded-2xl border border-indigo-200 bg-indigo-50 px-4 py-3 text-xs text-indigo-800">
+    <i class="fa-solid fa-bolt mt-0.5"></i>
+    <span>Semua pembayaran diproses <b>otomatis oleh Xendit</b>: begitu invoice lunas, langganan/saldo tenant langsung aktif. Invoice yang tidak dibayar akan kedaluwarsa dengan sendirinya. Halaman ini hanya untuk memantau.</span>
 </div>
 
 <div class="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
@@ -32,7 +37,7 @@
                     <th class="text-left px-4 py-3 font-bold">Status</th>
                     <th class="text-left px-4 py-3 font-bold">Catatan</th>
                     <th class="text-left px-4 py-3 font-bold">Bukti</th>
-                    <th class="text-left px-4 py-3 font-bold">Aksi</th>
+                    <th class="text-left px-4 py-3 font-bold">Diproses</th>
                 </tr>
             </thead>
             <tbody class="divide-y divide-slate-100">
@@ -59,11 +64,11 @@
                         <td class="px-4 py-3 font-bold">Rp {{ number_format((int) $p->amount, 0, ',', '.') }}</td>
                         <td class="px-4 py-3">
                             @if ($p->status === 'pending')
-                                <span class="inline-flex px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200 font-bold">pending</span>
+                                <span class="inline-flex px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200 font-bold">menunggu bayar</span>
                             @elseif ($p->status === 'approved')
-                                <span class="inline-flex px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 font-bold">approved</span>
+                                <span class="inline-flex px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 font-bold">lunas</span>
                             @else
-                                <span class="inline-flex px-2 py-0.5 rounded-full bg-rose-50 text-rose-700 border border-rose-200 font-bold">rejected</span>
+                                <span class="inline-flex px-2 py-0.5 rounded-full bg-rose-50 text-rose-700 border border-rose-200 font-bold">{{ $p->rejected_by === 'xendit' ? 'kedaluwarsa' : 'batal' }}</span>
                             @endif
                         </td>
                         <td class="px-4 py-3 max-w-[180px] text-slate-600">{{ $p->customer_note ?: '—' }}</td>
@@ -80,23 +85,26 @@
                                 —
                             @endif
                         </td>
-                        <td class="px-4 py-3 min-w-[220px]">
+                        <td class="px-4 py-3 min-w-[160px]">
+                            @php
+                                $by = (string) ($p->status === 'approved' ? $p->approved_by : $p->rejected_by);
+                                $at = $p->status === 'approved' ? $p->approved_at : $p->rejected_at;
+                                $byLabel = match (true) {
+                                    $by === 'xendit' => 'Otomatis · Xendit',
+                                    str_starts_with($by, 'balance') => 'Otomatis · Saldo MikPay',
+                                    $by === 'system' => 'Sistem',
+                                    $by === 'user' => 'Dibatalkan pelanggan',
+                                    $by !== '' => 'Superadmin',
+                                    default => '—',
+                                };
+                            @endphp
                             @if ($p->status === 'pending')
-                                <form method="POST" action="{{ route('superadmin.payments.approve', $p) }}" class="inline-block mb-2">
-                                    @csrf
-                                    <button type="submit" class="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-emerald-600 text-white font-bold hover:bg-emerald-700">
-                                        <i class="fa-solid fa-check"></i> Approve
-                                    </button>
-                                </form>
-                                <form method="POST" action="{{ route('superadmin.payments.reject', $p) }}" class="flex flex-wrap items-center gap-1">
-                                    @csrf
-                                    <input type="text" name="reject_reason" required placeholder="Alasan tolak" class="rounded-lg border border-slate-200 px-2 py-1.5 w-36">
-                                    <button type="submit" class="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-rose-600 text-white font-bold hover:bg-rose-700">
-                                        <i class="fa-solid fa-xmark"></i> Reject
-                                    </button>
-                                </form>
+                                <span class="inline-flex items-center gap-1 text-amber-700"><i class="fa-solid fa-hourglass-half"></i> Menunggu Xendit</span>
                             @else
-                                <span class="text-slate-400">Diproses</span>
+                                <p class="font-semibold text-slate-700">{{ $byLabel }}</p>
+                                @if ($at)
+                                    <p class="text-[10px] text-slate-400 mt-0.5">{{ format_wib($at) }}</p>
+                                @endif
                                 @if ($p->reject_reason)
                                     <p class="text-[10px] text-rose-600 mt-1">{{ $p->reject_reason }}</p>
                                 @endif

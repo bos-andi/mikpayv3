@@ -1,3 +1,4 @@
+@include('partials.favicon')
 <script src="https://cdn.tailwindcss.com"></script>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -29,4 +30,4 @@
     }
 </script>
 
-<link rel="stylesheet" href="{{ asset('css/panel.css') }}">
+<link rel="stylesheet" href="{{ asset('css/panel.css') }}?v={{ filemtime(public_path('css/panel.css')) }}">

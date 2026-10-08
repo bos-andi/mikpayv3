@@ -12,7 +12,7 @@ return new class extends Migration
             $table->id();
             $table->string('name');
             $table->string('subdomain')->unique();
-            $table->string('status')->default('active'); // pending|active|suspended
+            $table->string('status')->default('active'); // pending|active|inactive|trial
             $table->string('plan')->nullable();
             $table->string('vpn_status')->default('offline'); // offline|online|provisioning
             $table->string('remote_host')->nullable();

@@ -8,12 +8,22 @@
     $tab = $settingsTab ?? 'mikrotik';
     $t = current_tenant();
     $input = 'w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 px-3 py-2 text-xs text-slate-800 dark:text-slate-100';
+    $tabMeta = [
+        'mikrotik' => ['Router MikroTik', 'fa-solid fa-network-wired', 'Kelola router MikroTik yang terhubung ke MikPay.'],
+        'payment' => ['Payment Gateway', 'fa-solid fa-credit-card', 'Atur penerimaan pembayaran pelanggan lewat Xendit.'],
+        'billing' => ['Billing & Isolir', 'fa-solid fa-calendar-days', 'Atur masa tenggang sebelum pelanggan diisolir.'],
+        'whatsapp' => ['WhatsApp Gateway', 'fa-brands fa-whatsapp', 'Hubungkan WhatsApp untuk notifikasi tagihan otomatis.'],
+    ][$tab] ?? ['Router MikroTik', 'fa-solid fa-network-wired', ''];
 @endphp
 
 <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
     <div>
-        <h2 class="text-lg font-bold text-slate-900 dark:text-white">Pengaturan Sistem</h2>
-        <p class="text-xs text-slate-500 dark:text-slate-400">MikroTik, Payment Gateway, WhatsApp, dan preferensi tenant.</p>
+        <p class="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Pengaturan Sistem</p>
+        <h2 class="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
+            <i class="{{ $tabMeta[1] }} text-indigo-500 text-base"></i>
+            {{ $tabMeta[0] }}
+        </h2>
+        <p class="text-xs text-slate-500 dark:text-slate-400">{{ $tabMeta[2] }}</p>
     </div>
 </div>
 
@@ -27,25 +37,6 @@
         {{ session('error') }}
     </div>
 @endif
-
-<div class="flex flex-wrap items-center gap-2 border-b border-slate-200 dark:border-slate-800 pb-1">
-    <a href="{{ panel_route('settings') }}?tab=mikrotik"
-       class="px-4 py-2 rounded-t-xl text-xs font-bold transition {{ $tab === 'mikrotik' ? 'bg-white dark:bg-slate-900 border border-b-0 border-slate-200 dark:border-slate-800 text-indigo-600' : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200' }}">
-        <i class="fa-solid fa-network-wired mr-1.5"></i> Router MikroTik
-    </a>
-    <a href="{{ panel_route('settings') }}?tab=payment"
-       class="px-4 py-2 rounded-t-xl text-xs font-bold transition {{ $tab === 'payment' ? 'bg-white dark:bg-slate-900 border border-b-0 border-slate-200 dark:border-slate-800 text-indigo-600' : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200' }}">
-        <i class="fa-solid fa-credit-card mr-1.5"></i> Payment Gateway
-    </a>
-    <a href="{{ panel_route('settings') }}?tab=billing"
-       class="px-4 py-2 rounded-t-xl text-xs font-bold transition {{ $tab === 'billing' ? 'bg-white dark:bg-slate-900 border border-b-0 border-slate-200 dark:border-slate-800 text-indigo-600' : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200' }}">
-        <i class="fa-solid fa-calendar-days mr-1.5"></i> Billing & Isolir
-    </a>
-    <a href="{{ panel_route('settings') }}?tab=whatsapp"
-       class="px-4 py-2 rounded-t-xl text-xs font-bold transition {{ $tab === 'whatsapp' ? 'bg-white dark:bg-slate-900 border border-b-0 border-slate-200 dark:border-slate-800 text-indigo-600' : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200' }}">
-        <i class="fa-brands fa-whatsapp mr-1.5"></i> WhatsApp Gateway
-    </a>
-</div>
 
 @if ($tab === 'billing')
     @php
@@ -458,12 +449,18 @@
             <div>
                 <h3 class="text-sm font-bold text-slate-900 dark:text-white">Koneksi API RouterOS</h3>
                 <p class="text-xs text-slate-500 dark:text-slate-400">
-                    Bisa lebih dari satu MikroTik. Data pelanggan & isolir mengikuti <strong class="text-slate-700 dark:text-slate-300">router aktif</strong> (bisa diganti dari header).
+                    Semua paket MikPay berlaku untuk {{ $routerLimit }} router MikroTik per akun. Ingin ganti perangkat? Cukup edit router yang sudah ada.
                 </p>
             </div>
-            <a href="{{ panel_route('settings.routers.create') }}" class="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold px-4 py-2.5 rounded-xl shadow-md shadow-indigo-600/20 transition">
-                <i class="fa-solid fa-plus"></i> Tambah Router
-            </a>
+            @if ($canAddRouter)
+                <a href="{{ panel_route('settings.routers.create') }}" class="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold px-4 py-2.5 rounded-xl shadow-md shadow-indigo-600/20 transition">
+                    <i class="fa-solid fa-plus"></i> Tambah Router
+                </a>
+            @else
+                <span class="inline-flex items-center gap-2 text-[11px] font-bold text-slate-500 bg-slate-100 dark:bg-slate-800 px-3 py-2 rounded-xl">
+                    <i class="fa-solid fa-circle-check text-emerald-600"></i> {{ $routers->count() }}/{{ $routerLimit }} router terpakai
+                </span>
+            @endif
         </div>
 
         @if ($routers->isEmpty())

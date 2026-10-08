@@ -7,11 +7,16 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class PlatformPendingPayment extends Model
 {
+    public const PURPOSE_DEPOSIT = 'deposit';
+
+    public const PURPOSE_SUBSCRIPTION = 'subscription';
+
     protected $fillable = [
         'payment_id',
         'tenant_id',
         'user_id',
         'package',
+        'purpose',
         'payment_channel',
         'amount',
         'proof_file',
@@ -54,5 +59,29 @@ class PlatformPendingPayment extends Model
     public function isXendit(): bool
     {
         return $this->payment_channel === 'xendit' || filled($this->xendit_invoice_id);
+    }
+
+    public function isDeposit(): bool
+    {
+        return ($this->purpose ?? self::PURPOSE_SUBSCRIPTION) === self::PURPOSE_DEPOSIT
+            || $this->package === 'deposit';
+    }
+
+    public function isBalancePayment(): bool
+    {
+        return $this->payment_channel === 'balance';
+    }
+
+    public function purposeLabel(): string
+    {
+        if ($this->isDeposit()) {
+            return 'Isi saldo';
+        }
+
+        if ($this->isBalancePayment()) {
+            return 'Perpanjang (saldo)';
+        }
+
+        return 'Langganan';
     }
 }

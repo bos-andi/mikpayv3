@@ -17,9 +17,27 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Badan usaha (halaman legal: Tentang Kami, S&K, Privasi, Refund)
+    |--------------------------------------------------------------------------
+    */
+    'company' => [
+        'name' => env('MIKPAY_COMPANY_NAME', 'PT Andidev Kreatif Digital'),
+        'nib' => env('MIKPAY_COMPANY_NIB', '2104260217439'),
+        'address' => env('MIKPAY_COMPANY_ADDRESS', 'Dsn. Kemambang RT 08 RW 01, Kec. Balongbendo, Kab. Sidoarjo, Jawa Timur, Indonesia'),
+        'email' => env('MIKPAY_COMPANY_EMAIL', 'admin@mikpay.link'),
+        'phone' => env('MIKPAY_COMPANY_PHONE', '+62 857-0700-4054'),
+        'legal_updated_at' => env('MIKPAY_LEGAL_UPDATED_AT', '5 Oktober 2026'),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Contact
     |--------------------------------------------------------------------------
     */
+    'telegram' => [
+        'group_url' => env('MIKPAY_TELEGRAM_GROUP_URL', 'https://t.me/+kmKY1X6VXnI0OTNl'),
+    ],
+
     'whatsapp' => [
         'number' => env('MIKPAY_WA_NUMBER', '6281234567890'),
         'trial_message' => env(
@@ -43,6 +61,39 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Email pengingat langganan (mikpay:subscription-emails, tiap jam)
+    |--------------------------------------------------------------------------
+    */
+    'subscription_emails' => [
+        'trial_remind_hours' => (int) env('MIKPAY_TRIAL_REMIND_HOURS', 24),
+        'paid_remind_hours' => (int) env('MIKPAY_PAID_REMIND_HOURS', 72),
+        'expired_lookback_days' => (int) env('MIKPAY_EXPIRED_EMAIL_LOOKBACK_DAYS', 7),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Saldo langganan MikPay (deposit via Xendit → bayar/perpanjang dari saldo)
+    |--------------------------------------------------------------------------
+    */
+    'subscription' => [
+        'deposit_min' => max(1000, (int) env('MIKPAY_DEPOSIT_MIN', 10000)),
+        'deposit_presets' => [35000, 80000, 155000],
+    ],
+
+    /*
+    | Toko voucher hotspot publik ({tenant}.mikpay.link/voucher) — QRIS via Xendit platform.
+    | Biaya QRIS Xendit (MDR + PPN atas MDR) dan biaya layanan MikPay ditanggung pembeli.
+    */
+    'voucher_shop' => [
+        'qris_mdr_percent' => (float) env('MIKPAY_VOUCHER_QRIS_MDR_PERCENT', 0.7),
+        'qris_vat_percent' => (float) env('MIKPAY_VOUCHER_QRIS_VAT_PERCENT', 11),
+        'min_price' => max(1000, (int) env('MIKPAY_VOUCHER_MIN_PRICE', 1500)),
+        'payment_minutes' => max(5, (int) env('MIKPAY_VOUCHER_PAYMENT_MINUTES', 15)),
+        'service_fee' => max(0, (int) env('MIKPAY_VOUCHER_SERVICE_FEE', 0)),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Superadmin (email yang diizinkan saja)
     |--------------------------------------------------------------------------
     | Customer daftar → tenant_admin di subdomain-nya.
@@ -52,6 +103,12 @@ return [
         static fn (string $email): string => strtolower(trim($email)),
         explode(',', (string) env('MIKPAY_SUPERADMIN_EMAILS', 'me@andidev.id'))
     ))),
+
+    /*
+    | Tenant panel default untuk superadmin di mikpay.link (bukan pelanggan baru).
+    | Contoh: annetwifi — akun demo/operasional yang sudah dikonfigurasi.
+    */
+    'superadmin_panel_tenant' => env('MIKPAY_SUPERADMIN_PANEL_TENANT', 'annetwifi'),
 
     /*
     |--------------------------------------------------------------------------
@@ -113,6 +170,12 @@ return [
         'vpn_client_start' => (int) env('MIKPAY_TUNNEL_VPN_CLIENT_START', 2),
         'vpn_client_end' => (int) env('MIKPAY_TUNNEL_VPN_CLIENT_END', 254),
         'public_iface' => env('MIKPAY_TUNNEL_PUBLIC_IFACE', 'eth0'),
+        // Management interface OpenVPN server (untuk memutus sesi akun yang dihapus/nonaktif).
+        'management' => [
+            'host' => env('MIKPAY_OVPN_MGMT_HOST', '127.0.0.1'),
+            'port' => (int) env('MIKPAY_OVPN_MGMT_PORT', 7505),
+            'password' => env('MIKPAY_OVPN_MGMT_PASSWORD', ''),
+        ],
     ],
 
     /*
@@ -162,6 +225,7 @@ return [
         'xendit' => [
             'enabled' => (bool) env('XENDIT_ENABLED', true),
             'secret_key' => env('XENDIT_SECRET_KEY'),
+            'public_key' => env('XENDIT_PUBLIC_KEY'),
             'callback_token' => env('XENDIT_CALLBACK_TOKEN'),
         ],
     ],
@@ -178,23 +242,11 @@ return [
 
     /*
     |--------------------------------------------------------------------------
-    | Platform SaaS subscription packages (limits; harga di PlatformSetting)
+    | Batas paket MikPay (harga & durasi di SubscriptionPackageService / Superadmin)
     |--------------------------------------------------------------------------
     */
-    'subscription_packages' => [
-        'starter' => [
-            'max_customers' => 100,
-            'max_routers' => 1,
-        ],
-        'pro' => [
-            'max_customers' => 500,
-            'max_routers' => 3,
-        ],
-        'enterprise' => [
-            'max_customers' => null,
-            'max_routers' => null,
-        ],
-    ],
+    // Semua paket: 1 router MikroTik per tenant (berlaku juga saat superadmin mengelola panel tenant).
+    'max_routers_per_tenant' => 1,
 
     'subscription_verification_whatsapp' => env('MIKPAY_SUBSCRIPTION_VERIFY_WHATSAPP'),
 

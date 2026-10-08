@@ -33,6 +33,10 @@
         </p>
     </div>
     <div class="flex flex-wrap items-center gap-2">
+        <button type="button" onclick="openAddPppModal()" @disabled(! $fetchOk)
+                class="inline-flex items-center gap-2 text-xs font-bold px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white shadow-md shadow-indigo-600/20 transition disabled:opacity-50 disabled:cursor-not-allowed">
+            <i class="fa-solid fa-user-plus"></i> Tambah PPP
+        </button>
         <button type="button" onclick="openImportModal()"
                 class="inline-flex items-center gap-2 text-xs font-bold px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white shadow-md shadow-emerald-600/20 transition">
             <i class="fa-solid fa-file-excel"></i> Import Excel
@@ -42,7 +46,7 @@
             <i class="fa-solid fa-rotate"></i> Refresh
         </a>
         <a href="{{ panel_route('settings') }}?tab=mikrotik"
-           class="inline-flex items-center gap-2 text-xs font-bold px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white shadow-md shadow-indigo-600/20 transition">
+           class="inline-flex items-center gap-2 text-xs font-bold px-3.5 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 hover:bg-slate-50 transition">
             <i class="fa-solid fa-network-wired"></i> Ganti Router
         </a>
     </div>
@@ -229,6 +233,138 @@
     @endif
 </div>
 
+{{-- Modal Tambah PPP --}}
+@php
+    $addPppReopen = old('_form') === 'add_ppp';
+    $pppInput = 'mt-1 w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 px-3 py-2 text-xs text-slate-800 dark:text-slate-100 focus:outline-none focus:border-indigo-500';
+    $pppLabel = 'text-[11px] font-bold text-slate-600 dark:text-slate-300';
+@endphp
+<div id="addPppModal" class="fixed inset-0 z-50 {{ $addPppReopen ? 'flex' : 'hidden' }} items-center justify-center bg-black/50 p-4">
+    <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl w-full max-w-2xl max-h-[92vh] flex flex-col">
+        <div class="flex items-center justify-between px-5 py-4 border-b border-slate-100 dark:border-slate-800">
+            <div>
+                <h3 class="text-sm font-bold text-slate-900 dark:text-white">Tambah Pelanggan PPP</h3>
+                <p class="text-[11px] text-slate-500">Langsung dibuat di MikroTik <span class="font-semibold text-indigo-600 dark:text-indigo-400">{{ $router->displayName() }}</span> (PPP → Secrets).</p>
+            </div>
+            <button type="button" onclick="closeAddPppModal()" class="text-slate-400 hover:text-slate-700"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+
+        <form id="addPppForm" method="POST" action="{{ panel_route('customers.store') }}" class="flex-1 overflow-y-auto px-5 py-4 space-y-5">
+            @csrf
+            <input type="hidden" name="_form" value="add_ppp">
+
+            @if ($addPppReopen && ($errors->any() || session('error')))
+                <div class="rounded-xl border border-rose-200 bg-rose-50 dark:bg-rose-500/10 dark:border-rose-500/30 px-3 py-2 text-[11px] font-semibold text-rose-700 dark:text-rose-300">
+                    @if (session('error'))
+                        <p>{{ session('error') }}</p>
+                    @endif
+                    @foreach ($errors->all() as $error)
+                        <p>{{ $error }}</p>
+                    @endforeach
+                </div>
+            @endif
+
+            <div class="space-y-3">
+                <p class="text-[11px] font-black uppercase tracking-wider text-indigo-600 dark:text-indigo-400">1. Akun PPP</p>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                        <label class="{{ $pppLabel }}">Username PPP <span class="text-rose-500">*</span></label>
+                        <input type="text" name="name" value="{{ old('name') }}" required maxlength="64" autocomplete="off" placeholder="contoh: budi@net"
+                               class="{{ $pppInput }} font-mono">
+                    </div>
+                    <div>
+                        <label class="{{ $pppLabel }}">Password PPP <span class="text-rose-500">*</span></label>
+                        <div class="flex gap-2">
+                            <input type="text" id="addPppPassword" name="password" required minlength="4" maxlength="64" autocomplete="off"
+                                   class="{{ $pppInput }} font-mono">
+                            <button type="button" onclick="generatePppPassword()" class="mt-1 shrink-0 px-3 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 text-xs" title="Buat password acak">
+                                <i class="fa-solid fa-shuffle"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div>
+                        <label class="{{ $pppLabel }}">Paket (PPP Profile) <span class="text-rose-500">*</span></label>
+                        <select name="profile" required class="{{ $pppInput }}">
+                            <option value="">— Pilih paket —</option>
+                            @foreach ($profiles as $p)
+                                <option value="{{ $p }}" @selected(old('profile') === $p)>{{ $p }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <div>
+                        <label class="{{ $pppLabel }}">Service</label>
+                        <select name="service" class="{{ $pppInput }}">
+                            @foreach (['pppoe' => 'PPPoE', 'any' => 'Any', 'l2tp' => 'L2TP', 'pptp' => 'PPTP', 'ovpn' => 'OVPN', 'sstp' => 'SSTP'] as $val => $lbl)
+                                <option value="{{ $val }}" @selected(old('service', 'pppoe') === $val)>{{ $lbl }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                </div>
+                <details class="group" @if (old('remote_address') || old('local_address')) open @endif>
+                    <summary class="cursor-pointer list-none text-[11px] font-bold text-slate-500 hover:text-slate-700 dark:hover:text-slate-300">
+                        <i class="fa-solid fa-chevron-right text-[9px] mr-1 transition-transform group-open:rotate-90"></i> IP statis (opsional)
+                    </summary>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-2">
+                        <div>
+                            <label class="{{ $pppLabel }}">Remote address</label>
+                            <input type="text" name="remote_address" value="{{ old('remote_address') }}" placeholder="kosongkan = ikut profile" class="{{ $pppInput }} font-mono">
+                        </div>
+                        <div>
+                            <label class="{{ $pppLabel }}">Local address</label>
+                            <input type="text" name="local_address" value="{{ old('local_address') }}" placeholder="kosongkan = ikut profile" class="{{ $pppInput }} font-mono">
+                        </div>
+                    </div>
+                </details>
+            </div>
+
+            <div class="space-y-3 pt-4 border-t border-slate-100 dark:border-slate-800">
+                <div>
+                    <p class="text-[11px] font-black uppercase tracking-wider text-emerald-600 dark:text-emerald-400">2. Data Pelanggan & Tagihan <span class="normal-case font-semibold text-slate-400">(opsional)</span></p>
+                    <p class="text-[11px] text-slate-500 mt-0.5">Isi tanggal jatuh tempo agar tagihan bulanan dibuat otomatis.</p>
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                        <label class="{{ $pppLabel }}">Nama pelanggan</label>
+                        <input type="text" name="display_name" value="{{ old('display_name') }}" maxlength="255" placeholder="Bpk. Budi" class="{{ $pppInput }}">
+                    </div>
+                    <div>
+                        <label class="{{ $pppLabel }}">No. HP / WhatsApp</label>
+                        <input type="text" name="phone" value="{{ old('phone') }}" maxlength="50" placeholder="08xxxxxxxxxx" class="{{ $pppInput }} font-mono">
+                    </div>
+                    <div>
+                        <label class="{{ $pppLabel }}">Tarif per bulan (Rp)</label>
+                        <input type="number" name="monthly_fee" value="{{ old('monthly_fee') }}" min="0" step="1000" placeholder="150000" class="{{ $pppInput }}">
+                    </div>
+                    <div>
+                        <label class="{{ $pppLabel }}">Tanggal jatuh tempo</label>
+                        <select name="due_day" class="{{ $pppInput }}">
+                            <option value="0">— Belum diatur —</option>
+                            @for ($d = 1; $d <= 31; $d++)
+                                <option value="{{ $d }}" @selected((int) old('due_day') === $d)>Tanggal {{ $d }}</option>
+                            @endfor
+                        </select>
+                    </div>
+                    <div>
+                        <label class="{{ $pppLabel }}">Zona / Area</label>
+                        <input type="text" name="zone" value="{{ old('zone') }}" maxlength="100" placeholder="OLT Port 1" class="{{ $pppInput }}">
+                    </div>
+                    <div>
+                        <label class="{{ $pppLabel }}">Alamat</label>
+                        <input type="text" name="address" value="{{ old('address') }}" maxlength="2000" class="{{ $pppInput }}">
+                    </div>
+                </div>
+            </div>
+        </form>
+
+        <div class="flex gap-2 px-5 py-4 border-t border-slate-100 dark:border-slate-800">
+            <button type="button" onclick="closeAddPppModal()" class="px-4 text-xs font-bold rounded-xl border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200">Batal</button>
+            <button type="submit" form="addPppForm" id="addPppSubmit" class="flex-1 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold py-2.5 rounded-xl shadow-md shadow-indigo-600/20">
+                <i class="fa-solid fa-user-plus mr-1"></i> Simpan ke MikroTik
+            </button>
+        </div>
+    </div>
+</div>
+
 {{-- Modal Import Excel --}}
 <div id="importModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/50 p-4">
     <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl w-full max-w-lg p-5 space-y-4">
@@ -339,6 +475,43 @@
 
 @push('scripts')
 <script>
+(function () {
+    const modal = document.getElementById('addPppModal');
+    const form = document.getElementById('addPppForm');
+    const passwordInput = document.getElementById('addPppPassword');
+
+    window.generatePppPassword = function () {
+        const chars = 'abcdefghjkmnpqrstuvwxyz23456789';
+        const bytes = new Uint32Array(8);
+        crypto.getRandomValues(bytes);
+        passwordInput.value = Array.from(bytes, (b) => chars[b % chars.length]).join('');
+    };
+
+    window.openAddPppModal = function () {
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+        if (!passwordInput.value) generatePppPassword();
+        form.querySelector('[name="name"]')?.focus();
+    };
+
+    window.closeAddPppModal = function () {
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+    };
+
+    modal?.addEventListener('click', function (e) {
+        if (e.target === this) closeAddPppModal();
+    });
+
+    form?.addEventListener('submit', function () {
+        const btn = document.getElementById('addPppSubmit');
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-1"></i> Menyimpan ke MikroTik…';
+    });
+
+    if (!modal.classList.contains('hidden') && !passwordInput.value) generatePppPassword();
+})();
+
 (function () {
     let importing = false;
     let progressTimer = null;
@@ -512,7 +685,7 @@
 
         const fileInput = document.getElementById('importFileInput');
         if (!fileInput?.files?.length) {
-            alert('Pilih file Excel terlebih dahulu.');
+            await (window.mikpayAlert || MikPay.alert)?.({ title: 'File belum dipilih', message: 'Pilih file Excel terlebih dahulu.' });
             return;
         }
 

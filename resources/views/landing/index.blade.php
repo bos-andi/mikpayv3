@@ -4,10 +4,12 @@
     @include('landing.sections.hero')
     @include('landing.sections.stats')
     @include('landing.sections.problem-solution')
+    @include('landing.sections.how-it-works')
     @include('landing.sections.features')
     @include('landing.sections.remote-vpn')
     @include('landing.sections.preview')
     @include('landing.sections.pricing')
     @include('landing.sections.faq')
+    @include('landing.sections.community')
     @include('landing.sections.cta')
 @endsection

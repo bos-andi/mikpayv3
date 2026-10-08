@@ -21,15 +21,15 @@
 
 <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
     <div class="bg-white border border-amber-200 rounded-2xl p-5 shadow-sm">
-        <p class="text-xs font-semibold uppercase tracking-wider text-amber-700">Pembayaran Pending</p>
+        <p class="text-xs font-semibold uppercase tracking-wider text-amber-700">Menunggu Dibayar</p>
         <p class="text-3xl font-extrabold text-amber-600 mt-2">{{ $paymentStats['pending'] ?? 0 }}</p>
     </div>
     <div class="bg-white border border-emerald-200 rounded-2xl p-5 shadow-sm">
-        <p class="text-xs font-semibold uppercase tracking-wider text-emerald-700">Disetujui</p>
+        <p class="text-xs font-semibold uppercase tracking-wider text-emerald-700">Lunas</p>
         <p class="text-3xl font-extrabold text-emerald-600 mt-2">{{ $paymentStats['approved'] ?? 0 }}</p>
     </div>
     <div class="bg-white border border-rose-200 rounded-2xl p-5 shadow-sm">
-        <p class="text-xs font-semibold uppercase tracking-wider text-rose-700">Ditolak</p>
+        <p class="text-xs font-semibold uppercase tracking-wider text-rose-700">Batal / Kedaluwarsa</p>
         <p class="text-3xl font-extrabold text-rose-600 mt-2">{{ $paymentStats['rejected'] ?? 0 }}</p>
     </div>
 </div>
@@ -37,7 +37,7 @@
 <div class="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-3">
     <h2 class="text-sm font-bold text-slate-900">Kelola platform</h2>
     <p class="text-xs text-slate-600 leading-relaxed max-w-2xl">
-        Kelola tenant, paket harga landing, konten marketing, dan verifikasi pembayaran langganan SaaS.
+        Kelola tenant, paket harga landing, konten marketing, dan pantau pembayaran langganan SaaS (otomatis via Xendit).
     </p>
     <div class="flex flex-wrap gap-3 pt-2">
         <a href="{{ route('superadmin.payments') }}" class="inline-flex items-center gap-2 text-xs font-bold text-white gradient-bg px-4 py-2.5 rounded-xl shadow-md">

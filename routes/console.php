@@ -10,4 +10,9 @@ Artisan::command('inspire', function () {
 
 Schedule::command('billing:auto-isolir')->dailyAt('01:15');
 Schedule::command('billing:wa-reminders')->dailyAt('08:00');
-Schedule::command('tunnel:sync-firewall')->everyFiveMinutes();
+// tunnel:sync-firewall butuh root (iptables) — dijalankan dari /etc/cron.d/mikpay-tunnel-firewall.
+Schedule::command('tunnel:sync-subscription-access')->everyFiveMinutes();
+Schedule::command('tunnel:kick-stale-sessions')->everyMinute()->withoutOverlapping();
+Schedule::command('olt:poll')->everyTenMinutes();
+Schedule::command('mikpay:subscription-emails')->hourly()->withoutOverlapping();
+Schedule::command('voucher-shop:maintain')->everyMinute()->withoutOverlapping();

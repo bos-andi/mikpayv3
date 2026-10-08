@@ -109,11 +109,12 @@
     document.getElementById('changeMethodLink')?.addEventListener('click', async function (e) {
         e.preventDefault();
         const href = this.getAttribute('href');
-        const ok = await (window.mikpayConfirm || (() => Promise.resolve(confirm('Ganti metode?'))))({
+        const ok = await (window.mikpayConfirm || ((o) => Promise.resolve(false)))({
             title: 'Ganti metode bayar?',
             message: 'Instruksi pembayaran saat ini akan diganti. QR / nomor VA yang lama tidak berlaku lagi.',
             confirmText: 'Ya, ganti',
             cancelText: 'Tetap di sini',
+            variant: 'warning',
         });
         if (ok) window.location.href = href;
     });

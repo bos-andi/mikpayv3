@@ -251,6 +251,105 @@ class CustomersController extends Controller
             ->with('success', $msg);
     }
 
+    public function store(Request $request, MikrotikService $mikrotik): RedirectResponse
+    {
+        $router = $this->requireActiveRouter();
+        if ($router instanceof RedirectResponse) {
+            return $router;
+        }
+
+        $tenant = current_tenant();
+        if (! $tenant?->id) {
+            abort(422, 'Tenant belum tersedia.');
+        }
+
+        $data = $request->validate([
+            'name' => ['required', 'string', 'max:64', 'regex:/^[A-Za-z0-9._@\-]+$/'],
+            'password' => ['required', 'string', 'min:4', 'max:64', 'not_regex:/\s/'],
+            'service' => ['required', 'in:pppoe,any,pptp,l2tp,ovpn,sstp'],
+            'profile' => ['required', 'string', 'max:100'],
+            'remote_address' => ['nullable', 'ip'],
+            'local_address' => ['nullable', 'ip'],
+            'display_name' => ['nullable', 'string', 'max:255'],
+            'phone' => ['nullable', 'string', 'max:50'],
+            'zone' => ['nullable', 'string', 'max:100'],
+            'monthly_fee' => ['nullable', 'integer', 'min:0'],
+            'due_day' => ['nullable', 'integer', 'min:0', 'max:31'],
+            'address' => ['nullable', 'string', 'max:2000'],
+        ], [
+            'name.regex' => 'Username PPP hanya boleh huruf, angka, titik, minus, garis bawah, dan @.',
+            'password.not_regex' => 'Password PPP tidak boleh mengandung spasi.',
+        ], [
+            'name' => 'Username PPP',
+            'password' => 'Password PPP',
+            'service' => 'Service',
+            'profile' => 'Paket (PPP Profile)',
+            'remote_address' => 'Remote address',
+            'local_address' => 'Local address',
+            'display_name' => 'Nama pelanggan',
+            'phone' => 'No. HP',
+            'zone' => 'Zona',
+            'monthly_fee' => 'Tarif per bulan',
+            'due_day' => 'Tanggal jatuh tempo',
+            'address' => 'Alamat',
+        ]);
+
+        $result = $mikrotik->addPppSecret($router, [
+            'name' => $data['name'],
+            'password' => $data['password'],
+            'service' => $data['service'],
+            'profile' => $data['profile'],
+            'local_address' => $data['local_address'] ?? null,
+            'remote_address' => $data['remote_address'] ?? null,
+            'comment' => $data['display_name'] ?? null,
+        ]);
+
+        if (! $result['ok']) {
+            return back()->withInput($request->except('password'))->with('error', $result['message']);
+        }
+
+        $dueDay = (int) ($data['due_day'] ?? 0);
+        $hasBilling = $dueDay > 0
+            || (int) ($data['monthly_fee'] ?? 0) > 0
+            || filled($data['display_name'] ?? null)
+            || filled($data['phone'] ?? null)
+            || filled($data['zone'] ?? null)
+            || filled($data['address'] ?? null);
+
+        if ($hasBilling) {
+            $customer = BillingCustomer::query()->updateOrCreate(
+                [
+                    'router_id' => $router->id,
+                    'customer_name' => $data['name'],
+                ],
+                [
+                    'tenant_id' => $tenant->id,
+                    'display_name' => $data['display_name'] ?? null,
+                    'phone' => $data['phone'] ?? null,
+                    'zone' => $data['zone'] ?? null,
+                    'package_label' => $data['profile'],
+                    'monthly_fee' => (int) ($data['monthly_fee'] ?? 0),
+                    'due_day' => $dueDay,
+                    'started_at' => $dueDay > 0 ? now()->toDateString() : null,
+                    'address' => $data['address'] ?? null,
+                ]
+            );
+
+            if ($dueDay > 0 && ! $customer->public_code) {
+                app(\App\Services\PaymentLinkService::class)->ensurePublicCode($customer);
+            }
+        }
+
+        $msg = $result['message'];
+        if ($hasBilling) {
+            $msg .= ' Data tagihan juga disimpan.';
+        }
+
+        return redirect()
+            ->to(panel_route('customers').'?'.http_build_query(['q' => $data['name']]))
+            ->with('success', $msg);
+    }
+
     public function downloadTemplate(MikrotikService $mikrotik, CustomerImportService $importer): StreamedResponse|RedirectResponse
     {
         $router = $this->requireActiveRouter();

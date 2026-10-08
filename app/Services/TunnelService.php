@@ -8,6 +8,7 @@ use App\Models\TunnelEntitlement;
 use App\Models\TunnelNode;
 use App\Models\TunnelPortMap;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
 class TunnelService
@@ -17,6 +18,10 @@ class TunnelService
      */
     public function ensureMikpayBundle(Tenant $tenant): TunnelAccount
     {
+        if (($tenant->plan ?? '') !== 'tunnel' && ! $tenant->subscriptionIsActive()) {
+            throw new \RuntimeException('Langganan tidak aktif. Perpanjang langganan MikPay untuk menggunakan tunnel remote.');
+        }
+
         $existing = TunnelAccount::query()
             ->where('tenant_id', $tenant->id)
             ->whereHas('entitlements', function ($q) {
@@ -27,12 +32,29 @@ class TunnelService
             ->first();
 
         if ($existing) {
-            if ($tenant->status === 'active' && $existing->status !== 'active') {
-                $existing->forceFill(['status' => 'active'])->save();
+            if ($tenant->subscriptionIsActive() && $existing->status !== 'active') {
+                $this->enableForTenant($tenant);
+                $existing->refresh();
             }
             $this->syncAccountHostFromNode($existing);
 
             return $existing->loadMissing(['portMaps', 'entitlement', 'node']);
+        }
+
+        // Coba aktifkan kembali entitlement yang sempat dinonaktifkan saat langganan habis.
+        $disabledBundle = TunnelAccount::query()
+            ->where('tenant_id', $tenant->id)
+            ->whereHas('entitlements', function ($q) {
+                $q->where('source', TunnelEntitlement::SOURCE_MIKPAY_BUNDLE);
+            })
+            ->with(['portMaps', 'entitlement', 'node'])
+            ->first();
+
+        if ($disabledBundle && $tenant->subscriptionIsActive()) {
+            $this->enableForTenant($tenant);
+            $disabledBundle->refresh();
+
+            return $disabledBundle->loadMissing(['portMaps', 'entitlement', 'node']);
         }
 
         return $this->provisionAccount($tenant, TunnelEntitlement::SOURCE_MIKPAY_BUNDLE, [
@@ -136,17 +158,17 @@ class TunnelService
             ->implode(',');
         $ifaceComment = 'MikPay tunnel '.$commentParts;
 
+        // RouterOS v6 tidak mengenal protocol= (UDP baru ada di v7), use-peer-dns= (baru 6.47+),
+        // verify-server-certificate= dan tls-version= → parameter itu hanya untuk script v7.
         $common = ' connect-to='.$this->quote($host)
             .' port='.$port
             .' mode=ip'
-            .' protocol=tcp'
             .' user='.$this->quote($user)
             .' password='.$this->quote($pass)
             .' profile=default'
             .' certificate=none'
             .' auth=sha1'
             .' cipher=blowfish128'
-            .' use-peer-dns=no'
             .' add-default-route=no'
             .' name='.$this->quote($iface)
             .' comment='.$this->quote($ifaceComment)
@@ -154,18 +176,23 @@ class TunnelService
 
         $ovpn6 = '/interface ovpn-client add'.$common;
         $ovpn7 = '/interface ovpn-client add'.$common
+            .' protocol=tcp'
+            .' use-peer-dns=no'
             .' verify-server-certificate=no'
             .' tls-version=any';
+
+        $allowTunnel = '/ip firewall filter add chain=input action=accept in-interface='.$iface
+            .' comment='.$this->quote('MikPay allow tunnel');
 
         $olt = $account->portMaps->firstWhere('label', 'OLT');
         $router = $account->portMaps->firstWhere('label', 'Router Client');
         $oltPort = (int) ($olt?->target_port ?: 25);
         $routerPort = (int) ($router?->target_port ?: 19);
 
-        // Setup pertama kali — aman diulang (hapus rule MikPay lama dulu).
+        // Setup pertama kali - aman diulang (hapus rule MikPay lama dulu).
         $lines = [
             '# ==========================================================',
-            '# MikPay — Script setup OpenVPN (salin-tempel ke Terminal MikroTik)',
+            '# MikPay - Script setup OpenVPN (salin-tempel ke Terminal MikroTik)',
             '# Aman dijalankan ulang: rule MikPay lama diganti otomatis',
             '# ==========================================================',
             '',
@@ -175,8 +202,8 @@ class TunnelService
             '',
             '# --- MikPay 2) Firewall izinkan akses dari tunnel ---',
             ':do { /ip firewall filter remove [find comment~'.$this->quote('MikPay').'] } on-error={}',
-            '/ip firewall filter add chain=input action=accept in-interface='.$iface
-                .' place-before=0 comment='.$this->quote('MikPay allow tunnel'),
+            // place-before=0 gagal kalau tabel filter masih kosong → fallback tanpa place-before.
+            ':do { '.$allowTunnel.' place-before=0 } on-error={ '.$allowTunnel.' }',
             '',
             '# --- MikPay 3) Aktifkan service remote (Winbox / API / WWW) ---',
             '/ip service set winbox disabled=no address=0.0.0.0/0',
@@ -189,11 +216,11 @@ class TunnelService
             '/ip firewall nat add chain=dstnat dst-address='.$tunnelIp
                 .' protocol=tcp dst-port='.$oltPort
                 .' action=dst-nat to-addresses=192.168.1.2 to-ports=80'
-                .' comment='.$this->quote('MikPay REMOTE OLT — ganti to-addresses'),
+                .' comment='.$this->quote('MikPay REMOTE OLT - ganti to-addresses'),
             '/ip firewall nat add chain=dstnat dst-address='.$tunnelIp
                 .' protocol=tcp dst-port='.$routerPort
                 .' action=dst-nat to-addresses=192.168.19.25 to-ports=80'
-                .' comment='.$this->quote('MikPay REMOTE ROUTER CLIENT — ganti to-addresses'),
+                .' comment='.$this->quote('MikPay REMOTE ROUTER CLIENT - ganti to-addresses'),
             '',
             '# --- MikPay selesai ---',
             ':put '.$this->quote('MikPay OK. Cek: /interface ovpn-client print (harus R). Lalu ganti IP OLT/Router di NAT.'),
@@ -218,7 +245,7 @@ class TunnelService
     /**
      * Alokasi IP tunnel statis di subnet OpenVPN MikPay (default 10.9.0.0/24).
      */
-    public function allocateTunnelIp(TunnelAccount $account): string
+    public function allocateTunnelIp(TunnelAccount $account, bool $checkLiveSessions = true): string
     {
         if ($account->tunnel_ip) {
             return $account->tunnel_ip;
@@ -232,6 +259,14 @@ class TunnelService
             ->whereNotNull('tunnel_ip')
             ->pluck('tunnel_ip')
             ->all();
+
+        // IP yang masih dipegang sesi lama (mis. router tenant terhapus yang belum putus) jangan dibagikan.
+        $connected = $checkLiveSessions ? (app(OpenVpnManagementService::class)->connectedClients() ?? []) : [];
+        foreach ($connected as $client) {
+            if ($client['virtual_address'] !== '') {
+                $used[] = $client['virtual_address'];
+            }
+        }
 
         for ($i = $start; $i <= $end; $i++) {
             $ip = $base.'.'.$i;
@@ -256,8 +291,9 @@ class TunnelService
         return $map?->endpoint();
     }
 
-    public function disableForTenant(Tenant $tenant, string $source = TunnelEntitlement::SOURCE_MIKPAY_BUNDLE): void
+    public function disableForTenant(Tenant $tenant, string $source = TunnelEntitlement::SOURCE_MIKPAY_BUNDLE): bool
     {
+        $changed = false;
         $entitlements = TunnelEntitlement::query()
             ->where('tenant_id', $tenant->id)
             ->where('source', $source)
@@ -266,11 +302,110 @@ class TunnelService
 
         foreach ($entitlements as $ent) {
             $ent->forceFill(['status' => 'expired', 'ends_at' => now()])->save();
+            $changed = true;
             $account = $ent->account;
             if ($account && ! $this->hasOtherActiveEntitlement($account, $ent->id)) {
                 $account->forceFill(['status' => 'disabled'])->save();
+                app(OpenVpnManagementService::class)->kill((string) $account->username);
             }
         }
+
+        if ($changed) {
+            $tenant->forceFill(['vpn_status' => 'offline'])->save();
+        }
+
+        return $changed;
+    }
+
+    public function enableForTenant(Tenant $tenant, string $source = TunnelEntitlement::SOURCE_MIKPAY_BUNDLE): bool
+    {
+        if (($tenant->plan ?? '') !== 'tunnel' && ! $tenant->subscriptionIsActive()) {
+            return false;
+        }
+
+        $changed = false;
+
+        $entitlements = TunnelEntitlement::query()
+            ->where('tenant_id', $tenant->id)
+            ->where('source', $source)
+            ->where('status', 'expired')
+            ->get();
+
+        foreach ($entitlements as $ent) {
+            $ent->forceFill(['status' => 'active', 'ends_at' => null])->save();
+            $changed = true;
+            $account = $ent->account;
+            if ($account && $account->status !== 'active') {
+                $account->forceFill(['status' => 'active'])->save();
+            }
+        }
+
+        $activeEnt = TunnelEntitlement::query()
+            ->where('tenant_id', $tenant->id)
+            ->where('source', $source)
+            ->where('status', 'active')
+            ->with('account')
+            ->first();
+
+        if ($activeEnt?->account && $activeEnt->account->status !== 'active') {
+            $activeEnt->account->forceFill(['status' => 'active'])->save();
+            $changed = true;
+        }
+
+        if ($changed && $activeEnt?->account?->node) {
+            $tenant->forceFill([
+                'remote_host' => $activeEnt->account->node->hostname,
+                'vpn_status' => 'online',
+            ])->save();
+        }
+
+        return $changed;
+    }
+
+    /**
+     * Sinkronkan akses tunnel bundle MikPay dengan status langganan tenant.
+     */
+    public function syncAccessForTenant(Tenant $tenant, bool $syncFirewall = true): bool
+    {
+        if (($tenant->plan ?? '') === 'tunnel') {
+            return false;
+        }
+
+        $changed = $tenant->subscriptionIsActive()
+            ? $this->enableForTenant($tenant)
+            : $this->disableForTenant($tenant);
+
+        if ($changed && $syncFirewall) {
+            app(TunnelFirewallService::class)->sync();
+        }
+
+        return $changed;
+    }
+
+    /**
+     * Cek apakah akun tunnel boleh connect/auth OpenVPN (langganan + entitlement).
+     */
+    public function accountAllowedForVpn(TunnelAccount $account): bool
+    {
+        if (! in_array($account->status, ['active', 'pending'], true)) {
+            return false;
+        }
+
+        $account->loadMissing('tenant');
+        $tenant = $account->tenant;
+        if ($tenant?->awaitingEmailVerification()) {
+            return false;
+        }
+        if ($tenant && ($tenant->plan ?? '') !== 'tunnel' && ! $tenant->subscriptionIsActive()) {
+            return false;
+        }
+
+        return $account->entitlements()
+            ->where('status', 'active')
+            ->where(function ($q) {
+                $q->whereNull('ends_at')->orWhere('ends_at', '>', now());
+            })
+            ->exists();
     }
 
     protected function syncAccountHostFromNode(TunnelAccount $account): void
@@ -316,31 +451,42 @@ class TunnelService
         return $username;
     }
 
+    /**
+     * Port publik tidak pernah dipakai ulang (selama rentang belum habis), supaya alamat remote
+     * tenant yang sudah dihapus tidak mengarah ke perangkat tenant baru.
+     */
     protected function allocateRemotePort(TunnelNode $node): int
     {
+        $node = TunnelNode::query()->whereKey($node->id)->lockForUpdate()->firstOrFail();
         $min = (int) $node->port_range_start;
         $max = (int) $node->port_range_end;
 
-        $last = (int) TunnelPortMap::query()
+        $lastInUse = (int) TunnelPortMap::query()
             ->whereHas('account', fn ($q) => $q->where('tunnel_node_id', $node->id))
             ->max('remote_port');
+        $last = max($lastInUse, (int) $node->last_allocated_port);
 
         $next = $last >= $min ? $last + 1 : $min;
 
-        if ($next > $max) {
-            for ($p = $min; $p <= $max; $p++) {
-                $exists = TunnelPortMap::query()
-                    ->where('remote_port', $p)
-                    ->whereHas('account', fn ($q) => $q->where('tunnel_node_id', $node->id))
-                    ->exists();
-                if (! $exists) {
-                    return $p;
-                }
-            }
-            throw new \RuntimeException('Pool port node '.$node->code.' sudah penuh.');
+        if ($next <= $max) {
+            $node->forceFill(['last_allocated_port' => $next])->save();
+
+            return $next;
         }
 
-        return $next;
+        Log::warning('tunnel.port_range_exhausted', ['node' => $node->code, 'max' => $max]);
+
+        for ($p = $min; $p <= $max; $p++) {
+            $exists = TunnelPortMap::query()
+                ->where('remote_port', $p)
+                ->whereHas('account', fn ($q) => $q->where('tunnel_node_id', $node->id))
+                ->exists();
+            if (! $exists) {
+                return $p;
+            }
+        }
+
+        throw new \RuntimeException('Pool port node '.$node->code.' sudah penuh.');
     }
 
     /**

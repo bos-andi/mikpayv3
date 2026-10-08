@@ -108,6 +108,20 @@ if (! function_exists('tenant_routers')) {
     }
 }
 
+if (! function_exists('central_url')) {
+    /**
+     * URL di domain utama platform (bukan subdomain tenant).
+     * Contoh: https://mikpay.link/superadmin
+     */
+    function central_url(string $path = '/'): string
+    {
+        $scheme = parse_url((string) config('app.url'), PHP_URL_SCHEME) ?: 'https';
+        $central = (string) config('mikpay.central_domain', 'mikpay.link');
+
+        return $scheme.'://'.rtrim($central, '/').'/'.ltrim($path, '/');
+    }
+}
+
 if (! function_exists('tenant_panel_url')) {
     /**
      * URL panel di host subdomain tenant.

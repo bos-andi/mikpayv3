@@ -13,7 +13,10 @@
     $unpaidCount = (int) ($unpaidCount ?? 0);
     $notSetCount = (int) ($notSetCount ?? 0);
     $periodLabel = $periodLabel ?? now()->translatedFormat('M Y');
+    $recentTickets = $recentTickets ?? collect();
 @endphp
+
+@include('components.panel.onboarding-banner', ['onboarding' => $onboarding ?? null])
 
 {{-- Welcome Banner --}}
 <div class="p-6 rounded-2xl bg-gradient-to-r from-indigo-600 via-indigo-700 to-cyan-600 dark:from-indigo-900/50 dark:via-slate-900 dark:to-slate-900 border border-indigo-200 dark:border-indigo-500/20 text-white shadow-md flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
@@ -44,8 +47,8 @@
     </div>
 @endif
 
-{{-- 4 Metrics --}}
-<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+{{-- 3 Metrics --}}
+<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
     <div class="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm hover:shadow-md transition">
         <div class="flex items-center justify-between text-slate-500 dark:text-slate-400 mb-3">
             <span class="text-xs font-semibold uppercase tracking-wider">Omset {{ $periodLabel }}</span>
@@ -98,21 +101,6 @@
                 Belum ada ODP · <a href="{{ panel_route('gis') }}" class="text-cyan-600 hover:underline">Tambah di Peta GIS</a>
             @endif
         </p>
-    </div>
-
-    <div class="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm hover:shadow-md transition relative">
-        <span class="absolute top-3 right-3 text-[9px] font-bold px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-500">PREVIEW</span>
-        <div class="flex items-center justify-between text-slate-500 dark:text-slate-400 mb-3">
-            <span class="text-xs font-semibold uppercase tracking-wider">Status OLT HSGQ</span>
-            <div class="w-8 h-8 rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center">
-                <i class="fa-solid fa-tower-cell"></i>
-            </div>
-        </div>
-        <h3 class="text-2xl font-extrabold text-slate-900 dark:text-white">4 PON <span class="text-xs font-semibold text-emerald-600 dark:text-emerald-400">NORMAL</span></h3>
-        <p class="text-[11px] text-slate-500 dark:text-slate-400 mt-2">
-            Avg Optical Power: <span class="text-emerald-600 dark:text-emerald-400 font-mono font-semibold">-19.4 dBm</span>
-        </p>
-        <p class="text-[10px] text-slate-400 mt-1">Monitoring OLT menyusul via tunnel</p>
     </div>
 </div>
 
@@ -174,24 +162,40 @@
 </div>
 
 {{-- Alerts --}}
-<div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm relative">
-    <span class="absolute top-4 right-4 text-[9px] font-bold px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-500">PREVIEW</span>
-    <h3 class="font-bold text-sm text-slate-900 dark:text-slate-100 mb-4 flex items-center gap-2 pr-16">
+<div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm">
+    <h3 class="font-bold text-sm text-slate-900 dark:text-slate-100 mb-4 flex items-center gap-2">
         <i class="fa-solid fa-bell text-amber-500"></i> Aktivitas Sistem & Alert Terbaru
     </h3>
     <div class="space-y-3 text-xs">
-        <div class="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 flex items-center justify-between gap-3">
-            <div class="flex items-center gap-3">
-                <div class="w-8 h-8 rounded-lg bg-rose-500/10 text-rose-600 dark:text-rose-400 flex items-center justify-center shrink-0">
-                    <i class="fa-solid fa-triangle-exclamation"></i>
+        @forelse ($recentTickets as $ticket)
+            <div class="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 flex items-center justify-between gap-3">
+                <div class="flex items-center gap-3 min-w-0">
+                    <div class="w-8 h-8 rounded-lg bg-orange-500/10 text-orange-600 dark:text-orange-400 flex items-center justify-center shrink-0">
+                        <i class="fa-solid fa-headset"></i>
+                    </div>
+                    <div class="min-w-0">
+                        <p class="font-medium text-slate-900 dark:text-slate-200 truncate">{{ $ticket->subject }}</p>
+                        <p class="text-slate-500 dark:text-slate-400 truncate">
+                            {{ $ticket->code }}
+                            @if ($ticket->customer_name)
+                                · {{ $ticket->customer_name }}
+                            @endif
+                            @if ($ticket->location_label)
+                                · {{ $ticket->location_label }}
+                            @endif
+                        </p>
+                    </div>
                 </div>
-                <div>
-                    <p class="font-medium text-slate-900 dark:text-slate-200">Contoh alert optik (preview)</p>
-                    <p class="text-slate-500 dark:text-slate-400">Redaman tinggi akan tampil di sini setelah monitoring OLT aktif.</p>
+                <div class="flex items-center gap-2 shrink-0">
+                    <span class="text-[10px] font-bold px-2 py-0.5 rounded-full border {{ $ticket->statusBadgeClass() }}">{{ $ticket->statusLabel() }}</span>
+                    <a href="{{ panel_route('tickets') }}" class="text-[10px] font-bold text-indigo-600">Lihat</a>
                 </div>
             </div>
-            <span class="text-[10px] text-slate-400 dark:text-slate-500 shrink-0">Preview</span>
-        </div>
+        @empty
+            <div class="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400">
+                Belum ada tiket gangguan aktif.
+            </div>
+        @endforelse
 
         <div class="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 flex items-center justify-between gap-3">
             <div class="flex items-center gap-3">

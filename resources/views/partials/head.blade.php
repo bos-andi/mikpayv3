@@ -1,6 +1,5 @@
 {{-- CDN assets + brand theme (swap to Vite later when node is available) --}}
-<link rel="icon" type="image/png" href="{{ asset(config('mikpay.brand.logo', 'logo-mikpay.png')) }}?v=2">
-<link rel="apple-touch-icon" href="{{ asset(config('mikpay.brand.logo', 'logo-mikpay.png')) }}?v=2">
+@include('partials.favicon')
 <script src="https://cdn.tailwindcss.com"></script>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -30,4 +29,4 @@
     }
 </script>
 
-<link rel="stylesheet" href="{{ asset('css/mikpay.css') }}">
+<link rel="stylesheet" href="{{ asset('css/mikpay.css') }}?v={{ @filemtime(public_path('css/mikpay.css')) ?: 1 }}">

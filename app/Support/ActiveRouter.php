@@ -63,6 +63,11 @@ class ActiveRouter
 
     public static function select(Router $router): void
     {
+        $tenant = current_tenant();
+        if ($tenant?->id && (int) $router->tenant_id !== (int) $tenant->id) {
+            abort(403, 'Router tidak termasuk tenant ini.');
+        }
+
         Session::put(self::SESSION_KEY, $router->id);
     }
 
