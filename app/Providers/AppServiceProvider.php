@@ -5,8 +5,12 @@ namespace App\Providers;
 use App\Models\SupportTicket;
 use App\Services\OnboardingService;
 use App\Support\ActiveRouter;
+use Illuminate\Mail\Events\MessageSending;
+use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
+use Symfony\Component\Mailer\Transport\Smtp\SmtpTransport;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -23,6 +27,15 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        // Queue worker memakai ulang koneksi SMTP; Hostinger memutus koneksi idle sebelum
+        // ambang ping default Symfony (100 dtk) sehingga muncul "421 timeout exceeded".
+        Event::listen(MessageSending::class, function () {
+            $transport = Mail::mailer()->getSymfonyTransport();
+            if ($transport instanceof SmtpTransport) {
+                $transport->setPingThreshold(10);
+            }
+        });
+
         View::composer(['layouts.panel', 'partials.panel.*', 'panel.*'], function ($view) {
             $tenant = current_tenant();
             $openTicketCount = 0;

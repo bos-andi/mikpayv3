@@ -24,16 +24,18 @@ class SubscriptionEmailsCommand extends Command
         }
 
         $now = wib_now();
-        $trialHours = max(1, (int) config('mikpay.subscription_emails.trial_remind_hours', 24));
-        $paidHours = max(1, (int) config('mikpay.subscription_emails.paid_remind_hours', 72));
+        $daysBefore = max(1, (int) config('mikpay.subscription_emails.remind_days_before', 3));
+        $sendAt = $now->copy()->setTime(min(23, max(0, (int) config('mikpay.subscription_emails.send_hour', 7))), 0);
+        // Trial yang lebih pendek dari H-N sudah masuk jendela pengingat sejak hari daftar.
+        $trialGetsEarlyReminder = (int) config('mikpay.trial_days', 3) > $daysBefore;
         $expiredLookbackDays = max(1, (int) config('mikpay.subscription_emails.expired_lookback_days', 7));
-        $sent = ['expiring' => 0, 'expired' => 0];
+        $sent = ['expiring' => 0, 'due_today' => 0, 'expired' => 0];
 
         Tenant::query()
             ->where('plan', '!=', 'tunnel')
             ->where('status', '!=', 'inactive')
             ->orderBy('id')
-            ->chunkById(100, function ($tenants) use ($now, $trialHours, $paidHours, $expiredLookbackDays, $dry, &$sent) {
+            ->chunkById(100, function ($tenants) use ($now, $sendAt, $daysBefore, $trialGetsEarlyReminder, $expiredLookbackDays, $dry, &$sent) {
                 foreach ($tenants as $tenant) {
                     if ($tenant->awaitingEmailVerification()) {
                         continue;
@@ -44,14 +46,27 @@ class SubscriptionEmailsCommand extends Command
                     }
 
                     $key = $end->toIso8601String();
-                    $remindHours = ($tenant->plan ?? '') === 'trial' ? $trialHours : $paidHours;
 
                     if ($end->greaterThan($now)) {
-                        if ($end->greaterThan($now->copy()->addHours($remindHours))
-                            || $tenant->metaGet('notifications.expiring_for') === $key) {
+                        $daysLeft = (int) round($now->copy()->startOfDay()->diffInDays($end->copy()->startOfDay()));
+                        if ($daysLeft === 0) {
+                            // Hari H: tunggu jam kirim, kecuali jatuh tempo lebih awal dari jam kirim.
+                            if ($now->lessThan($sendAt) && $end->greaterThan($sendAt)) {
+                                continue;
+                            }
+                            $kind = 'due_today';
+                        } elseif ($daysLeft <= $daysBefore
+                            && (($tenant->plan ?? '') !== 'trial' || $trialGetsEarlyReminder)) {
+                            if ($now->lessThan($sendAt)) {
+                                continue;
+                            }
+                            $kind = 'expiring';
+                        } else {
                             continue;
                         }
-                        $kind = 'expiring';
+                        if ($tenant->metaGet("notifications.{$kind}_for") === $key) {
+                            continue;
+                        }
                     } else {
                         if ($end->lessThan($now->copy()->subDays($expiredLookbackDays))
                             || $tenant->metaGet('notifications.expired_for') === $key) {
@@ -76,9 +91,9 @@ class SubscriptionEmailsCommand extends Command
                         continue;
                     }
 
-                    Notification::send($recipients, $kind === 'expiring'
-                        ? new SubscriptionExpiringNotification($tenant)
-                        : new SubscriptionExpiredNotification($tenant));
+                    Notification::send($recipients, $kind === 'expired'
+                        ? new SubscriptionExpiredNotification($tenant)
+                        : new SubscriptionExpiringNotification($tenant, $kind === 'due_today'));
 
                     $tenant->metaSet("notifications.{$kind}_for", $key);
                     $tenant->save();
@@ -86,7 +101,7 @@ class SubscriptionEmailsCommand extends Command
                 }
             });
 
-        $this->info("Email terkirim: {$sent['expiring']} akan berakhir, {$sent['expired']} sudah berakhir.");
+        $this->info("Email terkirim: {$sent['expiring']} H-{$daysBefore}, {$sent['due_today']} hari H, {$sent['expired']} sudah berakhir.");
         if (! $dry && array_sum($sent) > 0) {
             Log::info('mikpay.subscription-emails', $sent);
         }

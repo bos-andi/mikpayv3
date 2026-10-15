@@ -65,8 +65,9 @@ return [
     |--------------------------------------------------------------------------
     */
     'subscription_emails' => [
-        'trial_remind_hours' => (int) env('MIKPAY_TRIAL_REMIND_HOURS', 24),
-        'paid_remind_hours' => (int) env('MIKPAY_PAID_REMIND_HOURS', 72),
+        // Pengingat H-N (sekali) dan hari H jatuh tempo, dikirim mulai jam send_hour WIB.
+        'remind_days_before' => (int) env('MIKPAY_REMIND_DAYS_BEFORE', 3),
+        'send_hour' => (int) env('MIKPAY_REMIND_SEND_HOUR', 7),
         'expired_lookback_days' => (int) env('MIKPAY_EXPIRED_EMAIL_LOOKBACK_DAYS', 7),
     ],
 
