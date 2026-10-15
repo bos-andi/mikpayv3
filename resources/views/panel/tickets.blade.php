@@ -26,6 +26,34 @@
 @if (session('success'))
     <div class="rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-800 text-xs font-semibold px-4 py-3">{{ session('success') }}</div>
 @endif
+
+@if ($complaintUrl ?? null)
+    <div class="rounded-2xl border border-orange-200 dark:border-orange-500/30 bg-gradient-to-r from-orange-50 to-rose-50 dark:from-orange-500/10 dark:to-rose-500/10 px-4 py-3 flex flex-col md:flex-row md:items-center gap-3">
+        <div class="flex items-center gap-3 min-w-0 flex-1">
+            <div class="w-9 h-9 rounded-xl bg-orange-500 text-white flex items-center justify-center shrink-0"><i class="fa-solid fa-bullhorn text-sm"></i></div>
+            <div class="min-w-0">
+                <p class="text-xs font-bold text-slate-900 dark:text-white">Link aduan pelanggan</p>
+                <p class="text-[11px] text-slate-600 dark:text-slate-400">
+                    Bagikan ke pelanggan. Aduan otomatis masuk ke daftar ini.
+                    @if (! ($complaintWaReady ?? false))
+                        <span class="text-amber-700 dark:text-amber-300">WA Gateway belum aktif, jadi notifikasi WA tidak terkirim.</span>
+                    @elseif (! ($complaintAdminPhone ?? null))
+                        <span class="text-amber-700 dark:text-amber-300">Isi nomor WA penerima aduan di Pengaturan → WhatsApp Gateway agar admin dapat notifikasi.</span>
+                    @endif
+                </p>
+            </div>
+        </div>
+        <div class="flex items-center gap-2 shrink-0">
+            <code class="text-[11px] font-mono px-2.5 py-1.5 rounded-lg bg-white dark:bg-slate-900 border border-orange-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 truncate max-w-[240px]">{{ preg_replace('#^https?://#', '', $complaintUrl) }}</code>
+            <button type="button" onclick="navigator.clipboard.writeText(@js($complaintUrl)).then(() => showToast('Link aduan disalin'))" class="text-[11px] font-bold px-3 py-1.5 rounded-lg bg-orange-600 hover:bg-orange-500 text-white">
+                <i class="fa-regular fa-copy mr-1"></i> Salin
+            </button>
+            <a href="{{ $complaintUrl }}" target="_blank" rel="noopener" class="text-[11px] font-bold px-3 py-1.5 rounded-lg border border-orange-300 text-orange-700 dark:text-orange-300 hover:bg-white/60">
+                Buka
+            </a>
+        </div>
+    </div>
+@endif
 @if (session('error'))
     <div class="rounded-xl border border-rose-200 bg-rose-50 text-rose-800 text-xs font-semibold px-4 py-3">{{ session('error') }}</div>
 @endif
@@ -66,6 +94,9 @@
                                 <span class="text-[10px] font-mono font-bold text-slate-400">{{ $ticket->code }}</span>
                                 <span class="text-[10px] font-bold px-2 py-0.5 rounded-full border {{ $ticket->statusBadgeClass() }}">{{ $ticket->statusLabel() }}</span>
                                 <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500">{{ $ticket->priorityLabel() }}</span>
+                                @if ($ticket->isFromPublic())
+                                    <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-orange-500/10 text-orange-600 border border-orange-200"><i class="fa-solid fa-bullhorn mr-0.5"></i> Dari pelanggan</span>
+                                @endif
                             </div>
                             <p class="font-bold text-sm text-slate-900 dark:text-white">{{ $ticket->subject }}</p>
                             <p class="text-xs text-slate-500 dark:text-slate-400 mt-1">
@@ -77,6 +108,9 @@
                                 @endif
                                 @if ($ticket->odp)
                                     · {{ $ticket->odp->code }}
+                                @endif
+                                @if ($ticket->reporter_phone)
+                                    · <a href="https://wa.me/{{ $ticket->reporter_phone }}" target="_blank" rel="noopener" class="text-emerald-600 font-semibold hover:underline"><i class="fa-brands fa-whatsapp mr-0.5"></i>+{{ $ticket->reporter_phone }}</a>
                                 @endif
                             </p>
                             @if ($ticket->description)

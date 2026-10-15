@@ -34,7 +34,7 @@ class AppServiceProvider extends ServiceProvider
                     ->count();
 
                 $onboardingService = app(OnboardingService::class);
-                if ($onboardingService->isEligible($tenant)) {
+                if (auth()->user()?->canAccessModule(\App\Support\TenantAccess::ADMIN) && $onboardingService->isEligible($tenant)) {
                     $onboarding = $onboardingService->checklist($tenant);
                 }
             }

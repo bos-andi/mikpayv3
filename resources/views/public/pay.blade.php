@@ -20,7 +20,7 @@
     <div class="px-5 py-5 space-y-4">
         @if ($statusQuery === 'success')
             <div class="rounded-2xl bg-emerald-50 border border-emerald-200 px-3 py-2.5 text-[11px] text-emerald-800 font-semibold">
-                Pembayaran sedang diproses. Status akan diperbarui setelah konfirmasi Xendit.
+                Pembayaran sedang diproses. Status akan diperbarui setelah konfirmasi {{ $gatewayName ?: 'payment gateway' }}.
             </div>
         @elseif ($statusQuery === 'failed')
             <div class="rounded-2xl bg-amber-50 border border-amber-200 px-3 py-2.5 text-[11px] text-amber-800 font-semibold">
@@ -115,7 +115,7 @@
                     <img src="{{ asset(config('mikpay.brand.logo', 'logo-mikpay.png')) }}?v=2" alt="" class="h-10 w-10 object-contain shrink-0 drop-shadow">
                 </div>
 
-                @if ($xenditReady)
+                @if ($checkoutReady)
                     <button type="submit" id="paySubmitBtn" class="w-full bg-violet-600 hover:bg-violet-500 text-white text-sm font-bold py-3.5 rounded-2xl shadow-lg shadow-violet-600/25 transition disabled:opacity-50 disabled:cursor-not-allowed">
                         <i class="fa-solid fa-arrow-right mr-1.5"></i>
                         <span id="paySubmitText">Lanjut bayar</span>

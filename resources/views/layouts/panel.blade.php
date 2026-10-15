@@ -39,9 +39,13 @@
                             Panel nonaktif. Isi saldo & perpanjang langganan di menu Langganan MikPay.
                         @endif
                     </span>
-                    <a href="{{ panel_route('subscription') }}" class="inline-flex items-center gap-1.5 font-bold underline underline-offset-2 shrink-0">
-                        <i class="fa-solid fa-crown"></i> Buka Langganan MikPay
-                    </a>
+                    @if (auth()->user()?->canAccessModule(\App\Support\TenantAccess::ADMIN))
+                        <a href="{{ panel_route('subscription') }}" class="inline-flex items-center gap-1.5 font-bold underline underline-offset-2 shrink-0">
+                            <i class="fa-solid fa-crown"></i> Buka Langganan MikPay
+                        </a>
+                    @else
+                        <span class="shrink-0">Hubungi admin ISP untuk perpanjangan.</span>
+                    @endif
                 </div>
             @endif
             @yield('content')

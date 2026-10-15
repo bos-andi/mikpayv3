@@ -69,7 +69,8 @@
 
 @elseif ($tab === 'payment')
     @php
-        $platformReady = \App\Support\PaymentGateway::platformXenditEnabled();
+        $platformReady = \App\Support\PaymentGateway::platformPaymentReady();
+        $platformGateway = \App\Support\PaymentGateway::platformProviderLabel();
         $active = old('active', $t?->paymentActive() ?? 'platform');
         $radio = 'mt-1 accent-indigo-600';
         $card = 'flex items-start gap-3 rounded-xl border border-slate-200 dark:border-slate-700 p-3 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/50 has-[:checked]:border-indigo-400 has-[:checked]:ring-1 has-[:checked]:ring-indigo-500/30';
@@ -77,15 +78,15 @@
     <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm space-y-4 max-w-2xl">
         <div>
             <h3 class="text-sm font-bold text-slate-900 dark:text-white">Payment Gateway</h3>
-            <p class="text-xs text-slate-500 mt-1">Hanya <strong>satu</strong> gateway yang aktif. Default platform = Xendit MikPay (terkunci). Pilih alternatif di bawah jika perlu.</p>
+            <p class="text-xs text-slate-500 mt-1">Hanya <strong>satu</strong> gateway yang aktif. Default platform = {{ $platformGateway }} MikPay (terkunci). Pilih alternatif di bawah jika perlu.</p>
         </div>
 
         <div class="rounded-xl border px-3 py-3 text-[11px] space-y-1 {{ $platformReady ? 'bg-emerald-50 dark:bg-emerald-500/10 border-emerald-200 dark:border-emerald-500/30 text-emerald-800 dark:text-emerald-200' : 'bg-amber-50 dark:bg-amber-500/10 border-amber-200 dark:border-amber-500/30 text-amber-800 dark:text-amber-200' }}">
             <p class="font-bold flex items-center gap-2">
                 <i class="fa-solid {{ $platformReady ? 'fa-lock' : 'fa-triangle-exclamation' }}"></i>
-                Default MikPay — Xendit (tidak bisa diubah dari panel)
+                Default MikPay — {{ $platformGateway }} (tidak bisa diubah dari panel)
             </p>
-            <p>{{ $platformReady ? 'Platform Xendit aktif. Kredensial hanya di server (.env), bukan di form ini.' : 'Platform Xendit belum diisi di .env (XENDIT_SECRET_KEY). Hubungi superadmin.' }}</p>
+            <p>{{ $platformReady ? 'Platform '.$platformGateway.' aktif. Kredensial hanya di server (.env), bukan di form ini.' : 'Payment gateway platform belum diisi di .env. Hubungi superadmin.' }}</p>
             <p class="opacity-80">Webhook pusat: <code class="font-mono">{{ url('/webhooks/xendit') }}</code></p>
         </div>
 
@@ -98,7 +99,7 @@
                 <label class="{{ $card }}">
                     <input type="radio" name="active" value="platform" class="{{ $radio }}" @checked($active === 'platform') onchange="showGw('platform')">
                     <span>
-                        <span class="block text-xs font-bold text-slate-900 dark:text-white">Default MikPay (Xendit)</span>
+                        <span class="block text-xs font-bold text-slate-900 dark:text-white">Default MikPay ({{ $platformGateway }})</span>
                         <span class="block text-[10px] text-slate-500 mt-0.5">Disarankan. Tanpa setup API key sendiri.</span>
                     </span>
                 </label>
@@ -318,6 +319,13 @@
                             <input type="checkbox" name="clear_api_token" value="1" class="rounded border-slate-300"> Hapus token
                         </label>
                     @endif
+                </div>
+
+                <div>
+                    <label class="block text-[11px] font-bold text-slate-600 mb-1">Nomor WA penerima aduan pelanggan</label>
+                    <input type="tel" name="complaint_phone" value="{{ old('complaint_phone', $t?->metaGet('waapi.complaint_phone')) }}" maxlength="20" class="{{ $input }}" placeholder="08xxxxxxxxxx (admin / teknisi)">
+                    @error('complaint_phone')<p class="text-[10px] text-rose-600 mt-1">{{ $message }}</p>@enderror
+                    <p class="text-[10px] text-slate-400 mt-1">Dapat notifikasi WA setiap ada aduan baru dari halaman <code class="font-mono">/lapor</code>. Kosongkan jika tidak perlu.</p>
                 </div>
 
                 <div class="rounded-xl bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/30 px-3 py-2 text-[10px] text-amber-800 dark:text-amber-200">

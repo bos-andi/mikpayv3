@@ -21,7 +21,7 @@
 
 <div class="mb-4 flex items-start gap-2.5 rounded-2xl border border-indigo-200 bg-indigo-50 px-4 py-3 text-xs text-indigo-800">
     <i class="fa-solid fa-bolt mt-0.5"></i>
-    <span>Semua pembayaran diproses <b>otomatis oleh Xendit</b>: begitu invoice lunas, langganan/saldo tenant langsung aktif. Invoice yang tidak dibayar akan kedaluwarsa dengan sendirinya. Halaman ini hanya untuk memantau.</span>
+    <span>Semua pembayaran diproses <b>otomatis oleh {{ \App\Support\PaymentGateway::platformProviderLabel() }}</b>: begitu invoice lunas, langganan/saldo tenant langsung aktif. Invoice yang tidak dibayar akan kedaluwarsa dengan sendirinya. Halaman ini hanya untuk memantau.</span>
 </div>
 
 <div class="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
@@ -45,6 +45,7 @@
                     @php
                         $channelLabels = [
                             'xendit' => 'Xendit (otomatis)',
+                            'andidev_pay' => 'Andidev Pay (otomatis)',
                             'bank_transfer' => 'Transfer Bank',
                             'ewallet' => 'E-Wallet',
                             'qris' => 'QRIS',
@@ -68,7 +69,7 @@
                             @elseif ($p->status === 'approved')
                                 <span class="inline-flex px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 font-bold">lunas</span>
                             @else
-                                <span class="inline-flex px-2 py-0.5 rounded-full bg-rose-50 text-rose-700 border border-rose-200 font-bold">{{ $p->rejected_by === 'xendit' ? 'kedaluwarsa' : 'batal' }}</span>
+                                <span class="inline-flex px-2 py-0.5 rounded-full bg-rose-50 text-rose-700 border border-rose-200 font-bold">{{ in_array($p->rejected_by, ['xendit', 'andidev_pay'], true) ? 'kedaluwarsa' : 'batal' }}</span>
                             @endif
                         </td>
                         <td class="px-4 py-3 max-w-[180px] text-slate-600">{{ $p->customer_note ?: '—' }}</td>
@@ -91,6 +92,7 @@
                                 $at = $p->status === 'approved' ? $p->approved_at : $p->rejected_at;
                                 $byLabel = match (true) {
                                     $by === 'xendit' => 'Otomatis · Xendit',
+                                    $by === 'andidev_pay' => 'Otomatis · Andidev Pay',
                                     str_starts_with($by, 'balance') => 'Otomatis · Saldo MikPay',
                                     $by === 'system' => 'Sistem',
                                     $by === 'user' => 'Dibatalkan pelanggan',
@@ -99,7 +101,7 @@
                                 };
                             @endphp
                             @if ($p->status === 'pending')
-                                <span class="inline-flex items-center gap-1 text-amber-700"><i class="fa-solid fa-hourglass-half"></i> Menunggu Xendit</span>
+                                <span class="inline-flex items-center gap-1 text-amber-700"><i class="fa-solid fa-hourglass-half"></i> Menunggu {{ in_array($p->payment_channel, ['xendit', 'andidev_pay'], true) ? \App\Support\PaymentGateway::providerLabel($p->payment_channel) : 'pembayaran' }}</span>
                             @else
                                 <p class="font-semibold text-slate-700">{{ $byLabel }}</p>
                                 @if ($at)

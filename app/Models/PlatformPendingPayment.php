@@ -61,6 +61,11 @@ class PlatformPendingPayment extends Model
         return $this->payment_channel === 'xendit' || filled($this->xendit_invoice_id);
     }
 
+    public function isOnlineGateway(): bool
+    {
+        return $this->isXendit() || $this->payment_channel === 'andidev_pay';
+    }
+
     public function isDeposit(): bool
     {
         return ($this->purpose ?? self::PURPOSE_SUBSCRIPTION) === self::PURPOSE_DEPOSIT

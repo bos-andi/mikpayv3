@@ -33,7 +33,7 @@
                 Butuh bantuan? Chat pengelola WiFi
             </a></p>
         @endif
-        <p>Pembayaran diproses aman oleh <strong>MikPay</strong> &amp; Xendit (QRIS).<br>
+        <p>Pembayaran diproses aman oleh <strong>MikPay</strong> &amp; {{ \App\Support\PaymentGateway::platformProviderLabel() }} (QRIS).<br>
             <a href="{{ central_url('/syarat-ketentuan') }}" target="_blank" rel="noopener">Syarat</a> ·
             <a href="{{ central_url('/kebijakan-pengembalian-dana') }}" target="_blank" rel="noopener">Refund</a> ·
             <a href="{{ central_url('/kebijakan-privasi') }}" target="_blank" rel="noopener">Privasi</a>

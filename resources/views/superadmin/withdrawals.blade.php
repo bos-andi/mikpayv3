@@ -51,18 +51,34 @@
                 <span class="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-amber-500 text-white">{{ $pendingAccounts->count() }} menunggu</span>
             @endif
         </h2>
-        <p class="text-[11px] text-slate-500 hidden sm:block">Cocokkan nama & nomor rekening dengan foto buku tabungan sebelum menyetujui.</p>
+        <p class="text-[11px] text-slate-500 hidden sm:block">Cocokkan nama & nomor rekening dengan foto buku tabungan dan KTP sebelum menyetujui.</p>
     </div>
 
     @forelse ($pendingAccounts as $acc)
         <div class="px-5 py-4 border-b border-slate-100 last:border-0 grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
-            <a href="{{ route('superadmin.withdrawals.accounts.proof', $acc) }}" target="_blank" class="lg:col-span-2 block rounded-xl border border-slate-200 bg-slate-50 overflow-hidden h-28 hover:ring-2 hover:ring-indigo-400 transition">
-                @if ($acc->proofIsPdf())
-                    <span class="h-full flex flex-col items-center justify-center text-rose-600 text-xs font-bold"><i class="fa-solid fa-file-pdf text-3xl mb-1"></i>Lihat PDF</span>
-                @else
-                    <img src="{{ route('superadmin.withdrawals.accounts.proof', $acc) }}" alt="Buku tabungan" class="w-full h-full object-cover">
-                @endif
-            </a>
+            <div class="lg:col-span-3 grid grid-cols-2 gap-2">
+                @foreach ([
+                    ['Buku tabungan', $acc->proof_path, $acc->proofIsPdf(), route('superadmin.withdrawals.accounts.proof', $acc)],
+                    ['KTP', $acc->ktp_path, $acc->ktpIsPdf(), $acc->ktp_path ? route('superadmin.withdrawals.accounts.ktp', $acc) : null],
+                ] as [$docLabel, $docPath, $docPdf, $docUrl])
+                    <div>
+                        @if ($docPath)
+                            <a href="{{ $docUrl }}" target="_blank" class="block rounded-xl border border-slate-200 bg-slate-50 overflow-hidden h-28 hover:ring-2 hover:ring-indigo-400 transition">
+                                @if ($docPdf)
+                                    <span class="h-full flex flex-col items-center justify-center text-rose-600 text-xs font-bold"><i class="fa-solid fa-file-pdf text-3xl mb-1"></i>Lihat PDF</span>
+                                @else
+                                    <img src="{{ $docUrl }}" alt="{{ $docLabel }}" class="w-full h-full object-cover">
+                                @endif
+                            </a>
+                        @else
+                            <span class="h-28 rounded-xl border border-dashed border-rose-300 bg-rose-50 flex flex-col items-center justify-center text-rose-600 text-[10px] font-bold text-center px-1">
+                                <i class="fa-solid fa-triangle-exclamation text-lg mb-1"></i>Belum diunggah
+                            </span>
+                        @endif
+                        <p class="text-[10px] font-bold text-slate-500 mt-1 text-center">{{ $docLabel }}</p>
+                    </div>
+                @endforeach
+            </div>
             <div class="lg:col-span-5 text-xs">
                 <p class="font-semibold text-slate-800">{{ $acc->tenant->name ?? '—' }} <span class="text-slate-400 font-normal">· {{ $acc->tenant->subdomain ?? '' }}</span></p>
                 <p class="text-[10px] text-slate-500">Diajukan {{ $acc->user->email ?? '—' }} · {{ $acc->created_at?->format('d M Y H:i') }}</p>
@@ -72,14 +88,18 @@
                     <p class="text-slate-600">a.n. {{ $acc->account_holder }}</p>
                 </div>
             </div>
-            <div class="lg:col-span-5 flex flex-col gap-2">
-                <form method="POST" action="{{ route('superadmin.withdrawals.accounts.verify', $acc) }}"
-                      onsubmit="return MikPay.confirmForm(event, 'Verifikasi rekening {{ $acc->bank_code }} {{ $acc->account_number }} a.n. {{ addslashes($acc->account_holder) }}? Pastikan sesuai dengan foto buku tabungan.', { title: 'Verifikasi Rekening', confirmText: 'Ya, sesuai' })">
-                    @csrf
-                    <button type="submit" class="w-full sm:w-auto inline-flex items-center justify-center gap-1 px-3 py-2 rounded-lg bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-700">
-                        <i class="fa-solid fa-check"></i> Setujui Rekening
-                    </button>
-                </form>
+            <div class="lg:col-span-4 flex flex-col gap-2">
+                @if ($acc->ktp_path)
+                    <form method="POST" action="{{ route('superadmin.withdrawals.accounts.verify', $acc) }}"
+                          onsubmit="return MikPay.confirmForm(event, 'Verifikasi rekening {{ $acc->bank_code }} {{ $acc->account_number }} a.n. {{ addslashes($acc->account_holder) }}? Pastikan nama sesuai buku tabungan dan KTP.', { title: 'Verifikasi Rekening', confirmText: 'Ya, sesuai' })">
+                        @csrf
+                        <button type="submit" class="w-full sm:w-auto inline-flex items-center justify-center gap-1 px-3 py-2 rounded-lg bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-700">
+                            <i class="fa-solid fa-check"></i> Setujui Rekening
+                        </button>
+                    </form>
+                @else
+                    <p class="rounded-lg bg-rose-50 border border-rose-200 px-3 py-2 text-[11px] text-rose-700">Pengajuan lama tanpa KTP. Tolak dan minta tenant mengajukan ulang dengan foto KTP.</p>
+                @endif
                 <form method="POST" action="{{ route('superadmin.withdrawals.accounts.reject', $acc) }}" class="flex flex-wrap items-center gap-1">
                     @csrf
                     <input type="text" name="reason" required placeholder="Alasan tolak (mis. nama tidak sesuai)" class="flex-1 min-w-[180px] rounded-lg border border-slate-200 px-2 py-2 text-xs">
@@ -103,6 +123,9 @@
                         <span class="font-semibold text-slate-700">{{ $acc->tenant->name ?? '—' }}</span>
                         <span class="text-slate-500">{{ $acc->bank_code }} {{ $acc->account_number }} a.n. {{ $acc->account_holder }}</span>
                         <a href="{{ route('superadmin.withdrawals.accounts.proof', $acc) }}" target="_blank" class="text-indigo-600 font-bold">bukti</a>
+                        @if ($acc->ktp_path)
+                            <a href="{{ route('superadmin.withdrawals.accounts.ktp', $acc) }}" target="_blank" class="text-indigo-600 font-bold">KTP</a>
+                        @endif
                         <span class="text-slate-400">{{ $acc->reviewed_by }} · {{ $acc->reviewed_at?->format('d M H:i') }}</span>
                         @if ($acc->reject_reason)
                             <span class="text-rose-600">— {{ $acc->reject_reason }}</span>

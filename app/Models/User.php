@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Support\TenantAccess;
 use Database\Factories\UserFactory;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
@@ -12,7 +13,7 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 
-#[Fillable(['name', 'email', 'password', 'role', 'tenant_id', 'is_active', 'email_verified_at'])]
+#[Fillable(['name', 'email', 'password', 'role', 'permissions', 'tenant_id', 'is_active', 'email_verified_at'])]
 #[Hidden(['password', 'remember_token'])]
 class User extends Authenticatable implements MustVerifyEmail
 {
@@ -33,6 +34,7 @@ class User extends Authenticatable implements MustVerifyEmail
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'is_active' => 'boolean',
+            'permissions' => 'array',
         ];
     }
 
@@ -84,6 +86,47 @@ class User extends Authenticatable implements MustVerifyEmail
     public function isTenantAdmin(): bool
     {
         return $this->role === self::ROLE_TENANT_ADMIN;
+    }
+
+    public function isTenantStaff(): bool
+    {
+        return $this->role === self::ROLE_TENANT_USER;
+    }
+
+    /**
+     * Staf dengan permissions null (akun lama / dibuat superadmin) boleh semua menu non-admin.
+     *
+     * @return list<string>
+     */
+    public function allowedModules(): array
+    {
+        if ($this->isSuperAdmin() || $this->isTenantAdmin()) {
+            return TenantAccess::moduleKeys();
+        }
+
+        if (! $this->isTenantStaff()) {
+            return [];
+        }
+
+        return $this->permissions === null
+            ? TenantAccess::moduleKeys()
+            : TenantAccess::sanitize($this->permissions);
+    }
+
+    public function canAccessModule(string ...$modules): bool
+    {
+        if ($this->isSuperAdmin() || $this->isTenantAdmin()) {
+            return true;
+        }
+
+        $allowed = $this->allowedModules();
+        foreach ($modules as $module) {
+            if ($module !== TenantAccess::ADMIN && in_array($module, $allowed, true)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     public static function isAllowedSuperAdminEmail(string $email): bool

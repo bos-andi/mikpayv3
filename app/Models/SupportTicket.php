@@ -19,9 +19,30 @@ class SupportTicket extends Model
     /** @var list<string> */
     public const OPEN_STATUSES = [self::STATUS_OPEN, self::STATUS_IN_PROGRESS];
 
+    public const SOURCE_PANEL = 'panel';
+
+    public const SOURCE_PUBLIC = 'public';
+
+    /**
+     * Jenis aduan dari halaman publik /lapor.
+     *
+     * @var array<string, array{label: string, category: string, priority: string, icon: string}>
+     */
+    public const PUBLIC_ISSUES = [
+        'mati' => ['label' => 'Internet mati total', 'category' => 'gangguan', 'priority' => 'high', 'icon' => 'fa-wifi'],
+        'lambat' => ['label' => 'Internet lambat / putus-putus', 'category' => 'gangguan', 'priority' => 'normal', 'icon' => 'fa-gauge-simple'],
+        'perangkat' => ['label' => 'Kabel / modem / perangkat rusak', 'category' => 'optical', 'priority' => 'normal', 'icon' => 'fa-plug-circle-exclamation'],
+        'tagihan' => ['label' => 'Masalah tagihan / pembayaran', 'category' => 'billing', 'priority' => 'normal', 'icon' => 'fa-file-invoice-dollar'],
+        'lainnya' => ['label' => 'Lainnya', 'category' => 'other', 'priority' => 'normal', 'icon' => 'fa-circle-question'],
+    ];
+
     protected $fillable = [
         'tenant_id',
         'code',
+        'public_token',
+        'source',
+        'billing_customer_id',
+        'reporter_phone',
         'subject',
         'description',
         'category',
@@ -81,6 +102,23 @@ class SupportTicket extends Model
     public function updates(): HasMany
     {
         return $this->hasMany(SupportTicketUpdate::class, 'ticket_id')->orderBy('created_at');
+    }
+
+    public function billingCustomer(): BelongsTo
+    {
+        return $this->belongsTo(BillingCustomer::class);
+    }
+
+    public function isFromPublic(): bool
+    {
+        return $this->source === self::SOURCE_PUBLIC;
+    }
+
+    public function publicUrl(): ?string
+    {
+        return $this->public_token
+            ? tenant_panel_url($this->tenant, '/lapor/t/'.$this->public_token)
+            : null;
     }
 
     public function isOpen(): bool

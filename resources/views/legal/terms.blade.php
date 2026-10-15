@@ -32,7 +32,9 @@
 <ol>
     <li>Akun baru mendapatkan masa coba gratis selama <strong>{{ $trialDays }} hari</strong> tanpa kewajiban membayar.</li>
     <li>Setelah masa coba berakhir, Layanan dapat terus digunakan dengan membeli paket berlangganan sesuai harga yang tercantum di halaman <a href="{{ route('home') }}#harga">Harga</a>. Seluruh harga dalam Rupiah.</li>
-    <li>Pembayaran langganan dilakukan melalui saldo akun yang diisi menggunakan metode pembayaran yang tersedia (QRIS, Virtual Account, e-wallet, atau transfer bank yang diverifikasi admin).</li>
+    <li>Pembayaran langganan dilakukan melalui Saldo MikPay yang diisi menggunakan metode pembayaran yang tersedia (QRIS, Virtual Account, e-wallet, minimarket, atau transfer bank yang diverifikasi admin).</li>
+    <li>Saldo MikPay, termasuk saldo bonus, hanya dapat digunakan untuk membayar langganan MikPay dan <strong>tidak dapat ditarik, dicairkan, dipindahkan ke akun lain, atau ditukar dengan uang tunai</strong>. Saldo MikPay terpisah dari dana pembayaran Pelanggan Akhir sebagaimana diatur pada bagian 4.</li>
+    <li>Pengguna dapat mengaktifkan <strong>Perpanjang Otomatis</strong>. Bila aktif, paket yang dipilih dibayar otomatis dari Saldo MikPay menjelang masa aktif berakhir. Fitur ini dapat dimatikan atau diganti paketnya kapan saja melalui menu Langganan.</li>
     <li>Perpanjangan sebelum masa aktif habis akan menambah masa aktif dari tanggal berakhir sebelumnya, sehingga sisa hari tidak hangus.</li>
     <li>Apabila masa aktif berakhir dan belum diperpanjang, akses panel akan dinonaktifkan sementara. Data Pengguna tetap Kami simpan sesuai ketentuan pada Kebijakan Privasi.</li>
     <li>Kami dapat mengubah harga paket dengan pemberitahuan sebelumnya. Perubahan harga tidak berlaku untuk masa aktif yang sudah dibayar.</li>

@@ -39,10 +39,17 @@
                 default => 'bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-500',
             };
         @endphp
-        <a href="{{ panel_route('settings') }}?tab=whatsapp" class="hidden md:flex items-center gap-2 px-3 py-1 rounded-full text-xs font-medium {{ $waGateClass }}" title="{{ $waGate['detail'] ?? '' }}">
-            <i class="fa-brands fa-whatsapp text-sm"></i>
-            <span>{{ $waGate['label'] }}</span>
-        </a>
+        @if (auth()->user()?->canAccessModule('settings_whatsapp'))
+            <a href="{{ panel_route('settings') }}?tab=whatsapp" class="hidden md:flex items-center gap-2 px-3 py-1 rounded-full text-xs font-medium {{ $waGateClass }}" title="{{ $waGate['detail'] ?? '' }}">
+                <i class="fa-brands fa-whatsapp text-sm"></i>
+                <span>{{ $waGate['label'] }}</span>
+            </a>
+        @else
+            <span class="hidden md:flex items-center gap-2 px-3 py-1 rounded-full text-xs font-medium {{ $waGateClass }}" title="{{ $waGate['detail'] ?? '' }}">
+                <i class="fa-brands fa-whatsapp text-sm"></i>
+                <span>{{ $waGate['label'] }}</span>
+            </span>
+        @endif
 
         <details class="relative hidden lg:block group">
             <summary class="list-none cursor-pointer flex items-center gap-2 px-3 py-1.5 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-700 dark:text-indigo-300 text-xs font-medium hover:bg-indigo-500/15 transition max-w-[280px] [&::-webkit-details-marker]:hidden">
@@ -78,9 +85,11 @@
                             </form>
                         @endforeach
                     </div>
-                    <a href="{{ panel_route('settings') }}?tab=mikrotik" class="block px-3 py-2 text-[11px] font-bold text-indigo-600 border-t border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/60">
-                        Kelola router →
-                    </a>
+                    @if (auth()->user()?->canAccessModule('settings_router'))
+                        <a href="{{ panel_route('settings') }}?tab=mikrotik" class="block px-3 py-2 text-[11px] font-bold text-indigo-600 border-t border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/60">
+                            Kelola router →
+                        </a>
+                    @endif
                 </div>
             @endif
         </details>
@@ -90,13 +99,15 @@
             <span class="absolute top-1 right-1 w-2 h-2 rounded-full bg-rose-500"></span>
         </button>
 
-        <button
-            type="button"
-            onclick="showToast('Membuka form pendaftaran pelanggan baru')"
-            class="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold px-3.5 py-2 rounded-xl transition shadow-lg shadow-indigo-600/20"
-        >
-            <i class="fa-solid fa-user-plus"></i>
-            <span class="hidden sm:inline">Pasang Baru</span>
-        </button>
+        @if (auth()->user()?->canAccessModule('customers'))
+            <button
+                type="button"
+                onclick="showToast('Membuka form pendaftaran pelanggan baru')"
+                class="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold px-3.5 py-2 rounded-xl transition shadow-lg shadow-indigo-600/20"
+            >
+                <i class="fa-solid fa-user-plus"></i>
+                <span class="hidden sm:inline">Pasang Baru</span>
+            </button>
+        @endif
     </div>
 </header>

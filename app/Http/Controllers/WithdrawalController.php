@@ -26,7 +26,7 @@ class WithdrawalController extends Controller
             'tenant' => $tenant,
             'balance' => $this->payouts->balance($tenant),
             'account' => $this->payouts->currentAccount($tenant),
-            'banks' => $this->payouts->banks(),
+            'banks' => $this->payouts->bankAccounts(),
             'settings' => $this->payouts->settings(),
             'usesPlatform' => PaymentGateway::active($tenant) === PaymentGateway::ACTIVE_PLATFORM,
             'canManage' => $this->canManage(),
@@ -45,22 +45,28 @@ class WithdrawalController extends Controller
         $tenant = $this->tenant();
 
         $data = $request->validate([
-            'bank_code' => ['required', 'string', Rule::in(array_keys($this->payouts->banks()))],
+            'bank_code' => ['required', 'string', Rule::in(array_keys($this->payouts->bankAccounts()))],
             'account_number' => ['required', 'regex:/^[0-9]{5,20}$/'],
             'account_holder' => ['required', 'string', 'min:3', 'max:100', 'regex:/^[\pL\s\.\,\'\-]+$/u'],
             'proof' => ['required', 'file', 'mimes:jpg,jpeg,png,webp,pdf', 'max:5120'],
+            'ktp' => ['required', 'file', 'mimes:jpg,jpeg,png,webp,pdf', 'max:5120'],
             'current_password' => ['required', 'current_password'],
         ], [
+            'bank_code.in' => 'Penarikan hanya bisa ke rekening bank, bukan e-wallet.',
             'account_number.regex' => 'Nomor rekening hanya angka (5–20 digit).',
             'account_holder.regex' => 'Nama pemilik rekening hanya boleh huruf.',
             'proof.mimes' => 'Foto buku tabungan harus JPG, PNG, WEBP, atau PDF.',
             'proof.max' => 'Ukuran file maksimal 5 MB.',
+            'ktp.required' => 'Foto KTP wajib diunggah.',
+            'ktp.mimes' => 'Foto KTP harus JPG, PNG, WEBP, atau PDF.',
+            'ktp.max' => 'Ukuran foto KTP maksimal 5 MB.',
             'current_password.current_password' => 'Password akun salah.',
         ], [
             'bank_code' => 'Bank',
             'account_number' => 'Nomor rekening',
             'account_holder' => 'Nama pemilik rekening',
             'proof' => 'Foto buku tabungan',
+            'ktp' => 'Foto KTP',
             'current_password' => 'Password akun',
         ]);
 
@@ -70,10 +76,11 @@ class WithdrawalController extends Controller
             $data['bank_code'],
             $data['account_number'],
             strtoupper(trim(preg_replace('/\s+/', ' ', $data['account_holder']))),
-            $request->file('proof')
+            $request->file('proof'),
+            $request->file('ktp')
         );
 
-        return back()->with('success', 'Rekening & foto buku tabungan terkirim. Admin MikPay akan memverifikasi sebelum penarikan dapat diajukan.');
+        return back()->with('success', 'Rekening, foto buku tabungan & KTP terkirim. Admin MikPay akan memverifikasi sebelum penarikan dapat diajukan.');
     }
 
     public function proof(TenantPayoutAccount $account): StreamedResponse
@@ -82,6 +89,14 @@ class WithdrawalController extends Controller
         abort_unless(Storage::disk('local')->exists($account->proof_path), 404);
 
         return Storage::disk('local')->response($account->proof_path);
+    }
+
+    public function ktp(TenantPayoutAccount $account): StreamedResponse
+    {
+        abort_unless((int) $account->tenant_id === (int) $this->tenant()->id, 404);
+        abort_unless($account->ktp_path && Storage::disk('local')->exists($account->ktp_path), 404);
+
+        return Storage::disk('local')->response($account->ktp_path);
     }
 
     public function store(Request $request): RedirectResponse

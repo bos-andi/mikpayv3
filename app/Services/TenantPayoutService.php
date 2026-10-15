@@ -29,6 +29,8 @@ class TenantPayoutService
 
     private const BANKS_CACHE_KEY = 'mikpay.xendit.disbursement_banks';
 
+    private const EWALLET_CODES = ['DANA', 'OVO', 'GOPAY', 'SHOPEEPAY', 'LINKAJA', 'ASTRAPAY', 'ISAKU', 'SAKUKU'];
+
     public const DEFAULT_SETTINGS = [
         'enabled' => true,
         'min_amount' => 50000,
@@ -85,7 +87,7 @@ class TenantPayoutService
     {
         $base = BillingPayment::query()
             ->where('tenant_id', $tenant->id)
-            ->where('payment_method', 'Xendit')
+            ->whereIn('payment_method', ['Xendit', 'Andidev Pay'])
             ->where('gateway', PaymentGateway::ACTIVE_PLATFORM);
 
         $vouchers = VoucherOrder::query()
@@ -151,21 +153,24 @@ class TenantPayoutService
         string $bankCode,
         string $accountNumber,
         string $holder,
-        UploadedFile $proof
+        UploadedFile $proof,
+        UploadedFile $ktp
     ): TenantPayoutAccount {
-        $path = $proof->storeAs(
-            'payout-proofs/'.$tenant->id,
-            Str::uuid()->toString().'.'.strtolower($proof->getClientOriginalExtension() ?: $proof->extension()),
+        $store = fn (UploadedFile $file, string $dir) => $file->storeAs(
+            $dir.'/'.$tenant->id,
+            Str::uuid()->toString().'.'.strtolower($file->getClientOriginalExtension() ?: $file->extension()),
             'local'
         );
+        $path = $store($proof, 'payout-proofs');
+        $ktpPath = $store($ktp, 'payout-ktp');
 
-        return DB::transaction(function () use ($tenant, $user, $bankCode, $accountNumber, $holder, $path) {
+        return DB::transaction(function () use ($tenant, $user, $bankCode, $accountNumber, $holder, $path, $ktpPath) {
             TenantPayoutAccount::query()
                 ->where('tenant_id', $tenant->id)
                 ->where('status', TenantPayoutAccount::STATUS_PENDING)
                 ->get()
                 ->each(function (TenantPayoutAccount $old) {
-                    Storage::disk('local')->delete($old->proof_path);
+                    Storage::disk('local')->delete(array_filter([$old->proof_path, $old->ktp_path]));
                     $old->delete();
                 });
 
@@ -177,6 +182,7 @@ class TenantPayoutService
                 'account_number' => $accountNumber,
                 'account_holder' => $holder,
                 'proof_path' => $path,
+                'ktp_path' => $ktpPath,
                 'status' => TenantPayoutAccount::STATUS_PENDING,
             ]);
         });
@@ -184,6 +190,10 @@ class TenantPayoutService
 
     public function verifyAccount(TenantPayoutAccount $account, string $approver): array
     {
+        if (blank($account->proof_path) || blank($account->ktp_path)) {
+            return ['ok' => false, 'message' => 'Foto buku tabungan dan KTP wajib ada sebelum rekening disetujui. Tolak & minta tenant mengajukan ulang.'];
+        }
+
         $updated = TenantPayoutAccount::query()
             ->whereKey($account->id)
             ->where('status', TenantPayoutAccount::STATUS_PENDING)
@@ -263,6 +273,20 @@ class TenantPayoutService
         Cache::put(self::BANKS_CACHE_KEY, $banks, now()->addDay());
 
         return $banks;
+    }
+
+    /**
+     * Tujuan penarikan tenant: hanya rekening bank (tanpa e-wallet).
+     *
+     * @return array<string, string>
+     */
+    public function bankAccounts(): array
+    {
+        return array_filter(
+            $this->banks(),
+            fn (string $name, string $code) => ! in_array(strtoupper($code), self::EWALLET_CODES, true),
+            ARRAY_FILTER_USE_BOTH
+        );
     }
 
     public function bankName(string $code): string

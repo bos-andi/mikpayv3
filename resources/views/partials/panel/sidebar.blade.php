@@ -85,14 +85,27 @@
     if (! isset($settingsTabs[$settingsTab])) {
         $settingsTab = 'mikrotik';
     }
+    $authUser = auth()->user();
+    $can = fn (string $module) => (bool) $authUser?->canAccessModule($module);
     $settingsChildren = [];
     foreach ($settingsTabs as $key => $meta) {
+        if (! $can(\App\Support\TenantAccess::SETTINGS_TABS[$key])) {
+            continue;
+        }
         $settingsChildren[] = [
             'url' => panel_route('settings').'?tab='.$key,
             'label' => $meta['label'],
             'icon' => $meta['icon'],
             'brand' => $meta['brand'] ?? false,
             'active' => $page === 'settings' && $settingsTab === $key,
+        ];
+    }
+    if ($can(\App\Support\TenantAccess::ADMIN)) {
+        $settingsChildren[] = [
+            'url' => panel_route('settings.users'),
+            'label' => 'Manajemen User',
+            'icon' => 'fa-user-shield',
+            'active' => $page === 'settings-users',
         ];
     }
 
@@ -133,9 +146,23 @@
             'badgeClass' => $apiOnline
                 ? 'bg-emerald-500/10 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300'
                 : 'bg-amber-500/10 dark:bg-amber-500/20 text-amber-700 dark:text-amber-300',
+            'activeKeys' => ['settings', 'settings-users'],
             'children' => $settingsChildren,
         ],
     ]);
+
+    $navModule = ['onboarding' => \App\Support\TenantAccess::ADMIN, 'subscription' => \App\Support\TenantAccess::ADMIN];
+    $navAll = array_values(array_filter($navAll, function (array $item) use ($can, $navModule) {
+        $key = $item['key'];
+        if ($key === 'dashboard') {
+            return true;
+        }
+        if ($key === 'settings') {
+            return $item['children'] !== [];
+        }
+
+        return $can($navModule[$key] ?? $key);
+    }));
 
     // Saat nonaktif: tampilkan semua menu di sidebar, hanya Langganan yang bisa diklik.
     $nav = $navAll;

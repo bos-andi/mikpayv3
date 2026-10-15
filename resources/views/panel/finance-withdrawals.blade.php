@@ -7,7 +7,7 @@
 @php
     $rp = fn ($v) => 'Rp '.number_format((int) $v, 0, ',', '.');
     $verified = $account?->isVerified() ?? false;
-    $editBank = ! $account || $errors->hasAny(['bank_code', 'account_number', 'account_holder', 'proof', 'current_password']);
+    $editBank = ! $account || $errors->hasAny(['bank_code', 'account_number', 'account_holder', 'proof', 'ktp', 'current_password']);
     $inputClass = 'w-full text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-500/40 focus:border-indigo-500';
 @endphp
 
@@ -19,7 +19,7 @@
             Penarikan Dana
         </h2>
         <p class="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
-            Tarik hasil pembayaran pelanggan yang masuk lewat Xendit MikPay ke rekening bank / e-wallet Anda.
+            Tarik hasil pembayaran pelanggan yang masuk lewat Xendit MikPay ke rekening bank Anda.
         </p>
     </div>
 </div>
@@ -115,9 +115,16 @@
                     <p class="text-xs font-semibold text-slate-600 dark:text-slate-300 mt-0.5">a.n. {{ $account->account_holder }}</p>
                     <div class="flex items-center justify-between gap-2 mt-3">
                         <p class="text-[10px] text-slate-400">Diajukan {{ $account->created_at?->format('d M Y H:i') }}</p>
-                        <a href="{{ panel_route('finance.withdrawals.bank.proof', $account) }}" target="_blank" class="text-[11px] font-bold text-indigo-600 dark:text-indigo-300 hover:underline">
-                            <i class="fa-regular fa-image"></i> Buku tabungan
-                        </a>
+                        <span class="flex items-center gap-3">
+                            <a href="{{ panel_route('finance.withdrawals.bank.proof', $account) }}" target="_blank" class="text-[11px] font-bold text-indigo-600 dark:text-indigo-300 hover:underline">
+                                <i class="fa-regular fa-image"></i> Buku tabungan
+                            </a>
+                            @if ($account->ktp_path)
+                                <a href="{{ panel_route('finance.withdrawals.bank.ktp', $account) }}" target="_blank" class="text-[11px] font-bold text-indigo-600 dark:text-indigo-300 hover:underline">
+                                    <i class="fa-regular fa-id-card"></i> KTP
+                                </a>
+                            @endif
+                        </span>
                     </div>
                 </div>
 
@@ -146,13 +153,15 @@
                     </p>
                 @endif
                 <div>
-                    <label class="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">Bank / E-Wallet</label>
+                    <label class="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">Bank</label>
                     <select name="bank_code" required class="{{ $inputClass }}">
                         <option value="">— Pilih bank —</option>
                         @foreach ($banks as $code => $name)
                             <option value="{{ $code }}" @selected(old('bank_code', $account?->bank_code) === $code)>{{ $name }}</option>
                         @endforeach
                     </select>
+                    <p class="text-[10px] text-slate-400 mt-1">Penarikan hanya ke rekening bank. E-wallet (DANA, OVO, GoPay, ShopeePay) tidak didukung.</p>
+                    @error('bank_code')<p class="text-[10px] text-rose-600 mt-1">{{ $message }}</p>@enderror
                 </div>
                 <div>
                     <label class="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">Nomor Rekening / HP</label>
@@ -174,8 +183,22 @@
                             <span class="block text-[10px] text-slate-400">JPG, PNG, WEBP, atau PDF · maks 5 MB. E-wallet: screenshot profil akun.</span>
                         </span>
                     </label>
-                    <input type="file" id="proofInput" name="proof" required accept="image/jpeg,image/png,image/webp,application/pdf" class="sr-only">
+                    <input type="file" id="proofInput" name="proof" required accept="image/jpeg,image/png,image/webp,application/pdf" class="sr-only" data-file-name="proofName" data-file-preview="proofPreview">
                     <img id="proofPreview" alt="" class="hidden mt-2 max-h-40 rounded-lg border border-slate-200 dark:border-slate-700">
+                    @error('proof')<p class="text-[10px] text-rose-600 mt-1">{{ $message }}</p>@enderror
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">Foto KTP Pemilik Rekening</label>
+                    <label for="ktpInput" class="flex items-center gap-3 rounded-xl border-2 border-dashed border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 px-3 py-3 cursor-pointer hover:border-indigo-400 transition">
+                        <span class="w-9 h-9 rounded-lg bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-300 inline-flex items-center justify-center shrink-0"><i class="fa-solid fa-id-card"></i></span>
+                        <span class="min-w-0">
+                            <span id="ktpName" class="block text-xs font-semibold text-slate-700 dark:text-slate-200 truncate">Pilih foto KTP</span>
+                            <span class="block text-[10px] text-slate-400">Nama di KTP harus sama dengan pemilik rekening · JPG, PNG, WEBP, atau PDF · maks 5 MB.</span>
+                        </span>
+                    </label>
+                    <input type="file" id="ktpInput" name="ktp" required accept="image/jpeg,image/png,image/webp,application/pdf" class="sr-only" data-file-name="ktpName" data-file-preview="ktpPreview">
+                    <img id="ktpPreview" alt="" class="hidden mt-2 max-h-40 rounded-lg border border-slate-200 dark:border-slate-700">
+                    @error('ktp')<p class="text-[10px] text-rose-600 mt-1">{{ $message }}</p>@enderror
                 </div>
                 <div>
                     <label class="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">Password Akun MikPay</label>
@@ -385,22 +408,21 @@
         if (card) card.classList.toggle('hidden', edit);
         if (editBtn) editBtn.classList.toggle('hidden', edit);
     }
-    var proofInput = document.getElementById('proofInput');
-    var proofName = document.getElementById('proofName');
-    var proofPreview = document.getElementById('proofPreview');
-    if (proofInput) {
-        proofInput.addEventListener('change', function () {
-            var f = proofInput.files && proofInput.files[0];
+    document.querySelectorAll('[data-file-preview]').forEach(function (input) {
+        var nameEl = document.getElementById(input.dataset.fileName);
+        var preview = document.getElementById(input.dataset.filePreview);
+        input.addEventListener('change', function () {
+            var f = input.files && input.files[0];
             if (!f) return;
-            proofName.textContent = f.name + ' (' + Math.ceil(f.size / 1024) + ' KB)';
+            nameEl.textContent = f.name + ' (' + Math.ceil(f.size / 1024) + ' KB)';
             if (f.type.indexOf('image/') === 0) {
-                proofPreview.src = URL.createObjectURL(f);
-                proofPreview.classList.remove('hidden');
+                preview.src = URL.createObjectURL(f);
+                preview.classList.remove('hidden');
             } else {
-                proofPreview.classList.add('hidden');
+                preview.classList.add('hidden');
             }
         });
-    }
+    });
 
     if (editBtn) editBtn.addEventListener('click', function () { toggleBank(true); });
     if (cancelBtn) cancelBtn.addEventListener('click', function () { toggleBank(false); });

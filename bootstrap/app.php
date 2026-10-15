@@ -19,6 +19,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'tenant.subscription' => \App\Http\Middleware\EnsureTenantSubscription::class,
             'tenant.host' => \App\Http\Middleware\RedirectTenantToOwnHost::class,
             'tenant.membership' => \App\Http\Middleware\EnsureTenantMembership::class,
+            'tenant.can' => \App\Http\Middleware\EnsureTenantPermission::class,
             'central.domain' => \App\Http\Middleware\EnsureCentralDomain::class,
             'tenant.subdomain' => \App\Http\Middleware\EnsureKnownTenantSubdomain::class,
             'partner' => \App\Http\Middleware\EnsurePartner::class,
@@ -33,6 +34,7 @@ return Application::configure(basePath: dirname(__DIR__))
 
         $middleware->validateCsrfTokens(except: [
             'webhooks/xendit',
+            'webhooks/andidev-pay',
         ]);
 
         $middleware->redirectGuestsTo('/login');

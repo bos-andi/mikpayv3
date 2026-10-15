@@ -163,6 +163,13 @@ class WithdrawalsController extends Controller
         return Storage::disk('local')->response($account->proof_path);
     }
 
+    public function accountKtp(TenantPayoutAccount $account): StreamedResponse
+    {
+        abort_unless($account->ktp_path && Storage::disk('local')->exists($account->ktp_path), 404);
+
+        return Storage::disk('local')->response($account->ktp_path);
+    }
+
     public function refresh(TenantWithdrawal $withdrawal): RedirectResponse
     {
         $result = $this->payouts->refreshStatus($withdrawal);

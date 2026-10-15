@@ -5,9 +5,11 @@ namespace App\Http\Controllers;
 use App\Models\BillingCustomer;
 use App\Models\BillingPaymentLink;
 use App\Models\Tenant;
+use App\Services\AndidevPayService;
 use App\Services\PaymentLinkService;
 use App\Services\XenditService;
 use App\Support\BillingArrearsHelper;
+use App\Support\PaymentGateway;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -128,8 +130,9 @@ class PublicPayController extends Controller
             'periodLabels' => array_column($periodItems, 'label'),
             'phoneHint' => $phoneHint,
             'statusQuery' => request('status'),
-            'xenditReady' => $tenant instanceof Tenant && $tenant->id && \App\Support\PaymentGateway::xenditReady($tenant),
-            'gatewaySource' => $tenant instanceof Tenant ? \App\Support\PaymentGateway::credentialSourceLabel($tenant) : null,
+            'checkoutReady' => $tenant instanceof Tenant && $tenant->id && PaymentGateway::onlineCheckoutReady($tenant),
+            'gatewayName' => $tenant instanceof Tenant ? PaymentGateway::providerLabel(PaymentGateway::checkoutProvider($tenant)) : null,
+            'gatewaySource' => $tenant instanceof Tenant ? PaymentGateway::credentialSourceLabel($tenant) : null,
             'isolirInfo' => $isolirInfo,
         ]);
     }
@@ -142,7 +145,7 @@ class PublicPayController extends Controller
             return back()->with('error', 'Tenant tidak ditemukan.');
         }
 
-        if (! \App\Support\PaymentGateway::xenditReady($tenant)) {
+        if (! PaymentGateway::onlineCheckoutReady($tenant)) {
             return back()->with('error', 'Pembayaran online belum tersedia.');
         }
 
@@ -246,16 +249,19 @@ class PublicPayController extends Controller
             is_array($link->periods) ? $link->periods : []
         );
 
+        $provider = $tenant instanceof Tenant ? PaymentGateway::checkoutProvider($tenant) : null;
+
         return view('public.pay-methods', [
             'link' => $link,
             'tenant' => $tenant,
             'periodLabels' => $periodLabels,
-            'vaBanks' => XenditService::VA_BANKS,
-            'xenditReady' => $tenant instanceof Tenant && \App\Support\PaymentGateway::xenditReady($tenant),
+            'vaBanks' => $this->vaBanks($provider),
+            'checkoutReady' => $provider !== null,
+            'gatewayName' => PaymentGateway::providerLabel($provider),
         ]);
     }
 
-    public function createMethod(string $token, Request $request, XenditService $xendit): RedirectResponse
+    public function createMethod(string $token, Request $request, XenditService $xendit, AndidevPayService $andidev): RedirectResponse
     {
         $link = $this->findLink($token);
         $tenant = $link->tenant;
@@ -263,7 +269,8 @@ class PublicPayController extends Controller
             return back()->with('error', 'Tenant tidak ditemukan.');
         }
 
-        if (! \App\Support\PaymentGateway::xenditReady($tenant)) {
+        $provider = PaymentGateway::checkoutProvider($tenant);
+        if ($provider === null) {
             return back()->with('error', 'Pembayaran online belum tersedia.');
         }
 
@@ -273,7 +280,7 @@ class PublicPayController extends Controller
 
         $data = $request->validate([
             'method' => ['required', 'in:qris,va'],
-            'bank' => ['nullable', 'string', 'in:'.implode(',', XenditService::VA_BANKS)],
+            'bank' => ['nullable', 'string', 'in:'.implode(',', $this->vaBanks($provider))],
         ], [], [
             'method' => 'Metode',
             'bank' => 'Bank',
@@ -283,11 +290,14 @@ class PublicPayController extends Controller
             return back()->with('error', 'Pilih bank untuk Virtual Account.');
         }
 
-        $callbackUrl = url('/webhooks/xendit');
-
-        $result = $data['method'] === 'qris'
-            ? $xendit->createQris($tenant, $link, $callbackUrl)
-            : $xendit->createVirtualAccount($tenant, $link, (string) $data['bank'], $callbackUrl);
+        if ($provider === PaymentGateway::PROVIDER_ANDIDEV_PAY) {
+            $result = $andidev->createLinkCheckout($link, $data['method'] === 'qris' ? 'QRIS' : 'VA_'.$data['bank']);
+        } else {
+            $callbackUrl = url('/webhooks/xendit');
+            $result = $data['method'] === 'qris'
+                ? $xendit->createQris($tenant, $link, $callbackUrl)
+                : $xendit->createVirtualAccount($tenant, $link, (string) $data['bank'], $callbackUrl);
+        }
 
         if (! $result['ok']) {
             return back()->with('error', $result['message'] ?: 'Gagal membuat pembayaran.');
@@ -325,13 +335,24 @@ class PublicPayController extends Controller
         ]);
     }
 
-    public function status(string $token, XenditService $xendit, PaymentLinkService $links): JsonResponse
+    public function status(string $token, XenditService $xendit, AndidevPayService $andidev, PaymentLinkService $links): JsonResponse
     {
         $link = $this->findLink($token);
         $checkout = is_array($link->payment_checkout) ? $link->payment_checkout : [];
 
-        // Fallback: jika webhook Xendit belum masuk, cek status VA langsung ke API.
-        if ($link->status === 'pending' && ($checkout['method'] ?? '') === 'va') {
+        // Fallback: jika webhook belum masuk, cek status tagihan langsung ke API gateway.
+        if ($link->status === 'pending' && ($checkout['provider'] ?? '') === PaymentGateway::PROVIDER_ANDIDEV_PAY) {
+            $poll = $andidev->pollPayment((string) ($checkout['payment_id'] ?? ''));
+            $orderId = (string) ($poll['payment']['order_id'] ?? '');
+            if ($poll['paid'] && $orderId !== '') {
+                try {
+                    $andidev->withOrderLock($orderId, fn () => $links->markPaidFromAndidevPay($link->fresh(['tenant']), $poll['payment']));
+                } catch (\Illuminate\Contracts\Cache\LockTimeoutException) {
+                    // Webhook sedang memproses order yang sama.
+                }
+                $link->refresh();
+            }
+        } elseif ($link->status === 'pending' && ($checkout['method'] ?? '') === 'va') {
             $xenditId = (string) ($checkout['xendit_id'] ?? $link->xendit_invoice_id ?? '');
             $tenant = $link->tenant;
             if ($tenant && $xenditId !== '') {
@@ -420,6 +441,14 @@ class PublicPayController extends Controller
         }
 
         return redirect()->to('/bayar/'.$link->token);
+    }
+
+    /**
+     * @return list<string>
+     */
+    protected function vaBanks(?string $provider): array
+    {
+        return $provider === PaymentGateway::PROVIDER_ANDIDEV_PAY ? AndidevPayService::VA_BANKS : XenditService::VA_BANKS;
     }
 
     protected function findLink(string $token): BillingPaymentLink

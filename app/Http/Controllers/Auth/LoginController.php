@@ -91,7 +91,8 @@ class LoginController extends Controller
         }
 
         $tenant = $user->tenant;
-        if ($tenant && $tenant->needsRenewal()) {
+        $isTenantAdmin = $user->canAccessModule(\App\Support\TenantAccess::ADMIN);
+        if ($tenant && $tenant->needsRenewal() && $isTenantAdmin) {
             $msg = 'Akun nonaktif atau langganan berakhir. Bayar paket di halaman ini untuk mengaktifkan panel kembali.';
             if ($tenant->subdomain) {
                 return redirect()
@@ -109,6 +110,7 @@ class LoginController extends Controller
             $path = '/dashboard';
             if (
                 ! $user->isSuperAdmin()
+                && $isTenantAdmin
                 && $tenant->subscriptionIsActive()
                 && $onboarding->isEligible($tenant)
             ) {

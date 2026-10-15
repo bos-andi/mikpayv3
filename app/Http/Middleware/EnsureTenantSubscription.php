@@ -33,6 +33,10 @@ class EnsureTenantSubscription
             return $next($request);
         }
 
+        if (! $user->canAccessModule(\App\Support\TenantAccess::ADMIN)) {
+            abort(402, 'Langganan MikPay ISP ini sudah berakhir. Hubungi admin ISP Anda untuk perpanjangan.');
+        }
+
         if ($request->expectsJson()) {
             return response()->json([
                 'message' => 'Akun nonaktif atau langganan berakhir. Silakan bayar paket di halaman Langganan MikPay.',

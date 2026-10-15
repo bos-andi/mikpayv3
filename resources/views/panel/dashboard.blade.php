@@ -14,6 +14,8 @@
     $notSetCount = (int) ($notSetCount ?? 0);
     $periodLabel = $periodLabel ?? now()->translatedFormat('M Y');
     $recentTickets = $recentTickets ?? collect();
+    $canModule = fn (string $module) => (bool) auth()->user()?->canAccessModule($module);
+    $showIncome = $canModule('billing') || $canModule('finance');
 @endphp
 
 @include('components.panel.onboarding-banner', ['onboarding' => $onboarding ?? null])
@@ -25,15 +27,21 @@
         <p class="text-xs opacity-90 dark:text-slate-400">Monitoring jaringan Fiber Optik, OLT, MikroTik, dan Billing.</p>
     </div>
     <div class="flex flex-wrap items-center gap-2">
-        <a href="{{ panel_route('gis') }}" class="bg-white/10 hover:bg-white/20 dark:bg-slate-800 dark:hover:bg-slate-700 border border-white/20 dark:border-slate-700 text-xs px-3.5 py-2 rounded-xl font-medium transition text-white">
-            <i class="fa-solid fa-map-marked-alt text-cyan-300 dark:text-cyan-400 mr-1.5"></i> Buka Peta ODP
-        </a>
-        <a href="{{ panel_route('remote') }}" class="bg-white/10 hover:bg-white/20 dark:bg-slate-800 dark:hover:bg-slate-700 border border-white/20 dark:border-slate-700 text-xs px-3.5 py-2 rounded-xl font-medium transition text-white">
-            <i class="fa-solid fa-sliders text-amber-300 dark:text-amber-400 mr-1.5"></i> Control OLT
-        </a>
-        <a href="{{ panel_route('billing') }}" class="bg-white/10 hover:bg-white/20 dark:bg-slate-800 dark:hover:bg-slate-700 border border-white/20 dark:border-slate-700 text-xs px-3.5 py-2 rounded-xl font-medium transition text-white">
-            <i class="fa-solid fa-file-invoice-dollar text-emerald-300 mr-1.5"></i> Billing
-        </a>
+        @if ($canModule('gis'))
+            <a href="{{ panel_route('gis') }}" class="bg-white/10 hover:bg-white/20 dark:bg-slate-800 dark:hover:bg-slate-700 border border-white/20 dark:border-slate-700 text-xs px-3.5 py-2 rounded-xl font-medium transition text-white">
+                <i class="fa-solid fa-map-marked-alt text-cyan-300 dark:text-cyan-400 mr-1.5"></i> Buka Peta ODP
+            </a>
+        @endif
+        @if ($canModule('remote'))
+            <a href="{{ panel_route('remote') }}" class="bg-white/10 hover:bg-white/20 dark:bg-slate-800 dark:hover:bg-slate-700 border border-white/20 dark:border-slate-700 text-xs px-3.5 py-2 rounded-xl font-medium transition text-white">
+                <i class="fa-solid fa-sliders text-amber-300 dark:text-amber-400 mr-1.5"></i> Control OLT
+            </a>
+        @endif
+        @if ($canModule('billing'))
+            <a href="{{ panel_route('billing') }}" class="bg-white/10 hover:bg-white/20 dark:bg-slate-800 dark:hover:bg-slate-700 border border-white/20 dark:border-slate-700 text-xs px-3.5 py-2 rounded-xl font-medium transition text-white">
+                <i class="fa-solid fa-file-invoice-dollar text-emerald-300 mr-1.5"></i> Billing
+            </a>
+        @endif
     </div>
 </div>
 
@@ -56,8 +64,13 @@
                 <i class="fa-solid fa-rupiah-sign"></i>
             </div>
         </div>
-        <h3 class="text-2xl font-extrabold text-slate-900 dark:text-white">Rp {{ number_format($periodIncome, 0, ',', '.') }}</h3>
-        <p class="text-[11px] text-slate-500 dark:text-slate-400 mt-2">Pembayaran tercatat periode ini</p>
+        @if ($showIncome)
+            <h3 class="text-2xl font-extrabold text-slate-900 dark:text-white">Rp {{ number_format($periodIncome, 0, ',', '.') }}</h3>
+            <p class="text-[11px] text-slate-500 dark:text-slate-400 mt-2">Pembayaran tercatat periode ini</p>
+        @else
+            <h3 class="text-2xl font-extrabold text-slate-300 dark:text-slate-600">Rp •••••</h3>
+            <p class="text-[11px] text-slate-500 dark:text-slate-400 mt-2">Hanya untuk akses billing / keuangan</p>
+        @endif
     </div>
 
     <div class="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm hover:shadow-md transition">

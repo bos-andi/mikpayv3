@@ -6,6 +6,7 @@ use App\Models\Odp;
 use App\Models\SupportTicket;
 use App\Models\SupportTicketUpdate;
 use App\Models\User;
+use App\Services\PublicComplaintService;
 use App\Support\ActiveRouter;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -72,6 +73,9 @@ class TicketsController extends Controller
             ->get(['id', 'name']);
 
         return view('panel.tickets', [
+            'complaintUrl' => $tenant?->subdomain ? tenant_panel_url($tenant, '/lapor') : null,
+            'complaintWaReady' => $tenant && $tenant->waapiEnabled() && $tenant->hasWaapiToken(),
+            'complaintAdminPhone' => $tenant ? app(PublicComplaintService::class)->adminPhone($tenant) : null,
             'tickets' => $tickets,
             'counts' => $counts,
             'status' => $status,
@@ -180,6 +184,9 @@ class TicketsController extends Controller
 
         if ($updates !== []) {
             $ticket->update($updates);
+            if (isset($updates['status'])) {
+                app(PublicComplaintService::class)->notifyStatusChanged($ticket);
+            }
         }
 
         if (! empty($data['note'])) {

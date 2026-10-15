@@ -43,7 +43,7 @@ class SubscriptionController extends Controller
         $pendingDeposit = $transactions->first(fn (PlatformPendingPayment $p) => $p->isPending() && $p->isDeposit());
 
         $status = (string) $request->query('status', '');
-        if (in_array($status, ['deposit_success', 'success'], true) && $pendingDeposit?->isXendit()) {
+        if (in_array($status, ['deposit_success', 'success'], true) && $pendingDeposit?->isOnlineGateway()) {
             $pendingDeposit->refresh();
             $tenant->refresh();
         }
@@ -65,7 +65,44 @@ class SubscriptionController extends Controller
             'pendingDeposit' => $pendingDeposit,
             'returnStatus' => $status,
             'referralDiscount' => app(PartnerProgramService::class)->firstPaymentDiscountFor($tenant),
+            'autoRenew' => $this->wallet->autoRenewSettings($tenant),
+            'autoRenewAt' => $this->wallet->autoRenewAt($tenant),
+            'autoRenewHours' => $this->wallet->autoRenewWindowHours(),
         ]);
+    }
+
+    public function autoRenew(Request $request): RedirectResponse
+    {
+        $tenant = current_tenant();
+        if (! $tenant) {
+            return back()->with('error', 'Tenant tidak ditemukan.');
+        }
+
+        $data = $request->validate([
+            'enabled' => ['required', 'boolean'],
+            'package' => ['nullable', 'string', Rule::in(array_keys(SubscriptionPackageService::all()))],
+        ]);
+
+        $before = $this->wallet->autoRenewSettings($tenant);
+        $enabled = (bool) $data['enabled'];
+        $package = $data['package'] ?? $before['package'];
+        $this->wallet->setAutoRenew($tenant, $enabled, $package);
+
+        $message = match (true) {
+            $package !== $before['package'] => 'Paket perpanjang otomatis diganti ke '.(SubscriptionPackageService::get($package)['name'] ?? $package).'.',
+            ! $enabled => 'Perpanjang otomatis dimatikan.',
+            default => 'Perpanjang otomatis aktif.',
+        };
+        if (! $enabled) {
+            return back()->with('success', $message);
+        }
+
+        $result = $this->wallet->attemptAutoRenew($tenant->fresh());
+        if ($result !== null) {
+            return back()->with($result['ok'] ? 'success' : 'error', $message.' '.$result['message']);
+        }
+
+        return back()->with('success', $message.' Paket diperpanjang dari saldo menjelang masa aktif habis.');
     }
 
     public function deposit(Request $request): RedirectResponse

@@ -15,6 +15,7 @@ use App\Services\TunnelService;
 use App\Support\ActiveRouter;
 use App\Support\BillingArrearsHelper;
 use App\Support\BillingStatusHelper;
+use App\Support\TenantAccess;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -134,7 +135,7 @@ class PanelController extends Controller
             'odpPortTotal' => $odpPortTotal,
             'odpBoxCount' => $odpBoxCount,
             'recentTickets' => $recentTickets,
-            'onboarding' => ($tenant && $onboarding->isEligible($tenant))
+            'onboarding' => ($tenant && request()->user()->canAccessModule(TenantAccess::ADMIN) && $onboarding->isEligible($tenant))
                 ? $onboarding->checklist($tenant)
                 : null,
             'trafficUrl' => panel_route('dashboard.bandwidth'),
@@ -239,11 +240,21 @@ class PanelController extends Controller
 
         $routerLimit = (int) config('mikpay.max_routers_per_tenant', 1);
 
+        $tab = $this->normalizeSettingsTab((string) request('tab', 'mikrotik'));
+        $user = request()->user();
+        if (! $user->canAccessModule(TenantAccess::SETTINGS_TABS[$tab])) {
+            $tab = collect(TenantAccess::SETTINGS_TABS)
+                ->filter(fn (string $module) => $user->canAccessModule($module))
+                ->keys()
+                ->first();
+            abort_if($tab === null, 403, 'Anda tidak punya akses ke menu ini. Hubungi admin ISP Anda untuk meminta akses.');
+        }
+
         return view('panel.settings', [
             'routers' => $routers,
             'routerLimit' => $routerLimit,
             'canAddRouter' => $routers->count() < $routerLimit,
-            'settingsTab' => $this->normalizeSettingsTab(request('tab', 'mikrotik')),
+            'settingsTab' => $tab,
         ]);
     }
 

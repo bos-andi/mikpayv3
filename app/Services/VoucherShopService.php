@@ -15,7 +15,7 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
 /**
- * Toko voucher hotspot publik per tenant: pembeli bayar QRIS (Xendit platform),
+ * Toko voucher hotspot publik per tenant: pembeli bayar QRIS (gateway platform),
  * voucher langsung dibuat di MikroTik tenant, uang masuk saldo tenant.
  */
 class VoucherShopService
@@ -41,6 +41,7 @@ class VoucherShopService
 
     public function __construct(
         private XenditService $xendit,
+        private AndidevPayService $andidev,
         private MikrotikService $mikrotik,
         private WaApiService $waapi,
     ) {}
@@ -106,13 +107,21 @@ class VoucherShopService
     }
 
     /**
-     * Perkiraan potongan Xendit atas total bayar, dibulatkan ke atas di tiap komponen (skenario terburuk).
+     * Potongan QRIS gateway yang tetap per transaksi (rupiah).
+     */
+    public static function feeFlat(): int
+    {
+        return min(10000, (int) config('mikpay.voucher_shop.qris_fee_flat', 0));
+    }
+
+    /**
+     * Perkiraan potongan gateway atas total bayar, dibulatkan ke atas di tiap komponen (skenario terburuk).
      */
     public static function qrisFeeOn(int $total): int
     {
         $mdr = (int) ceil(round($total * (float) config('mikpay.voucher_shop.qris_mdr_percent', 0.7) / 100, 6));
 
-        return $mdr + (int) ceil(round($mdr * (float) config('mikpay.voucher_shop.qris_vat_percent', 11) / 100, 6));
+        return $mdr + (int) ceil(round($mdr * (float) config('mikpay.voucher_shop.qris_vat_percent', 11) / 100, 6)) + self::feeFlat();
     }
 
     public static function minPrice(): int
@@ -143,8 +152,8 @@ class VoucherShopService
     }
 
     /**
-     * Total biaya layanan yang dibayar pembeli (QRIS Xendit + biaya MikPay).
-     * Potongan Xendit dihitung dari total, jadi dibalik agar tenant menerima harga utuh dan MikPay menerima biaya layanannya utuh.
+     * Total biaya layanan yang dibayar pembeli (QRIS gateway + biaya MikPay).
+     * Potongan gateway dihitung dari total, jadi dibalik agar tenant menerima harga utuh dan MikPay menerima biaya layanannya utuh.
      */
     public static function feeFor(int $price, ?int $serviceFee = null): int
     {
@@ -153,7 +162,8 @@ class VoucherShopService
         }
         $base = $price + ($serviceFee ?? self::serviceFee());
         $p = self::feePercent();
-        $total = $p > 0 ? (int) ceil(round($base / (1 - $p / 100), 6)) : $base;
+        $gross = $base + self::feeFlat();
+        $total = $p > 0 ? (int) ceil(round($gross / (1 - $p / 100), 6)) : $gross;
         while ($total - self::qrisFeeOn($total) < $base) {
             $total++;
         }
@@ -173,7 +183,7 @@ class VoucherShopService
         if ($tenant->status === 'inactive' || ! $tenant->subscriptionIsActive() || $tenant->awaitingEmailVerification()) {
             return ['open' => false, 'reason' => 'Toko voucher sedang tidak tersedia. Hubungi pengelola WiFi.'];
         }
-        if (! PaymentGateway::platformXenditEnabled() || PaymentGateway::platformXenditSecretKey() === '') {
+        if (! PaymentGateway::platformPaymentReady()) {
             return ['open' => false, 'reason' => 'Pembayaran online sedang tidak tersedia.'];
         }
         $router = $this->router($tenant);
@@ -238,7 +248,9 @@ class VoucherShopService
         ]);
 
         $referenceId = 'mpv_'.$tenant->id.'_'.$order->id.'_'.strtolower(Str::random(6));
-        $qr = $this->xendit->createPlatformQris($referenceId, $order->total, $expiresAt);
+        $qr = PaymentGateway::platformProvider() === PaymentGateway::PROVIDER_ANDIDEV_PAY
+            ? $this->andidev->createPlatformQris($referenceId, $order->total, $expiresAt)
+            : $this->xendit->createPlatformQris($referenceId, $order->total, $expiresAt);
         if (! $qr['ok']) {
             $order->delete();
 
@@ -300,10 +312,20 @@ class VoucherShopService
             return;
         }
 
-        $res = $this->xendit->fetchPlatformQrPayment($order->xendit_qr_id);
+        $res = $this->fetchQrPayment($order);
         if ($res['paid']) {
             $this->markPaid($order, ['amount' => (int) ($res['payment']['amount'] ?? 0)]);
         }
+    }
+
+    /**
+     * @return array{ok: bool, paid: bool, payment?: array}
+     */
+    protected function fetchQrPayment(VoucherOrder $order): array
+    {
+        return AndidevPayService::isPaymentId($order->xendit_qr_id)
+            ? $this->andidev->fetchPlatformQrPayment((string) $order->xendit_qr_id)
+            : $this->xendit->fetchPlatformQrPayment((string) $order->xendit_qr_id);
     }
 
     /**
@@ -407,7 +429,7 @@ class VoucherShopService
             ->get()
             ->each(function (VoucherOrder $order) use (&$expired) {
                 if ($order->xendit_qr_id) {
-                    $res = $this->xendit->fetchPlatformQrPayment($order->xendit_qr_id);
+                    $res = $this->fetchQrPayment($order);
                     if ($res['paid']) {
                         $this->markPaid($order, ['amount' => (int) ($res['payment']['amount'] ?? 0)]);
 

@@ -22,7 +22,7 @@
                 <img src="{{ asset(config('mikpay.brand.logo', 'logo-mikpay.png')) }}?v=2" alt="MikPay" class="h-11 w-11 object-contain shrink-0 drop-shadow">
                 <div class="min-w-0">
                     <p class="text-sm font-extrabold tracking-tight truncate">{{ $tenant->name ?? config('mikpay.brand.name') }}</p>
-                    <p class="text-[10px] text-violet-100/80">Pembayaran tagihan online</p>
+                    <p class="text-[10px] text-violet-100/80">@yield('subtitle', 'Pembayaran tagihan online')</p>
                 </div>
             </div>
         </header>

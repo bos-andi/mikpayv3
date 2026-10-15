@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\AndidevPayWebhookController;
 use App\Http\Controllers\Auth\EmailVerificationController;
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Auth\PasswordResetController;
@@ -16,6 +17,7 @@ use App\Http\Controllers\PanelController;
 use App\Http\Controllers\Partner\PartnerPanelController;
 use App\Http\Controllers\Partner\PartnerPublicController;
 use App\Http\Controllers\TicketsController;
+use App\Http\Controllers\PublicComplaintController;
 use App\Http\Controllers\PublicPayController;
 use App\Http\Controllers\RouterController;
 use App\Http\Controllers\SettingsController;
@@ -27,6 +29,7 @@ use App\Http\Controllers\SuperAdmin\PaymentsController as SuperAdminPaymentsCont
 use App\Http\Controllers\SuperAdmin\SubscriptionPricingController as SuperAdminSubscriptionPricingController;
 use App\Http\Controllers\SuperAdmin\UsersController as SuperAdminUsersController;
 use App\Http\Controllers\SuperAdmin\WithdrawalsController as SuperAdminWithdrawalsController;
+use App\Http\Controllers\TenantUsersController;
 use App\Http\Controllers\Tunnel\TunnelHomeController;
 use App\Http\Controllers\Tunnel\TunnelRegisterController;
 use App\Http\Controllers\VoucherShopAdminController;
@@ -38,100 +41,141 @@ use Illuminate\Support\Facades\Route;
 $registerPanelPages = function (): void {
     Route::get('/dashboard', [PanelController::class, 'dashboard'])->name('dashboard');
     Route::get('/dashboard/bandwidth', [PanelController::class, 'bandwidth'])->name('dashboard.bandwidth');
-    Route::get('/mulai', [OnboardingController::class, 'index'])->name('onboarding');
-    Route::post('/mulai/script', [OnboardingController::class, 'confirmScript'])->name('onboarding.script');
-    Route::post('/mulai/dismiss', [OnboardingController::class, 'dismiss'])->name('onboarding.dismiss');
-    Route::get('/gis', [GisController::class, 'index'])->name('gis');
-    Route::get('/gis/data', [GisController::class, 'data'])->name('gis.data');
-    Route::post('/gis', [GisController::class, 'store'])->name('gis.store');
-    Route::put('/gis/{odp}', [GisController::class, 'update'])->name('gis.update');
-    Route::delete('/gis/{odp}', [GisController::class, 'destroy'])->name('gis.destroy');
-    Route::put('/gis/{odp}/ports', [GisController::class, 'updatePort'])->name('gis.ports.update');
-    Route::get('/remote', [PanelController::class, 'remote'])->name('remote');
-    Route::get('/customers', [CustomersController::class, 'index'])->name('customers');
-    Route::get('/customers/edit', [CustomersController::class, 'edit'])->name('customers.edit');
-    Route::post('/customers/update', [CustomersController::class, 'update'])->name('customers.update');
-    Route::post('/customers/store', [CustomersController::class, 'store'])->middleware('throttle:30,1')->name('customers.store');
-    Route::get('/customers/template', [CustomersController::class, 'downloadTemplate'])->name('customers.template');
-    Route::post('/customers/import', [CustomersController::class, 'import'])->name('customers.import');
-    Route::post('/customers/isolir', [CustomersController::class, 'isolir'])->name('customers.isolir');
-    Route::post('/customers/open', [CustomersController::class, 'open'])->name('customers.open');
-    Route::get('/billing', [BillingController::class, 'index'])->name('billing');
-    Route::post('/billing/payments', [BillingController::class, 'storePayment'])->name('billing.payments.store');
-    Route::delete('/billing/payments/{payment}', [BillingController::class, 'destroyPayment'])->name('billing.payments.destroy');
-    Route::post('/billing/payment-links', [BillingController::class, 'createPaymentLink'])->name('billing.payment-links.store');
-    Route::post('/billing/auto-isolir', [BillingController::class, 'runAutoIsolir'])->name('billing.auto-isolir');
-    Route::post('/billing/isolir', [BillingController::class, 'isolir'])->name('billing.isolir');
-    Route::post('/billing/open', [BillingController::class, 'open'])->name('billing.open');
-    Route::post('/billing/promises', [BillingController::class, 'storePromise'])->name('billing.promises.store');
-    Route::delete('/billing/promises', [BillingController::class, 'destroyPromise'])->name('billing.promises.destroy');
-    Route::post('/billing/period-fees', [BillingController::class, 'storePeriodFee'])->name('billing.period-fees.store');
-    Route::delete('/billing/period-fees', [BillingController::class, 'destroyPeriodFee'])->name('billing.period-fees.destroy');
-    Route::get('/vouchers', [HotspotController::class, 'index'])->name('vouchers');
-    Route::get('/vouchers/print', [HotspotController::class, 'print'])->name('vouchers.print');
-    Route::post('/vouchers/generate', [HotspotController::class, 'storeGenerate'])->name('vouchers.generate');
-    Route::post('/vouchers/profiles', [HotspotController::class, 'storeProfile'])->name('vouchers.profiles.store');
-    Route::post('/vouchers/users', [HotspotController::class, 'storeUser'])->name('vouchers.users.store');
-    Route::post('/vouchers/users/remove-by-comment', [HotspotController::class, 'removeByComment'])->name('vouchers.users.remove-by-comment');
-    Route::post('/vouchers/users/remove-expired', [HotspotController::class, 'removeExpired'])->name('vouchers.users.remove-expired');
-    Route::post('/vouchers/users/{id}/{action}', [HotspotController::class, 'userAction'])
-        ->whereIn('action', ['enable', 'disable', 'remove'])
-        ->name('vouchers.users.action');
-    Route::post('/vouchers/template', [HotspotController::class, 'saveTemplate'])->name('vouchers.template.save');
-    Route::post('/vouchers/template/preview', [HotspotController::class, 'previewTemplate'])->name('vouchers.template.preview');
-    Route::get('/vouchers/toko', [VoucherShopAdminController::class, 'index'])->name('vouchers.shop');
-    Route::post('/vouchers/toko/pengaturan', [VoucherShopAdminController::class, 'saveSettings'])->name('vouchers.shop.settings');
-    Route::post('/vouchers/toko/paket', [VoucherShopAdminController::class, 'storeItem'])->name('vouchers.shop.items.store');
-    Route::put('/vouchers/toko/paket/{item}', [VoucherShopAdminController::class, 'updateItem'])->name('vouchers.shop.items.update');
-    Route::delete('/vouchers/toko/paket/{item}', [VoucherShopAdminController::class, 'destroyItem'])->name('vouchers.shop.items.destroy');
-    Route::post('/vouchers/toko/pesanan/{order}/ulang', [VoucherShopAdminController::class, 'retryOrder'])->name('vouchers.shop.orders.retry');
-    Route::get('/finance', [FinanceController::class, 'index'])->name('finance');
-    Route::post('/finance/cash', [FinanceController::class, 'storeCash'])->name('finance.cash.store');
-    Route::post('/finance/assets', [FinanceController::class, 'storeAsset'])->name('finance.assets.store');
-    Route::delete('/finance/cash/{cash}', [FinanceController::class, 'destroyCash'])->name('finance.cash.destroy');
-    Route::post('/finance/settings', [FinanceController::class, 'updateSettings'])->name('finance.settings.update');
-    Route::post('/finance/debts', [FinanceController::class, 'storeDebt'])->name('finance.debts.store');
-    Route::post('/finance/debts/{debt}/paid', [FinanceController::class, 'markDebtPaid'])->name('finance.debts.paid');
-    Route::delete('/finance/debts/{debt}', [FinanceController::class, 'destroyDebt'])->name('finance.debts.destroy');
-    Route::get('/finance/export/csv', [FinanceController::class, 'exportCsv'])->name('finance.export.csv');
-    Route::get('/finance/export/pdf', [FinanceController::class, 'exportPdf'])->name('finance.export.pdf');
-    Route::get('/finance/penarikan', [WithdrawalController::class, 'index'])->name('finance.withdrawals');
-    Route::post('/finance/penarikan', [WithdrawalController::class, 'store'])
-        ->middleware('throttle:10,1')
-        ->name('finance.withdrawals.store');
-    Route::post('/finance/penarikan/rekening', [WithdrawalController::class, 'saveBank'])
-        ->middleware('throttle:10,1')
-        ->name('finance.withdrawals.bank');
-    Route::get('/finance/penarikan/rekening/{account}/bukti', [WithdrawalController::class, 'proof'])->name('finance.withdrawals.bank.proof');
-    Route::post('/finance/penarikan/{withdrawal}/batal', [WithdrawalController::class, 'cancel'])->name('finance.withdrawals.cancel');
-    Route::get('/tickets', [TicketsController::class, 'index'])->name('tickets');
-    Route::post('/tickets', [TicketsController::class, 'store'])->name('tickets.store');
-    Route::put('/tickets/{ticket}', [TicketsController::class, 'update'])->name('tickets.update');
-    Route::delete('/tickets/{ticket}', [TicketsController::class, 'destroy'])->name('tickets.destroy');
-    Route::post('/olt', [OltController::class, 'store'])->name('olt.store');
-    Route::put('/olt/{olt}', [OltController::class, 'update'])->name('olt.update');
-    Route::delete('/olt/{olt}', [OltController::class, 'destroy'])->name('olt.destroy');
-    Route::post('/olt/{olt}/poll', [OltController::class, 'poll'])->name('olt.poll');
-    Route::post('/olt/poll-all', [OltController::class, 'pollAll'])->name('olt.poll-all');
-    Route::post('/olt/sync', [OltController::class, 'sync'])->name('olt.sync');
-    Route::get('/settings', [PanelController::class, 'settings'])->name('settings');
-    Route::post('/settings/xendit', [SettingsController::class, 'updateXendit'])->name('settings.xendit.update');
-    Route::post('/settings/whatsapp', [SettingsController::class, 'updateWhatsapp'])->name('settings.whatsapp.update');
-    Route::post('/settings/whatsapp/test', [SettingsController::class, 'testWhatsapp'])->name('settings.whatsapp.test');
-    Route::post('/settings/billing', [SettingsController::class, 'updateBilling'])->name('settings.billing.update');
-
-    Route::get('/langganan', [SubscriptionController::class, 'index'])->name('subscription');
-    Route::post('/langganan/deposit', [SubscriptionController::class, 'deposit'])->name('subscription.deposit');
-    Route::post('/langganan/pilih', [SubscriptionController::class, 'selectPackage'])->name('subscription.select');
-    Route::post('/langganan/batalkan-deposit', [SubscriptionController::class, 'cancelPending'])->name('subscription.cancel-pending');
-
-    Route::get('/settings/routers/create', [RouterController::class, 'create'])->name('settings.routers.create');
-    Route::post('/settings/routers', [RouterController::class, 'store'])->name('settings.routers.store');
-    Route::get('/settings/routers/{router}/edit', [RouterController::class, 'edit'])->name('settings.routers.edit');
-    Route::put('/settings/routers/{router}', [RouterController::class, 'update'])->name('settings.routers.update');
-    Route::delete('/settings/routers/{router}', [RouterController::class, 'destroy'])->name('settings.routers.destroy');
-    Route::post('/settings/routers/{router}/test', [RouterController::class, 'test'])->name('settings.routers.test');
     Route::post('/settings/routers/{router}/select', [RouterController::class, 'select'])->name('settings.routers.select');
+
+    Route::middleware('tenant.can:admin')->group(function () {
+        Route::get('/mulai', [OnboardingController::class, 'index'])->name('onboarding');
+        Route::post('/mulai/script', [OnboardingController::class, 'confirmScript'])->name('onboarding.script');
+        Route::post('/mulai/dismiss', [OnboardingController::class, 'dismiss'])->name('onboarding.dismiss');
+
+        Route::post('/settings/xendit', [SettingsController::class, 'updateXendit'])->name('settings.xendit.update');
+
+        Route::get('/settings/users', [TenantUsersController::class, 'index'])->name('settings.users');
+        Route::post('/settings/users', [TenantUsersController::class, 'store'])->middleware('throttle:20,1')->name('settings.users.store');
+        Route::put('/settings/users/{user}', [TenantUsersController::class, 'update'])->name('settings.users.update');
+        Route::post('/settings/users/{user}/toggle', [TenantUsersController::class, 'toggle'])->name('settings.users.toggle');
+        Route::delete('/settings/users/{user}', [TenantUsersController::class, 'destroy'])->name('settings.users.destroy');
+
+        Route::get('/langganan', [SubscriptionController::class, 'index'])->name('subscription');
+        Route::post('/langganan/deposit', [SubscriptionController::class, 'deposit'])->name('subscription.deposit');
+        Route::post('/langganan/pilih', [SubscriptionController::class, 'selectPackage'])->name('subscription.select');
+        Route::post('/langganan/batalkan-deposit', [SubscriptionController::class, 'cancelPending'])->name('subscription.cancel-pending');
+        Route::post('/langganan/otomatis', [SubscriptionController::class, 'autoRenew'])->name('subscription.auto-renew');
+    });
+
+    Route::middleware('tenant.can:gis')->group(function () {
+        Route::get('/gis', [GisController::class, 'index'])->name('gis');
+        Route::get('/gis/data', [GisController::class, 'data'])->name('gis.data');
+        Route::post('/gis', [GisController::class, 'store'])->name('gis.store');
+        Route::put('/gis/{odp}', [GisController::class, 'update'])->name('gis.update');
+        Route::delete('/gis/{odp}', [GisController::class, 'destroy'])->name('gis.destroy');
+        Route::put('/gis/{odp}/ports', [GisController::class, 'updatePort'])->name('gis.ports.update');
+    });
+
+    Route::middleware('tenant.can:remote')->group(function () {
+        Route::get('/remote', [PanelController::class, 'remote'])->name('remote');
+        Route::post('/olt', [OltController::class, 'store'])->name('olt.store');
+        Route::put('/olt/{olt}', [OltController::class, 'update'])->name('olt.update');
+        Route::delete('/olt/{olt}', [OltController::class, 'destroy'])->name('olt.destroy');
+        Route::post('/olt/{olt}/poll', [OltController::class, 'poll'])->name('olt.poll');
+        Route::post('/olt/poll-all', [OltController::class, 'pollAll'])->name('olt.poll-all');
+        Route::post('/olt/sync', [OltController::class, 'sync'])->name('olt.sync');
+    });
+
+    Route::middleware('tenant.can:customers')->group(function () {
+        Route::get('/customers', [CustomersController::class, 'index'])->name('customers');
+        Route::get('/customers/edit', [CustomersController::class, 'edit'])->name('customers.edit');
+        Route::post('/customers/update', [CustomersController::class, 'update'])->name('customers.update');
+        Route::post('/customers/store', [CustomersController::class, 'store'])->middleware('throttle:30,1')->name('customers.store');
+        Route::get('/customers/template', [CustomersController::class, 'downloadTemplate'])->name('customers.template');
+        Route::post('/customers/import', [CustomersController::class, 'import'])->name('customers.import');
+        Route::post('/customers/isolir', [CustomersController::class, 'isolir'])->name('customers.isolir');
+        Route::post('/customers/open', [CustomersController::class, 'open'])->name('customers.open');
+    });
+
+    Route::middleware('tenant.can:billing')->group(function () {
+        Route::get('/billing', [BillingController::class, 'index'])->name('billing');
+        Route::post('/billing/payments', [BillingController::class, 'storePayment'])->name('billing.payments.store');
+        Route::delete('/billing/payments/{payment}', [BillingController::class, 'destroyPayment'])->name('billing.payments.destroy');
+        Route::post('/billing/payment-links', [BillingController::class, 'createPaymentLink'])->name('billing.payment-links.store');
+        Route::post('/billing/auto-isolir', [BillingController::class, 'runAutoIsolir'])->name('billing.auto-isolir');
+        Route::post('/billing/isolir', [BillingController::class, 'isolir'])->name('billing.isolir');
+        Route::post('/billing/open', [BillingController::class, 'open'])->name('billing.open');
+        Route::post('/billing/promises', [BillingController::class, 'storePromise'])->name('billing.promises.store');
+        Route::delete('/billing/promises', [BillingController::class, 'destroyPromise'])->name('billing.promises.destroy');
+        Route::post('/billing/period-fees', [BillingController::class, 'storePeriodFee'])->name('billing.period-fees.store');
+        Route::delete('/billing/period-fees', [BillingController::class, 'destroyPeriodFee'])->name('billing.period-fees.destroy');
+    });
+
+    Route::middleware('tenant.can:vouchers')->group(function () {
+        Route::get('/vouchers', [HotspotController::class, 'index'])->name('vouchers');
+        Route::get('/vouchers/print', [HotspotController::class, 'print'])->name('vouchers.print');
+        Route::post('/vouchers/generate', [HotspotController::class, 'storeGenerate'])->name('vouchers.generate');
+        Route::post('/vouchers/profiles', [HotspotController::class, 'storeProfile'])->name('vouchers.profiles.store');
+        Route::post('/vouchers/users', [HotspotController::class, 'storeUser'])->name('vouchers.users.store');
+        Route::post('/vouchers/users/remove-by-comment', [HotspotController::class, 'removeByComment'])->name('vouchers.users.remove-by-comment');
+        Route::post('/vouchers/users/remove-expired', [HotspotController::class, 'removeExpired'])->name('vouchers.users.remove-expired');
+        Route::post('/vouchers/users/{id}/{action}', [HotspotController::class, 'userAction'])
+            ->whereIn('action', ['enable', 'disable', 'remove'])
+            ->name('vouchers.users.action');
+        Route::post('/vouchers/template', [HotspotController::class, 'saveTemplate'])->name('vouchers.template.save');
+        Route::post('/vouchers/template/preview', [HotspotController::class, 'previewTemplate'])->name('vouchers.template.preview');
+        Route::get('/vouchers/toko', [VoucherShopAdminController::class, 'index'])->name('vouchers.shop');
+        Route::post('/vouchers/toko/pengaturan', [VoucherShopAdminController::class, 'saveSettings'])->name('vouchers.shop.settings');
+        Route::post('/vouchers/toko/paket', [VoucherShopAdminController::class, 'storeItem'])->name('vouchers.shop.items.store');
+        Route::put('/vouchers/toko/paket/{item}', [VoucherShopAdminController::class, 'updateItem'])->name('vouchers.shop.items.update');
+        Route::delete('/vouchers/toko/paket/{item}', [VoucherShopAdminController::class, 'destroyItem'])->name('vouchers.shop.items.destroy');
+        Route::post('/vouchers/toko/pesanan/{order}/ulang', [VoucherShopAdminController::class, 'retryOrder'])->name('vouchers.shop.orders.retry');
+    });
+
+    Route::middleware('tenant.can:finance')->group(function () {
+        Route::get('/finance', [FinanceController::class, 'index'])->name('finance');
+        Route::post('/finance/cash', [FinanceController::class, 'storeCash'])->name('finance.cash.store');
+        Route::post('/finance/assets', [FinanceController::class, 'storeAsset'])->name('finance.assets.store');
+        Route::delete('/finance/cash/{cash}', [FinanceController::class, 'destroyCash'])->name('finance.cash.destroy');
+        Route::post('/finance/settings', [FinanceController::class, 'updateSettings'])->name('finance.settings.update');
+        Route::post('/finance/debts', [FinanceController::class, 'storeDebt'])->name('finance.debts.store');
+        Route::post('/finance/debts/{debt}/paid', [FinanceController::class, 'markDebtPaid'])->name('finance.debts.paid');
+        Route::delete('/finance/debts/{debt}', [FinanceController::class, 'destroyDebt'])->name('finance.debts.destroy');
+        Route::get('/finance/export/csv', [FinanceController::class, 'exportCsv'])->name('finance.export.csv');
+        Route::get('/finance/export/pdf', [FinanceController::class, 'exportPdf'])->name('finance.export.pdf');
+        Route::get('/finance/penarikan', [WithdrawalController::class, 'index'])->name('finance.withdrawals');
+        Route::post('/finance/penarikan', [WithdrawalController::class, 'store'])
+            ->middleware('throttle:10,1')
+            ->name('finance.withdrawals.store');
+        Route::post('/finance/penarikan/rekening', [WithdrawalController::class, 'saveBank'])
+            ->middleware('throttle:10,1')
+            ->name('finance.withdrawals.bank');
+        Route::get('/finance/penarikan/rekening/{account}/bukti', [WithdrawalController::class, 'proof'])->name('finance.withdrawals.bank.proof');
+        Route::get('/finance/penarikan/rekening/{account}/ktp', [WithdrawalController::class, 'ktp'])->name('finance.withdrawals.bank.ktp');
+        Route::post('/finance/penarikan/{withdrawal}/batal', [WithdrawalController::class, 'cancel'])->name('finance.withdrawals.cancel');
+    });
+
+    Route::middleware('tenant.can:tickets')->group(function () {
+        Route::get('/tickets', [TicketsController::class, 'index'])->name('tickets');
+        Route::post('/tickets', [TicketsController::class, 'store'])->name('tickets.store');
+        Route::put('/tickets/{ticket}', [TicketsController::class, 'update'])->name('tickets.update');
+        Route::delete('/tickets/{ticket}', [TicketsController::class, 'destroy'])->name('tickets.destroy');
+    });
+
+    Route::get('/settings', [PanelController::class, 'settings'])
+        ->middleware('tenant.can:settings_router,settings_billing,settings_whatsapp')
+        ->name('settings');
+    Route::middleware('tenant.can:settings_whatsapp')->group(function () {
+        Route::post('/settings/whatsapp', [SettingsController::class, 'updateWhatsapp'])->name('settings.whatsapp.update');
+        Route::post('/settings/whatsapp/test', [SettingsController::class, 'testWhatsapp'])->name('settings.whatsapp.test');
+    });
+    Route::post('/settings/billing', [SettingsController::class, 'updateBilling'])
+        ->middleware('tenant.can:settings_billing')
+        ->name('settings.billing.update');
+    Route::middleware('tenant.can:settings_router')->group(function () {
+        Route::get('/settings/routers/create', [RouterController::class, 'create'])->name('settings.routers.create');
+        Route::post('/settings/routers', [RouterController::class, 'store'])->name('settings.routers.store');
+        Route::get('/settings/routers/{router}/edit', [RouterController::class, 'edit'])->name('settings.routers.edit');
+        Route::put('/settings/routers/{router}', [RouterController::class, 'update'])->name('settings.routers.update');
+        Route::delete('/settings/routers/{router}', [RouterController::class, 'destroy'])->name('settings.routers.destroy');
+        Route::post('/settings/routers/{router}/test', [RouterController::class, 'test'])->name('settings.routers.test');
+    });
 };
 
 $registerPublicPayPages = function (): void {
@@ -155,9 +199,10 @@ Route::view('/kebijakan-privasi', 'legal.privacy')->name('legal.privacy');
 Route::view('/kebijakan-pengembalian-dana', 'legal.refund')->name('legal.refund');
 
 /*
-| Xendit webhook (central, no auth / no CSRF)
+| Webhook gateway (central, no auth / no CSRF)
 */
 Route::post('/webhooks/xendit', XenditWebhookController::class)->name('webhooks.xendit');
+Route::post('/webhooks/andidev-pay', AndidevPayWebhookController::class)->name('webhooks.andidev-pay');
 
 /*
 | Auth
@@ -232,6 +277,7 @@ Route::prefix('superadmin')
         Route::post('/penarikan/pengaturan', [SuperAdminWithdrawalsController::class, 'updateSettings'])->name('withdrawals.settings');
         Route::post('/penarikan/biaya-voucher', [SuperAdminWithdrawalsController::class, 'updateVoucherFee'])->name('withdrawals.voucher-fee');
         Route::get('/penarikan/rekening/{account}/bukti', [SuperAdminWithdrawalsController::class, 'accountProof'])->name('withdrawals.accounts.proof');
+        Route::get('/penarikan/rekening/{account}/ktp', [SuperAdminWithdrawalsController::class, 'accountKtp'])->name('withdrawals.accounts.ktp');
         Route::post('/penarikan/rekening/{account}/verifikasi', [SuperAdminWithdrawalsController::class, 'verifyAccount'])->name('withdrawals.accounts.verify');
         Route::post('/penarikan/rekening/{account}/tolak', [SuperAdminWithdrawalsController::class, 'rejectAccount'])->name('withdrawals.accounts.reject');
         Route::post('/penarikan/{withdrawal}/xendit', [SuperAdminWithdrawalsController::class, 'approveXendit'])->name('withdrawals.xendit');
@@ -342,6 +388,17 @@ Route::domain('{tenant}.'.config('mikpay.tenant_base_domain'))
     ->name('tenant.')
     ->group(function () use ($registerPublicPayPages) {
         $registerPublicPayPages();
+
+        Route::get('/lapor', [PublicComplaintController::class, 'create'])->name('complaint.create');
+        Route::post('/lapor', [PublicComplaintController::class, 'store'])
+            ->middleware('throttle:6,1')
+            ->name('complaint.store');
+        Route::post('/lapor/cek', [PublicComplaintController::class, 'check'])
+            ->middleware('throttle:10,1')
+            ->name('complaint.check');
+        Route::get('/lapor/t/{token}', [PublicComplaintController::class, 'show'])
+            ->where('token', '[A-Za-z0-9]{40}')
+            ->name('complaint.show');
 
         Route::get('/voucher', [VoucherShopController::class, 'index'])->name('voucher-shop.index');
         Route::post('/voucher', [VoucherShopController::class, 'store'])

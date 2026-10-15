@@ -11,24 +11,27 @@ use Illuminate\Support\Facades\Log;
 
 class PlatformSubscriptionPaymentService
 {
-    public function __construct(private readonly XenditService $xendit)
-    {
+    public function __construct(
+        private readonly XenditService $xendit,
+        private readonly AndidevPayService $andidev,
+    ) {
     }
 
     public function xenditReady(): bool
     {
-        return PaymentGateway::platformXenditEnabled();
+        return PaymentGateway::platformPaymentReady();
     }
 
     /**
-     * Buat pending payment + invoice Xendit (platform keys dari .env).
+     * Buat pending payment + invoice gateway platform (keys dari .env).
      *
      * @return array{ok: bool, message: string, payment?: PlatformPendingPayment, invoice_url?: string}
      */
     public function startXenditCheckout(Tenant $tenant, User $user, string $packageKey, array $package): array
     {
-        if (! $this->xenditReady()) {
-            return ['ok' => false, 'message' => 'Xendit platform belum dikonfigurasi di .env.'];
+        $provider = PaymentGateway::platformProvider();
+        if ($provider === null) {
+            return ['ok' => false, 'message' => 'Payment gateway platform belum dikonfigurasi di .env.'];
         }
 
         $existing = PlatformPendingPayment::query()
@@ -41,7 +44,7 @@ class PlatformSubscriptionPaymentService
             if (
                 $existing->package === $packageKey
                 && filled($existing->xendit_invoice_url)
-                && $existing->payment_channel === 'xendit'
+                && $existing->payment_channel === $provider
             ) {
                 return [
                     'ok' => true,
@@ -73,33 +76,37 @@ class PlatformSubscriptionPaymentService
             'tenant_id' => $tenant->id,
             'user_id' => $user->id,
             'package' => $packageKey,
-            'payment_channel' => 'xendit',
+            'payment_channel' => $provider,
             'amount' => $amount,
             'status' => 'pending',
         ]);
 
-        $invoice = $this->xendit->createPlatformSubscriptionInvoice($tenant, $payment, $package, [
+        $options = [
             'success_url' => panel_route('subscription').'?status=success&pid='.$payment->payment_id,
             'failure_url' => panel_route('subscription').'?status=failed&pid='.$payment->payment_id,
-        ]);
+        ];
+        $invoice = $provider === PaymentGateway::PROVIDER_ANDIDEV_PAY
+            ? $this->andidev->createPlatformSubscriptionInvoice($tenant, $payment, $package, $options)
+            : $this->xendit->createPlatformSubscriptionInvoice($tenant, $payment, $package, $options);
+        $label = PaymentGateway::providerLabel($provider);
 
         if (! ($invoice['ok'] ?? false)) {
             $payment->forceFill([
                 'status' => 'rejected',
                 'rejected_at' => now(),
                 'rejected_by' => 'system',
-                'reject_reason' => 'Gagal membuat invoice Xendit: '.($invoice['message'] ?? 'unknown'),
+                'reject_reason' => 'Gagal membuat invoice '.$label.': '.($invoice['message'] ?? 'unknown'),
             ])->save();
 
             return [
                 'ok' => false,
-                'message' => (string) ($invoice['message'] ?? 'Gagal membuat invoice Xendit.'),
+                'message' => (string) ($invoice['message'] ?? 'Gagal membuat invoice '.$label.'.'),
             ];
         }
 
         return [
             'ok' => true,
-            'message' => 'Invoice Xendit siap.',
+            'message' => 'Invoice '.$label.' siap.',
             'payment' => $payment->fresh(),
             'invoice_url' => (string) $invoice['invoice_url'],
         ];
@@ -108,7 +115,7 @@ class PlatformSubscriptionPaymentService
     /**
      * @return array{ok: bool, message: string}
      */
-    public function markPaidFromXendit(PlatformPendingPayment $payment, array $payload = []): array
+    public function markPaidFromXendit(PlatformPendingPayment $payment, array $payload = [], string $approvedBy = PaymentGateway::PROVIDER_XENDIT): array
     {
         if ($payment->status === 'approved') {
             return ['ok' => true, 'message' => 'Sudah diapprove sebelumnya.'];
@@ -128,7 +135,7 @@ class PlatformSubscriptionPaymentService
             return ['ok' => false, 'message' => 'Tenant tidak ditemukan.'];
         }
 
-        DB::transaction(function () use ($payment, $pkg, $tenant, $payload) {
+        DB::transaction(function () use ($payment, $pkg, $tenant, $payload, $approvedBy) {
             $tenant->extendPlatformSubscription(
                 (string) $payment->package,
                 (int) ($pkg['duration'] ?? 30)
@@ -137,7 +144,7 @@ class PlatformSubscriptionPaymentService
             $payment->forceFill([
                 'status' => 'approved',
                 'approved_at' => now(),
-                'approved_by' => 'xendit',
+                'approved_by' => $approvedBy,
                 'xendit_invoice_id' => $payload['id'] ?? $payment->xendit_invoice_id,
             ])->save();
         });
@@ -146,11 +153,12 @@ class PlatformSubscriptionPaymentService
             'payment_id' => $payment->payment_id,
             'tenant_id' => $tenant->id,
             'package' => $payment->package,
+            'gateway' => $approvedBy,
         ]);
 
         app(PartnerProgramService::class)->recordForPayment($payment->fresh());
 
-        return ['ok' => true, 'message' => 'Langganan diaktifkan via Xendit.'];
+        return ['ok' => true, 'message' => 'Langganan diaktifkan via '.PaymentGateway::providerLabel($approvedBy).'.'];
     }
 
     public function cancelPending(PlatformPendingPayment $payment): void

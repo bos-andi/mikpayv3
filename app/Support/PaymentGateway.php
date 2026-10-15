@@ -5,11 +5,15 @@ namespace App\Support;
 use App\Models\Tenant;
 
 /**
- * Default gateway = Xendit platform (.env) — tidak bisa diubah dari UI panel.
+ * Default gateway = platform (.env): Andidev Pay bila dikonfigurasi, selain itu Xendit — tidak bisa diubah dari UI panel.
  * Tenant memilih tepat 1 gateway aktif: platform | xendit | midtrans | doku | tripay.
  */
 class PaymentGateway
 {
+    public const PROVIDER_XENDIT = 'xendit';
+
+    public const PROVIDER_ANDIDEV_PAY = 'andidev_pay';
+
     public const ACTIVE_PLATFORM = 'platform';
 
     public const ACTIVE_XENDIT = 'xendit';
@@ -46,6 +50,79 @@ class PaymentGateway
     public static function platformXenditCallbackToken(): string
     {
         return trim((string) config('mikpay.payment.xendit.callback_token', ''));
+    }
+
+    /**
+     * Langganan & deposit hanya dikonfirmasi lewat webhook, jadi webhook secret wajib ada sebelum aktif.
+     */
+    public static function platformAndidevPayEnabled(): bool
+    {
+        return (bool) config('mikpay.payment.andidev_pay.enabled', true)
+            && self::platformAndidevPayKey() !== ''
+            && self::platformAndidevPayWebhookSecret() !== '';
+    }
+
+    public static function platformAndidevPayKey(): string
+    {
+        return trim((string) config('mikpay.payment.andidev_pay.api_key', ''));
+    }
+
+    public static function platformAndidevPayWebhookSecret(): string
+    {
+        return trim((string) config('mikpay.payment.andidev_pay.webhook_secret', ''));
+    }
+
+    /**
+     * Provider penerimaan pembayaran platform (langganan, deposit, link tagihan default, toko voucher).
+     */
+    public static function platformProvider(): ?string
+    {
+        if (self::platformAndidevPayEnabled()) {
+            return self::PROVIDER_ANDIDEV_PAY;
+        }
+
+        if (self::platformXenditEnabled()) {
+            return self::PROVIDER_XENDIT;
+        }
+
+        return null;
+    }
+
+    public static function platformPaymentReady(): bool
+    {
+        return self::platformProvider() !== null;
+    }
+
+    public static function providerLabel(?string $provider): string
+    {
+        return match ($provider) {
+            self::PROVIDER_ANDIDEV_PAY => 'Andidev Pay',
+            self::PROVIDER_XENDIT => 'Xendit',
+            default => '-',
+        };
+    }
+
+    public static function platformProviderLabel(): string
+    {
+        return self::providerLabel(self::platformProvider() ?? self::PROVIDER_XENDIT);
+    }
+
+    /**
+     * Provider checkout link tagihan pelanggan tenant (null = belum bisa bayar online).
+     */
+    public static function checkoutProvider(?Tenant $tenant): ?string
+    {
+        $active = self::active($tenant);
+
+        if ($active === self::ACTIVE_PLATFORM) {
+            return self::platformProvider();
+        }
+
+        if ($active === self::ACTIVE_XENDIT && $tenant && $tenant->ownXenditSecretKey() !== '') {
+            return self::PROVIDER_XENDIT;
+        }
+
+        return null;
     }
 
     public static function defaultGateway(): string
@@ -152,13 +229,13 @@ class PaymentGateway
 
     public static function onlineCheckoutReady(?Tenant $tenant): bool
     {
-        return self::xenditReady($tenant);
+        return self::checkoutProvider($tenant) !== null;
     }
 
     public static function label(string $active): string
     {
         return match ($active) {
-            self::ACTIVE_PLATFORM => 'Default MikPay (Xendit)',
+            self::ACTIVE_PLATFORM => 'Default MikPay ('.self::platformProviderLabel().')',
             self::ACTIVE_XENDIT => 'Xendit (akun sendiri)',
             self::ACTIVE_MIDTRANS => 'Midtrans',
             self::ACTIVE_DOKU => 'DOKU',

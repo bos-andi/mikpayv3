@@ -208,11 +208,35 @@ class PaymentLinkService
     }
 
     /**
-     * Catat pembayaran dari webhook Xendit (alokasi FIFO per periode).
+     * Catat pembayaran Andidev Pay (webhook / polling). Idempoten per order_id;
+     * panggil di dalam AndidevPayService::withOrderLock().
+     *
+     * @param  array<string, mixed>  $payment  objek tagihan Andidev Pay (id, order_id, amount, ...)
+     * @return array{ok: bool, message: string, payments?: list<BillingPayment>}
+     */
+    public function markPaidFromAndidevPay(BillingPaymentLink $link, array $payment): array
+    {
+        $orderId = (string) ($payment['order_id'] ?? '');
+        if ($orderId !== '' && BillingPayment::query()->where('xendit_external_id', $orderId)->exists()) {
+            return ['ok' => true, 'message' => 'Sudah tercatat sebelumnya.'];
+        }
+
+        $amount = (int) ($payment['amount'] ?? 0);
+
+        return $this->markPaidFromXendit($link, [
+            'id' => (string) ($payment['id'] ?? ''),
+            'external_id' => $orderId,
+            'amount' => $amount,
+            'paid_amount' => $amount,
+        ], 'Andidev Pay');
+    }
+
+    /**
+     * Catat pembayaran dari webhook gateway (alokasi FIFO per periode).
      *
      * @return array{ok: bool, message: string, payments?: list<BillingPayment>}
      */
-    public function markPaidFromXendit(BillingPaymentLink $link, array $payload): array
+    public function markPaidFromXendit(BillingPaymentLink $link, array $payload, string $methodLabel = 'Xendit'): array
     {
         if ($link->status === 'paid') {
             return ['ok' => true, 'message' => 'Sudah tercatat sebelumnya.'];
@@ -281,9 +305,9 @@ class PaymentLinkService
                 'remaining_amount' => $remaining,
                 'period' => $period,
                 'payment_date' => now(),
-                'payment_method' => 'Xendit',
+                'payment_method' => $methodLabel,
                 'gateway' => $gatewaySource,
-                'notes' => 'Xendit '.$invoiceId,
+                'notes' => $methodLabel.' '.$invoiceId,
                 'status' => $paymentStatus,
                 'xendit_invoice_id' => $invoiceId ?: null,
                 'xendit_external_id' => $externalId ?: null,
@@ -326,9 +350,9 @@ class PaymentLinkService
                 'remaining_amount' => $remaining,
                 'period' => $period,
                 'payment_date' => now(),
-                'payment_method' => 'Xendit',
+                'payment_method' => $methodLabel,
                 'gateway' => $gatewaySource,
-                'notes' => 'Xendit '.$invoiceId.' (sisa)',
+                'notes' => $methodLabel.' '.$invoiceId.' (sisa)',
                 'status' => $paymentStatus,
                 'xendit_invoice_id' => $invoiceId ?: null,
                 'xendit_external_id' => $externalId ?: null,
@@ -396,7 +420,7 @@ class PaymentLinkService
 
         return [
             'ok' => true,
-            'message' => 'Pembayaran Xendit dicatat ('.count($created).' periode).',
+            'message' => 'Pembayaran '.$methodLabel.' dicatat ('.count($created).' periode).',
             'payments' => $created,
         ];
     }

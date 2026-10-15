@@ -14,5 +14,6 @@ Schedule::command('billing:wa-reminders')->dailyAt('08:00');
 Schedule::command('tunnel:sync-subscription-access')->everyFiveMinutes();
 Schedule::command('tunnel:kick-stale-sessions')->everyMinute()->withoutOverlapping();
 Schedule::command('olt:poll')->everyTenMinutes();
+Schedule::command('mikpay:auto-renew')->hourlyAt(5)->withoutOverlapping();
 Schedule::command('mikpay:subscription-emails')->hourly()->withoutOverlapping();
 Schedule::command('voucher-shop:maintain')->everyMinute()->withoutOverlapping();

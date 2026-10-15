@@ -117,6 +117,7 @@ class SettingsController extends Controller
             'enabled' => ['nullable', 'boolean'],
             'api_token' => ['nullable', 'string', 'max:255'],
             'clear_api_token' => ['nullable', 'boolean'],
+            'complaint_phone' => ['nullable', 'string', 'max:20', 'regex:/^[\d\s+\-().]{9,20}$/'],
             'templates' => ['nullable', 'array'],
             'auto' => ['nullable', 'array'],
         ];
@@ -128,6 +129,8 @@ class SettingsController extends Controller
         $data = $request->validate($rules);
 
         $tenant->metaSet('waapi.enabled', $request->boolean('enabled'));
+        $complaintPhone = trim((string) ($data['complaint_phone'] ?? ''));
+        $tenant->metaSet('waapi.complaint_phone', $complaintPhone !== '' ? $complaintPhone : null);
 
         if ($request->boolean('clear_api_token')) {
             $tenant->clearMetaSecret('waapi.api_token');

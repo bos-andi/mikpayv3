@@ -33,4 +33,15 @@
         </button>
     </form>
 </div>
+
+@if ($tenant?->subdomain)
+<a href="{{ tenant_panel_url($tenant, '/lapor') }}" class="mt-4 flex items-center gap-3 bg-white border border-orange-200 rounded-3xl px-4 py-3 shadow-sm hover:border-orange-300 transition">
+    <span class="h-9 w-9 rounded-2xl bg-gradient-to-br from-orange-500 to-rose-500 text-white flex items-center justify-center shrink-0"><i class="fa-solid fa-headset text-sm"></i></span>
+    <span class="min-w-0 flex-1">
+        <span class="block text-sm font-bold text-slate-900">Internet bermasalah?</span>
+        <span class="block text-[11px] text-slate-500">Lapor gangguan ke {{ $tenant->name ?? 'ISP Anda' }}</span>
+    </span>
+    <i class="fa-solid fa-chevron-right text-xs text-slate-400"></i>
+</a>
+@endif
 @endsection

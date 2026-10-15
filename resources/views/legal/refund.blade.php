@@ -23,11 +23,16 @@
     <li><strong>Pembayaran ganda</strong> — Anda terdebit lebih dari sekali untuk transaksi yang sama.</li>
     <li><strong>Pembayaran berhasil tetapi tidak tercatat</strong> — dana sudah terpotong namun saldo atau masa aktif tidak bertambah dan tidak dapat Kami perbaiki dalam 2 x 24 jam.</li>
     <li><strong>Gangguan layanan berat</strong> — Layanan tidak dapat diakses sama sekali lebih dari 3 (tiga) hari berturut-turut karena kesalahan di pihak Kami. Refund diberikan secara proporsional untuk sisa masa aktif.</li>
-    <li><strong>Saldo akun yang belum terpakai</strong> — saldo hasil isi ulang (deposit) yang belum digunakan untuk membeli paket dapat diajukan pengembaliannya, dipotong biaya transfer bank yang berlaku.</li>
 </ul>
+<p>
+    Refund untuk kasus di atas dikembalikan ke metode pembayaran asal atau rekening atas nama pemohon. Atas persetujuan Pengguna,
+    refund juga dapat dikreditkan sebagai Saldo MikPay.
+</p>
 <h3>b. Refund tidak dapat diberikan untuk:</h3>
 <ul>
     <li>Paket langganan yang sudah aktif dan dapat digunakan normal, termasuk apabila Pengguna berhenti menggunakan Layanan sebelum masa aktif habis.</li>
+    <li><strong>Saldo MikPay yang belum terpakai</strong>, baik dari isi saldo maupun saldo bonus. Saldo MikPay hanya dapat digunakan untuk membayar langganan MikPay dan tidak dapat ditarik, dicairkan, dipindahkan ke akun lain, atau ditukar dengan uang tunai.</li>
+    <li>Perpanjangan yang dibayar melalui fitur Perpanjang Otomatis yang sedang aktif. Pengguna dapat mematikan fitur ini kapan saja sebelum jadwal perpanjangan.</li>
     <li>Gangguan yang disebabkan oleh perangkat, koneksi internet, atau konfigurasi router milik Pengguna.</li>
     <li>Akun yang ditangguhkan atau diakhiri karena melanggar <a href="{{ route('legal.terms') }}">Syarat & Ketentuan</a>.</li>
 </ul>

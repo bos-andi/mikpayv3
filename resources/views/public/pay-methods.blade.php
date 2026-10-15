@@ -20,7 +20,7 @@
     </div>
 
     <div class="px-5 py-5 space-y-3">
-        @if (! $xenditReady)
+        @if (! $checkoutReady)
             <div class="rounded-2xl bg-amber-50 border border-amber-200 px-3 py-2 text-[11px] text-amber-800">
                 Pembayaran online belum tersedia. Hubungi admin ISP.
             </div>
@@ -66,5 +66,5 @@
     </div>
 </div>
 
-<p class="text-center text-[10px] text-slate-400 mt-5">Pembayaran diproses aman via Xendit · tetap di halaman MikPay</p>
+<p class="text-center text-[10px] text-slate-400 mt-5">Pembayaran diproses aman via {{ $gatewayName }} · tetap di halaman MikPay</p>
 @endsection

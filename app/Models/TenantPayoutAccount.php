@@ -21,6 +21,7 @@ class TenantPayoutAccount extends Model
         'account_number',
         'account_holder',
         'proof_path',
+        'ktp_path',
         'status',
         'reject_reason',
         'reviewed_by',
@@ -81,5 +82,10 @@ class TenantPayoutAccount extends Model
     public function proofIsPdf(): bool
     {
         return str_ends_with(strtolower($this->proof_path), '.pdf');
+    }
+
+    public function ktpIsPdf(): bool
+    {
+        return str_ends_with(strtolower((string) $this->ktp_path), '.pdf');
     }
 }

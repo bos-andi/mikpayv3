@@ -26,7 +26,7 @@ return [
         'address' => env('MIKPAY_COMPANY_ADDRESS', 'Dsn. Kemambang RT 08 RW 01, Kec. Balongbendo, Kab. Sidoarjo, Jawa Timur, Indonesia'),
         'email' => env('MIKPAY_COMPANY_EMAIL', 'admin@mikpay.link'),
         'phone' => env('MIKPAY_COMPANY_PHONE', '+62 857-0700-4054'),
-        'legal_updated_at' => env('MIKPAY_LEGAL_UPDATED_AT', '5 Oktober 2026'),
+        'legal_updated_at' => env('MIKPAY_LEGAL_UPDATED_AT', '14 Oktober 2026'),
     ],
 
     /*
@@ -78,15 +78,17 @@ return [
     'subscription' => [
         'deposit_min' => max(1000, (int) env('MIKPAY_DEPOSIT_MIN', 10000)),
         'deposit_presets' => [35000, 80000, 155000],
+        'auto_renew_hours' => max(1, (int) env('MIKPAY_AUTO_RENEW_HOURS', 24)),
     ],
 
     /*
-    | Toko voucher hotspot publik ({tenant}.mikpay.link/voucher) — QRIS via Xendit platform.
-    | Biaya QRIS Xendit (MDR + PPN atas MDR) dan biaya layanan MikPay ditanggung pembeli.
+    | Toko voucher hotspot publik ({tenant}.mikpay.link/voucher) — QRIS via gateway platform.
+    | Biaya QRIS gateway (MDR + PPN atas MDR) dan biaya layanan MikPay ditanggung pembeli.
     */
     'voucher_shop' => [
         'qris_mdr_percent' => (float) env('MIKPAY_VOUCHER_QRIS_MDR_PERCENT', 0.7),
         'qris_vat_percent' => (float) env('MIKPAY_VOUCHER_QRIS_VAT_PERCENT', 11),
+        'qris_fee_flat' => max(0, (int) env('MIKPAY_VOUCHER_QRIS_FEE_FLAT', 0)),
         'min_price' => max(1000, (int) env('MIKPAY_VOUCHER_MIN_PRICE', 1500)),
         'payment_minutes' => max(5, (int) env('MIKPAY_VOUCHER_PAYMENT_MINUTES', 15)),
         'service_fee' => max(0, (int) env('MIKPAY_VOUCHER_SERVICE_FEE', 0)),
@@ -213,9 +215,11 @@ return [
     | Payment gateway
     |--------------------------------------------------------------------------
     |
-    | Default platform = Xendit (kunci di .env, tidak bisa diubah dari panel ISP).
+    | Default platform = Andidev Pay bila ANDIDEV_PAY_KEY terisi, selain itu Xendit
+    | (kunci di .env, tidak bisa diubah dari panel ISP).
     | Tenant tanpa gateway sendiri otomatis memakai default ini.
     | Tenant boleh override ke gateway sendiri via meta payment.mode=own.
+    | Penarikan dana (disbursement) tetap lewat Xendit platform.
     |
     */
     'payment' => [
@@ -227,6 +231,13 @@ return [
             'secret_key' => env('XENDIT_SECRET_KEY'),
             'public_key' => env('XENDIT_PUBLIC_KEY'),
             'callback_token' => env('XENDIT_CALLBACK_TOKEN'),
+        ],
+        // https://payment.andidev.id/docs — webhook: {APP_URL}/webhooks/andidev-pay
+        'andidev_pay' => [
+            'enabled' => (bool) env('ANDIDEV_PAY_ENABLED', true),
+            'url' => rtrim((string) env('ANDIDEV_PAY_URL', 'https://payment.andidev.id'), '/'),
+            'api_key' => env('ANDIDEV_PAY_KEY'),
+            'webhook_secret' => env('ANDIDEV_PAY_WEBHOOK_SECRET'),
         ],
     ],
 
